@@ -1,6 +1,9 @@
----
+﻿---
 name: experiment
 description: 实验全生命周期 — 规划、实现、运行、监控、分析、结果判读。触发词：实验方案、跑实验、deploy、monitor、分析结果、result to claim。
+
+tags: [experiment,research,analysis,telemetry]
+category: data
 ---
 
 # Experiment — 实验管理

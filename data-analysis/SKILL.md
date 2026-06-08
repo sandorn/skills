@@ -1,4 +1,4 @@
----
+﻿---
 name: data-analysis
 description: >
   Analyze datasets with a decision-first workflow. Use when the user needs to
@@ -11,9 +11,12 @@ description: >
   cleanly to dashboard, anomaly-detection, or implementation skills when needed.
 allowed-tools: Read Grep Glob Bash
 metadata:
-  tags: data-analysis, csv, sql, notebooks, telemetry, experimentation, analytics
+  
   platforms: Claude, ChatGPT, Gemini, Codex
   version: "2.0"
+
+tags: [csv,sql,analytics,telemetry,data]
+category: data
 ---
 
 # Data Analysis

@@ -1,6 +1,9 @@
----
+﻿---
 name: present
 description: 学术演讲与海报 — 涵盖 Beamer 幻灯片(paper-slides)、会议海报(paper-poster)、全流程 talk(paper-talk)、逐页打磨(slides-polish)。触发词：做PPT、做海报、make slides、conference talk、poster。
+
+tags: [beamer,poster,slides,academic,talk]
+category: document
 ---
 
 # Present — 演讲与海报

@@ -1,13 +1,17 @@
----
+﻿---
 name: vba-addin-deliver
-description: "Excel VBA 插件全流程 AI 交付。将需求澄清、VBA 代码生成、功能区 Ribbon 构建、图标打包、xlam/xlsm 封装、安装卸载脚本、COM 自动化测试串成一条完整链路。PowerShell 原生驱动，零第三方依赖。触发词：VBA插件、Excel插件、xlam、xlsm、Ribbon、功能区、Excel加载项、VBA交付、VBA打包、Excel工具开发。"
+description: 'Excel VBA 插件全流程 AI 交付。将需求澄清、VBA 代码生成、功能区 Ribbon 构建、图标打包、xlam/xlsm 封装、安装卸载脚本、COM 自动化测试串成一条完整链路。PowerShell 原生驱动，零第三方依赖。触发词：VBA插件、Excel插件、xlam、xlsm、Ribbon、功能区、Excel加载项、VBA交付、VBA打包、Excel工具开发。'
+
+tags: [vba, excel, ribbon, addin, xlam]
+category: development
 ---
 
-# VBA Add-in Deliver — Excel VBA 插件全流程交付
+# VBA Add-in Deliver
 
 ## 角色设定
 
 你是一位 Excel VBA 插件交付专家，精通以下全链路：
+
 - VBA 业务逻辑开发
 - Office Ribbon XML 功能区定制
 - Office Open XML 格式封装（xlam/xlsm）
@@ -17,11 +21,13 @@ description: "Excel VBA 插件全流程 AI 交付。将需求澄清、VBA 代码
 ## 核心设计理念
 
 **用"约束"让 AI 不出错。** 不是让 AI 自由发挥，而是提供一套明确的：
+
 - 什么可以做、什么不能做、怎么做更稳的规则
 - 已经跑通的模板骨架
 - AI 只需要写业务逻辑，框架不用大动刀
 
 **为什么选 PowerShell 而不是 Python？**
+
 1. Windows 自带，零安装
 2. 无依赖版本冲突
 3. 天然与 Excel COM 无缝配合
@@ -44,11 +50,13 @@ description: "Excel VBA 插件全流程 AI 交付。将需求澄清、VBA 代码
 
 ### 阶段 2：模板化开发（开发工程师）
 
-基于 	emplates/build.ps1 构建脚本骨架：
+基于 emplates/build.ps1 构建脚本骨架：
+
 - 用户只需要描述业务逻辑
 - AI 在模板基础上小改 VBA 代码
 - Ribbon XML、图标、关系文件由脚本自动处理
-- 文件格式决策见 eferences/rules.md
+- 文件格式决策见
+  eferences/rules.md
 
 ### 阶段 3：交付打包
 
@@ -70,13 +78,14 @@ description: "Excel VBA 插件全流程 AI 交付。将需求澄清、VBA 代码
 
 ## 文件格式决策
 
-| 场景 | 格式 | 原因 |
-|------|------|------|
+| 场景                 | 格式 | 原因                           |
+| -------------------- | ---- | ------------------------------ |
 | 通用插件，分发给多人 | xlam | 隐藏式加载项，不干扰用户工作簿 |
-| 当前工作簿专用宏 | xlsm | 宏与数据绑定在一起 |
-| 模板分发给用户填空 | xlsm | 用户填入数据后运行宏 |
+| 当前工作簿专用宏     | xlsm | 宏与数据绑定在一起             |
+| 模板分发给用户填空   | xlsm | 用户填入数据后运行宏           |
 
-详见 eferences/rules.md。
+详见
+eferences/rules.md。
 
 ## 触发词
 
@@ -84,6 +93,6 @@ VBA插件、Excel插件、xlam、xlsm、Ribbon、功能区、Excel加载项、VB
 
 ## 目录结构
 
-- 	emplates/build.ps1 — PowerShell 构建脚本骨架
-- eferences/rules.md — 约束规则与踩坑经验
-- eferences/delivery-checklist.md — 交付前检查清单
+-     emplates/build.ps1 — PowerShell 构建脚本骨架
+- eferences/rules.md — 约束规则与踩坑经验
+- eferences/delivery-checklist.md — 交付前检查清单

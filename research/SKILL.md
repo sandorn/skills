@@ -1,6 +1,9 @@
----
+﻿---
 name: research
 description: 研究方向探索 — 从文献调研到 idea 生成、查新、方案打磨、外部评审。触发词：找idea、查新、literature review、refine approach、打磨idea、review my research。
+
+tags: [research,literature,ideation,review]
+category: data
 ---
 
 # Research — 研究方向探索

@@ -1,6 +1,9 @@
----
+﻿---
 name: mcp
 description: MCP 服务器设计/构建/调试 — 支持 stdio 和 HTTP/SSE 传输。触发词：创建MCP、mcp server、debug mcp、mcp tools、mcp validate。
+
+tags: [mcp,server,configuration,stdio,sse]
+category: development
 ---
 
 # MCP — Model Context Protocol 管理

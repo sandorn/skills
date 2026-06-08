@@ -1,6 +1,9 @@
----
+﻿---
 name: paper
 description: 论文写作全流程 — 从大纲到PDF，涵盖规划、撰写、编译、润色。触发词：写论文、draft paper、论文规划、编译论文、改论文、improve paper、write LaTeX。
+
+tags: [latex,writing,academic,pdf]
+category: document
 ---
 
 # Paper — 论文写作
