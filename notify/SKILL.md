@@ -1,4 +1,4 @@
-﻿---
+---
 name: notify
 description: 飞书/Lark 通知 — 支持 Webhook 推送和双向交互模式。触发词：发飞书、notify feishu、飞书通知、Lark。
 

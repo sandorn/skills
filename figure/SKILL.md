@@ -1,4 +1,4 @@
-﻿---
+---
 name: figure
 description: 论文图表生成 — 支持数据绘图(paper-figure)、AI插图(paper-illustration)、架构图(figure-spec)、流程图(mermaid-diagram)。触发词：画图、生成图表、generate figures、架构图、workflow 图、mermaid、AI绘图。
 

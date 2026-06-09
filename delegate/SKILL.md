@@ -1,4 +1,4 @@
-﻿---
+---
 name: delegate
 description: Strategic delegation for multi-step coding, research, or verification work. Use when a task can be split into parent reasoning plus focused sub-agent execution through agent_open, agent_eval, and agent_close.
 metadata:

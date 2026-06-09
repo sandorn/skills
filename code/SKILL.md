@@ -1,4 +1,4 @@
-﻿---
+---
 name: code
 description: 代码审查与文档协作 — 涵盖多语言代码审查(code-review-skill)、结构化文档共创(doc-coauthoring)。触发词：code review、PR review、写文档、draft proposal、PRD、design doc、tech spec。
 

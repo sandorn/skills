@@ -1,4 +1,4 @@
-﻿---
+---
 name: vba-addin-deliver
 description: 'Excel VBA 插件全流程 AI 交付。将需求澄清、VBA 代码生成、功能区 Ribbon 构建、图标打包、xlam/xlsm 封装、安装卸载脚本、COM 自动化测试串成一条完整链路。PowerShell 原生驱动，零第三方依赖。触发词：VBA插件、Excel插件、xlam、xlsm、Ribbon、功能区、Excel加载项、VBA交付、VBA打包、Excel工具开发。'
 

@@ -1,4 +1,4 @@
-﻿---
+---
 name: data-analysis
 description: >
   Analyze datasets with a decision-first workflow. Use when the user needs to

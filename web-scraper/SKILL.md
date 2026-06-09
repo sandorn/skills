@@ -1,4 +1,4 @@
-﻿---
+---
 name: web-scraping
 description: This skill activates for web scraping and Actor development. It proactively discovers APIs via traffic interception, recommends optimal strategy (traffic interception/sitemap/API/DOM scraping/hybrid), and implements iteratively. For production, it guides TypeScript Actor creation via Apify CLI.
 license: MIT

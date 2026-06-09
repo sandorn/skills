@@ -1,4 +1,4 @@
-﻿---
+---
 name: skill
 description: Skill/Plugin 管理 — 创建、安装、插件开发、优化。触发词：创建skill、安装插件、create plugin、优化技能。
 

@@ -1,4 +1,4 @@
-﻿---
+---
 name: office
 description: Office 文档处理 — Word(documents)、Excel/CSV(spreadsheets)、PowerPoint(presentations) 的创建编辑转换。触发词：创建Word、编辑Excel、做PPT、CSV、DOCX、XLSX。
 
