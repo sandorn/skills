@@ -6,11 +6,11 @@ tags: [official-documents, 公文, 正式文档, 央国企, 报告]
 category: document
 linked_files:
   references:
-    - templates.md
-    - examples.md
-    - errors.md
-    - workflow.md
-    - checklist.md
+    - references/templates.md
+    - references/examples.md
+    - references/errors.md
+    - references/workflow.md
+    - references/checklist.md
 ---
 
 # 公文 Skill
@@ -62,16 +62,16 @@ linked_files:
 
 | 文件           | 内容                             | 何时用     |
 | -------------- | -------------------------------- | ---------- |
-| `templates.md` | 文种模板、词汇库、句式、用语禁区 | 起草时查阅 |
-| `examples.md`  | 各文种完整示例                   | 参考范例   |
-| `errors.md`    | 常见错误与修正                   | 审校对照   |
-| `workflow.md`  | 起草流程、导出/OA对接            | 协作交付   |
-| `checklist.md` | 发文前自检清单                   | 定稿前核验 |
+| `references/templates.md` | 文种模板、词汇库、句式、用语禁区 | 起草时查阅 |
+| `references/examples.md`  | 各文种完整示例                   | 参考范例   |
+| `references/errors.md`    | 常见错误与修正                   | 审校对照   |
+| `references/workflow.md`  | 起草流程、导出/OA对接            | 协作交付   |
+| `references/checklist.md` | 发文前自检清单                   | 定稿前核验 |
 
 ## 快速开始
 
 1. **判断文种**：需批复→请示 / 仅汇报→报告 / 需执行→通知 / 对外商洽→函
 2. **创建文件**：`公文_<文种>_<事由简称>.md`
-3. **选择模板**：查阅 `templates.md` 对应模板
-4. **填写内容 + 自检**：替换占位项 → 用 `checklist.md` 逐项核验
-5. **导出**：需 .docx 时按 `workflow.md` 导出规则执行
+3. **选择模板**：查阅 `references/templates.md` 对应模板
+4. **填写内容 + 自检**：替换占位项 → 用 `references/checklist.md` 逐项核验
+5. **导出**：需 .docx 时按 `references/workflow.md` 导出规则执行
