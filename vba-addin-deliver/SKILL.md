@@ -4,6 +4,12 @@ description: 'Excel VBA 插件全流程 AI 交付。将需求澄清、VBA 代码
 
 tags: [vba, excel, ribbon, addin, xlam]
 category: development
+linked_files:
+  templates:
+    - templates/build.ps1
+  references:
+    - references/rules.md
+    - references/delivery-checklist.md
 ---
 
 # VBA Add-in Deliver
@@ -50,13 +56,12 @@ category: development
 
 ### 阶段 2：模板化开发（开发工程师）
 
-基于 emplates/build.ps1 构建脚本骨架：
+基于 `templates/build.ps1` 构建脚本骨架：
 
 - 用户只需要描述业务逻辑
 - AI 在模板基础上小改 VBA 代码
 - Ribbon XML、图标、关系文件由脚本自动处理
-- 文件格式决策见
-  eferences/rules.md
+- 文件格式决策见 `references/rules.md`
 
 ### 阶段 3：交付打包
 
@@ -84,8 +89,7 @@ category: development
 | 当前工作簿专用宏     | xlsm | 宏与数据绑定在一起             |
 | 模板分发给用户填空   | xlsm | 用户填入数据后运行宏           |
 
-详见
-eferences/rules.md。
+详见 `references/rules.md`。
 
 ## 触发词
 
@@ -93,6 +97,6 @@ VBA插件、Excel插件、xlam、xlsm、Ribbon、功能区、Excel加载项、VB
 
 ## 目录结构
 
--     emplates/build.ps1 — PowerShell 构建脚本骨架
-- eferences/rules.md — 约束规则与踩坑经验
-- eferences/delivery-checklist.md — 交付前检查清单
+- templates/build.ps1 — PowerShell 构建脚本骨架
+- references/rules.md — 约束规则与踩坑经验
+- references/delivery-checklist.md — 交付前检查清单
