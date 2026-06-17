@@ -61,4 +61,34 @@ for root, dirs, files in os.walk(skills_root):
 3. ls 空目录 → 分类（占位删 / 内容转）
 4. 同源技能 diff 对比 → 重叠检测
 5. 批量修复 → 验证 → 提交
+6. 批量 description 精简后必须 `skills_list` 验证无泄露
 ```
+
+## platforms 字段与平台过滤
+
+Hermes 根据 `platforms` 字段过滤技能可见性：
+
+- `platforms: [linux, macos, windows]` → 全平台可见
+- `platforms:` 未设置 → 视为全平台兼容（WIN_OK）
+- `platforms: [linux, macos]` → **Windows 上隐藏**（`readiness_status: "unsupported"`）
+
+**常见问题**：Anthropic 来源的 ML/工具类技能常默认标记 `linux, macos`，在 Windows 上静默消失。审查时需要逐个检查 `platforms` 字段。
+
+**验证命令**：
+```python
+# 扫描所有 SKILL.md 的 platforms
+plat_match = re.search(r'platforms:\s*\[(.+?)\]', frontmatter)
+if "windows" not in platforms.lower() and platforms != "not set":
+    print(f"NO_WIN: {path}")
+```
+
+## 批量 description 精简陷阱
+
+用正则批量替换 YAML frontmatter 的 `description` 时，**多行描述（`|-` / `>` 标记）的残留内容极易泄露**。
+
+**已踩坑模式**：替换后 description 行变成 `"新描述"旧描述残余内容..."` —— 导致 Hermes 加载时 description 显示异常。
+
+**防护措施**：
+1. 批量修改后必须读回验证前 6 行
+2. 单独处理多行描述技能（不要与单行合并处理）
+3. 最终用 `skills_list` 全量检查输出
