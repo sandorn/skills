@@ -1,6 +1,6 @@
 ---
 name: pptx
-description: "创建、读取、编辑 PowerPoint 演示文稿 (.pptx)。"deck,\" \"slides,\" \"presentation,\" or references a .pptx filename, regardless of what they plan to do with the content afterward. If a .pptx file needs to be opened, created, or touched, use this skill."
+description: "创建、读取、编辑 PowerPoint 演示文稿 (.pptx)。"
 license: Proprietary. LICENSE.txt has complete terms
 
 tags: [powerpoint,presentation,slides]

@@ -193,3 +193,4 @@ API 速查表、环境变量表、术语表是高频查询的结构化信息，*
 
 - **[references/sync-matrix.md](references/sync-matrix.md)** — 完整的"变更类型 → 要改哪些文件"映射表
 - **[references/agent-paths.md](references/agent-paths.md)** — Claude Code / Codex / OpenCode 各自的记忆与配置路径速查
+- **[references/hermes-skill-standards.md](references/hermes-skill-standards.md)** — Hermes 技能库审查标准：description ≤60字符、空壳检测、重叠判定、符号联结处理

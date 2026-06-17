@@ -1,6 +1,6 @@
 ---
 name: web-tools
-description: "网页抓取与反爬：Scrapling 引擎 + Apify 部署。"tags: [web, scraping, anti-bot, crawler, apify]
+description: description: "网页抓取与反爬：Scrapling 引擎 + Apify 部署。"
 category: web
 ---
 

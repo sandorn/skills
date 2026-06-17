@@ -1,6 +1,6 @@
 ---
 name: xlsx
-description: "创建、读取、编辑 Excel 电子表格 (.xlsx)。"the xlsx in my downloads\") — and wants something done to it or produced from it. Also trigger for cleaning or restructuring messy tabular data files (malformed rows, misplaced headers, junk data) into proper spreadsheets. The deliverable must be a spreadsheet file. Do NOT trigger when the primary deliverable is a Word document, HTML report, standalone Python script, database pipeline, or Google Sheets API integration, even if tabular data is involved."
+description: "创建、读取、编辑 Excel 电子表格 (.xlsx)。"
 license: Proprietary. LICENSE.txt has complete terms
 
 tags: [excel,spreadsheet,csv,data,xlsx]
