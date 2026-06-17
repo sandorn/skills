@@ -1,7 +1,7 @@
 ---
 name: officialdocuments
 version: 2.0.0
-description: 'Use when the user invokes /公文 or asks to起草、修改、精简、扩充、优化、结构重整正式公文。适用于央国企请示、报告、通知、函、提示函、建议书、OA发文、红头文件；避免因普通经营分析、预算报告、方案讨论等非公文任务误触发。'
+description: '起草、修改和排版央国企正式公文（请示、报告、函件等）。'
 tags: [official-documents, 公文, 正式文档, 央国企, 报告]
 category: document
 linked_files:

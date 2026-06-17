@@ -1,9 +1,6 @@
 ---
 name: web-tools
-description: >
-  网页抓取与浏览器自动化 — 集成 Scrapling 反爬引擎、智能策略选择、Apify Actor 部署。
-  触发：抓取、scrape、爬虫、提取数据、被拦截/403、反爬、Cloudflare、Apify Actor。
-  Hermes 内置 browser 工具处理基础页面交互；此技能专注高级反爬和数据提取场景。
+description: 网页抓取与浏览器自动化，集成反爬引擎和 Apify Actor。
 tags: [web, scraping, anti-bot, crawler, apify]
 category: web
 ---
