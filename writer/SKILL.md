@@ -2,6 +2,8 @@
 name: writer
 description: |-
   Use when: writing web novels or managing a webnovel project. Unified toolkit for /writer, /story, /novel, /webnovel, 写书, 网文, 开书, 续写, 日更, 扫榜, 拆文, 黄金三章, 大纲, 章纲, 审查, 质检, 去AI味, 导入小说, 查询设定, 伏笔, 封面生成. Routes old story-*, webnovel-*, novel-pipeline, and moke-style requests into one workflow.
+tags: [writing, webnovel, story, novel]
+category: writing
 ---
 
 # Writer：统一网文写作工具箱
