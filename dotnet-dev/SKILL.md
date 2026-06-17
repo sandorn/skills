@@ -1,6 +1,6 @@
 ---
 name: dotnet-dev
-description: 用户完全不需要懂编程，全程由 AI 充当"需求分析师 + 开发工程师 + 环境管理员 + 测试工程师 + 打包交付人员"。内置 WPF + HandyControl + CommunityToolkit.Mvvm 完整模板，支持 CLI 批处理、WPF 桌面应用、Excel 批量处理、网页数据抓取四套蓝图。自动安装 .NET SDK、NuGet 包管理、编译测试、打包交付。触发词：.NET 开发、WPF 应用、桌面软件、C# 开发、dotnet、WPF 界面、桌面工具、exe 打包、.NET 项目、C# 项目、WPF 窗口、桌面小工具
+description: .NET WPF 桌面应用全流程 AI 交付。
 
 tags: [dotnet,wpf,csharp,desktop]
 category: development

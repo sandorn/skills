@@ -1,6 +1,6 @@
 ---
 name: docx
-description: Create and edit Word documents (.docx) with formatting.
+description: "创建、读取、编辑 Word 文档 (.docx)，支持格式处理。"
 license: Proprietary. LICENSE.txt has complete terms
 
 tags: [word,docx,document,office]

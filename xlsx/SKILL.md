@@ -1,6 +1,6 @@
 ---
 name: xlsx
-description: "Create, read, edit, and convert spreadsheets (.xlsx/.csv)."
+description: "创建、读取、编辑和转换电子表格 (.xlsx/.csv)。"
 license: Proprietary. LICENSE.txt has complete terms
 
 tags: [excel,spreadsheet,csv,data,xlsx]

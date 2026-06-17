@@ -1,6 +1,6 @@
 ---
 name: web-tools
-description: 网页抓取与浏览器自动化，集成反爬引擎和 Apify Actor。
+description: "网页抓取与浏览器自动化：Scrapling 反爬引擎 + Apify Actor 部署。"
 tags: [web, scraping, anti-bot, crawler, apify]
 category: web
 ---

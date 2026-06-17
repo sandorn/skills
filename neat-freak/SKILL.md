@@ -1,6 +1,6 @@
 ---
 name: neat-freak
-description: 会话结束后对项目文档和记忆进行洁癖级审查与同步。 "sync up", "tidy up docs", "update memory", "clean up docs", "/sync", "/neat", "同步一下", "整理文档", "整理一下", "更新记忆", "梳理一下", "收尾", or any phrase suggesting a dev milestone where knowledge needs reconciliation. Also trigger when the user reports stale docs, conflicting memories, or wants a clean handoff to teammates or other agents. Bare "整理" / "tidy" with prior dev context counts — do not under-trigger. Cross-platform: works on Claude Code, OpenAI Codex, OpenCode, and OpenClaw.
+description: 会话结束后审查同步项目文档与记忆。
 
 tags: [docs,sync,memory,cleanup]
 category: productivity
@@ -193,3 +193,4 @@ API 速查表、环境变量表、术语表是高频查询的结构化信息，*
 
 - **[references/sync-matrix.md](references/sync-matrix.md)** — 完整的"变更类型 → 要改哪些文件"映射表
 - **[references/agent-paths.md](references/agent-paths.md)** — Claude Code / Codex / OpenCode 各自的记忆与配置路径速查
+- **[references/hermes-skill-standards.md](references/hermes-skill-standards.md)** — Hermes 技能库审查标准：description ≤60字符、空壳检测、重叠判定、符号联结处理

@@ -1,6 +1,6 @@
 ---
 name: pdf
-description: Create, read, edit, merge, split, and OCR PDF files.
+description: "创建、读取、提取、编辑、合并、拆分和 OCR PDF 文件。"
 license: Proprietary. LICENSE.txt has complete terms
 
 tags: [pdf,document,ocr,merge,extract]

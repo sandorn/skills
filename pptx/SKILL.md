@@ -1,6 +1,6 @@
 ---
 name: pptx
-description: "Create, edit, and combine PowerPoint (.pptx) presentations."
+description: "创建、读取、编辑和合并 PowerPoint 演示文稿 (.pptx)。"
 license: Proprietary. LICENSE.txt has complete terms
 
 tags: [powerpoint,presentation,slides]
