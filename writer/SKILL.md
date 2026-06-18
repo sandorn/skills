@@ -1,6 +1,6 @@
 ---
 name: writer
-description: description: "统一网文写作工具箱：扫榜/拆文/大纲/写章/审查/质检。"
+description: "统一网文写作工具箱：扫榜/拆文/大纲/写章/审查/质检。"
 category: writing
 ---
 
