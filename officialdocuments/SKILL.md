@@ -59,6 +59,8 @@ linked_files:
 4. **待确认项强制列出** — 不确定的数据/人名/日期用 `XX` 占位，列入 `## 待确认事项`
 5. **修改类输出改动说明** — 以表格写入文件末尾，对话同步呈现
 6. **禁止对话式前言** — 正文直接开始，不写"好的""根据您的要求"等
+7. **检查报告也按正式公文交付** — 用户要求"检查报告"、"督导检查"、"安全检查报告"等材料时，不得只生成有内容的 docx；必须套用 `scripts/gb_gongwen.py` 或等效 WordprocessingML，达到可报送的标题、字体、页边距、行距、缩进、层级、落款和文档属性要求。
+8. **格式不合格必须返工** — 若用户指出"不专业"、"格式不对"、"不能报送"，应立即回到 `references/format-spec.md` 与 `references/formal-docx-quality-gate.md`，重新生成并验证 docx，而不是解释原因或只修改文字。
 
 ---
 
@@ -82,3 +84,4 @@ linked_files:
 3. **选择模板**：查阅 `references/templates.md` 对应模板
 4. **填写内容 + 自检**：替换占位项 → 用 `references/checklist.md` 逐项核验
 5. **导出**：需 .docx 时按 `references/workflow.md` 导出规则执行
+6. **验证**：交付前按 `references/formal-docx-quality-gate.md` 检查 Word XML；至少确认核心内容、中文字体、页边距、固定行距、标题层级、落款/日期均正确。
