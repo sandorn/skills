@@ -10,7 +10,11 @@ linked_files:
     - references/examples.md
     - references/errors.md
     - references/workflow.md
+    - references/format-spec.md
+    - references/formal-docx-quality-gate.md
     - references/checklist.md
+  scripts:
+    - scripts/gb_gongwen.py
 ---
 
 # 公文 Skill
@@ -29,7 +33,7 @@ linked_files:
 | 报告、汇报、情况                    | 报告          | 以上报告如无不妥，请审阅                |
 | 通知、印发、批转                    | 通知          | 特此通知                                |
 | 函、商洽、询问、答复、提示函        | 函/提示函     | 如蒙同意，请即函复 / 特此函告，请予重视 |
-| 建议书、建议                        | 建议书        | 以上建议请审阅                          |
+| 检查报告、督导检查、综合督导、安全检查 | 检查报告/专题报告 | 请按整改要求落实 / 以上报告请审阅     |
 | /公文                               | 公文起草/编辑 | 显式调用本技能                          |
 | 修改/精简/扩充/优化/结构重整 + 公文 | 公文编辑      | 须输出改动说明                          |
 | 起草公文、发文、红头文件、OA发文    | 公文起草      | 完整公文输出                            |
@@ -65,8 +69,11 @@ linked_files:
 | `references/templates.md` | 文种模板、词汇库、句式、用语禁区 | 起草时查阅 |
 | `references/examples.md`  | 各文种完整示例                   | 参考范例   |
 | `references/errors.md`    | 常见错误与修正                   | 审校对照   |
-| `references/workflow.md`  | 起草流程、导出/OA对接            | 协作交付   |
+| `references/workflow.md`  | 起草流程、正式 Word 版式、导出/OA 对接 | 协作交付、生成 docx 时必查 |
+| `references/format-spec.md` | GB/T 9704-2025 公文 Word 排版参数与验证清单 | 生成正式 docx 时必查 |
+| `references/formal-docx-quality-gate.md` | 正式 Word 交付质量门和失败信号 | 生成 docx 后必查 |
 | `references/checklist.md` | 发文前自检清单                   | 定稿前核验 |
+| `scripts/gb_gongwen.py` | 纯 XML+zipfile 公文 docx 排版引擎 | 正式 Word 导出首选 |
 
 ## 快速开始
 

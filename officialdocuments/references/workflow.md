@@ -96,27 +96,46 @@ flowchart TD
 
 ---
 
-## 八、导出
+## 八、Word 正式排版硬性要求
 
-### Pandoc 导出 .docx
+生成 `.docx` 正式稿时，不能只把 Markdown 转成 Word；必须同步设置版式。默认采用党政机关公文常用排版：
+
+1. 页面：A4；页边距上 3.7cm、下 3.5cm、左 2.8cm、右 2.6cm。
+2. 标题：二号，方正小标宋/小标宋/宋体兜底，居中，单倍或固定 32 磅行距。
+3. 正文：三号仿宋_GB2312/仿宋兜底，首行缩进 2 字符，固定 28 磅行距。
+4. 一级标题：三号黑体，格式为 `一、……`，独立成段。
+5. 二级标题：三号楷体_GB2312/楷体，可加粗，格式为 `（一）……`。
+6. 三级标题：三号仿宋加粗，格式为 `1.……`。
+7. 图片：居中；同一问题下的图片应配简短说明或以“见现场照片”承接；未提供图片时不得伪造图片。
+8. 页码：正式报送稿建议页脚居中插入页码。
+9. 文件属性：Title 写正式标题，Author 写起草单位或用户指定作者。
+10. 导出后必须反向读取 `.docx` 验证标题、层级、关键段落存在。
+
+### 首选导出：`scripts/gb_gongwen.py`
+
+本 skill 的正式 Word 排版脚本位于：
+
+```text
+scripts/gb_gongwen.py
+```
+
+正式报告、请示、通知等 `.docx` 交付时，优先调用该脚本，而不是直接使用 `pandoc`：
+
+```bash
+python ~/.agents/skills/officialdocuments/scripts/gb_gongwen.py \
+  "输入.md" "输出.docx" \
+  --title "关于XXX的报告" \
+  --author "子公司管理室"
+```
+
+脚本不依赖 `python-docx`，直接写 WordprocessingML，适合 Hermes 精简 Python 环境。它会设置 A4、页边距、标题字体、正文仿宋、标题层级、首行缩进和固定行距。图片仍需人工插入或后续扩展脚本处理；未提供图片时不得伪造图片。
+
+### 备选导出：Pandoc + reference-doc
+
+仅在用户明确要求沿用某个 Word 模板，或需要保留复杂表格/图片模板时使用：
 
 ```bash
 pandoc "文件.md" -s -o "文件.docx" -t docx --reference-doc "模板路径.docx"
 ```
 
-> **模板路径**：优先使用 `C:\Users\<用户名>\Documents\custom-reference.docx`（Windows）或 `~/Documents/custom-reference.docx`（Linux/macOS）。不存在时跳过 `--reference-doc` 参数。
-
-### PDF 导出
-
-先导出 .docx，再用 Word/LibreOffice 另存为 PDF：
-
-```bash
-pandoc "文件.md" -s -o "文件.docx" -t docx --reference-doc "模板路径.docx"
-# 然后用 Word 或 LibreOffice 将 .docx 另存为 PDF
-```
-
-### OA 对接
-
-- 导出时填充文档属性（Title/Author/Date）
-- 定稿后由编办生成 PDF 并调用电子印章系统
-- 记录电子签章流水号并存档
+使用 pandoc 后仍必须反向读取并检查版式；如字体、页边距、缩进不符合正式稿要求，应再用 `scripts/gb_gongwen.py` 或 Word 模板修正。
