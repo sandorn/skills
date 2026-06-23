@@ -1,7 +1,5 @@
 # 写作管线：长篇/短篇/批量
 
-改编自 Moke 9-Agent 管线 + story-long-write 情绪驱动 + webnovel-write 量产流水线。
-
 ---
 
 ## 模式选择
@@ -21,30 +19,19 @@
 
 在开始任何写章之前：
 
-> **注意：** 以下伪代码是执行逻辑参考，不可直接在 Hermes 环境中运行（Hermes 使用 `read_file`/`search_files`/`patch` 等工具替代 `open()`/`exit()`）。实际执行时按上方工具映射表转换。
-
 ```python
 import json, os
 
 project_root = "."
-
-# 检查项目：优先 writer.json，兼容旧 project-state.json
 state_path = os.path.join(project_root, "writer.json")
 if not os.path.exists(state_path):
-  legacy_state = os.path.join(project_root, "project-state.json")
-  if os.path.exists(legacy_state):
-    state_path = legacy_state
-  else:
-    print("ERROR: 没有找到 writer.json 或 project-state.json，请先运行 project-init")
+    print("ERROR: 没有找到 writer.json，请先运行 project-init")
     exit(1)
 
 with open(state_path, 'r', encoding='utf-8') as f:
     state = json.load(f)
 
-# 检查大纲：新结构 outline/chapter_outline，旧结构 大纲
 outline_chapter_dir = os.path.join(project_root, "outline", "chapter_outline")
-if not os.path.exists(outline_chapter_dir):
-  outline_chapter_dir = os.path.join(project_root, "大纲")
 ch = state.get("current_chapter", 0) + 1
 ch_outline = os.path.join(outline_chapter_dir, f"ch_{ch:03d}.md")
 
@@ -52,12 +39,7 @@ if not os.path.exists(ch_outline) and state.get("stage") != "planning":
     print(f"WARNING: 第{ch}章章纲不存在。先运行 plan 还是直接写？")
 ```
 
-如果 stage 为 `scaffold`（刚初始化），提示先运行 plan：
-
-```
-项目还在 scaffold 阶段，建议先生成章纲。直接写也可以，但质量可能不如有章纲。
-确认直接写吗？ (y/N)
-```
+如果 stage 为 `scaffold`（刚初始化），提示先运行 plan。
 
 ---
 
@@ -70,7 +52,7 @@ if not os.path.exists(ch_outline) and state.get("stage") != "planning":
 确认章节号、字数目标、核心事件、情绪目标、必须包含、必须避免、章末钩子。优先读取：
 
 - `outline/chapter_outline/ch_NNN.md` 或 `大纲/` 下对应章纲
-- `writer.json` 或 `project-state.json`
+- `writer.json`
 - `tracking/current_state.md` 或 `追踪/当前状态.md`
 
 ### Step 2：Architect
@@ -79,7 +61,7 @@ if not os.path.exists(ch_outline) and state.get("stage") != "planning":
 
 ### Step 3：Write + Reflect
 
-写正文到 `chapters/ch_NNN.md` 或旧结构 `正文/chNN-标题.md`。写完后提取角色位置、状态、资源、伏笔和章节摘要。
+写正文到 `chapters/ch_{NNN}.md`。写完后提取角色位置、状态、资源、伏笔和章节摘要。
 
 ### Step 4：Audit + Normalize
 
@@ -89,159 +71,23 @@ if not os.path.exists(ch_outline) and state.get("stage") != "planning":
 
 只修 blocking 问题、用户明确关注的问题和明显影响可发布的问题。修订后再跑一次关键禁令扫描。
 
-## 完整模式（--full）：9 步完整管线
+## 完整模式（--full）：9 步 = 5 步 + 4 扩展
 
-适用于：长篇单章写作，首次执行某章。
+在 5 步默认管线基础上展开。新增步骤标 ★：
 
-### 准备工作
+| # | 步骤 | 说明 |
+|---|------|------|
+| ★1 | Planner | 内存生成章节意图（章号/目标/情绪/冲突/伏笔计划） |
+| ★2 | Composer | 整理活跃角色 + 设定约束 + 待回收伏笔 + 时间锚点 |
+| 3 | Architect | 章节四段结构（开篇→发展→爽点→结尾），60%处检查爽点 |
+| 4 | Writer | 写正文到 `chapters/ch_{NNN}.md`，一句一段≤60字，「」引号，章末钩子 |
+| ★5 | Observer | 提取事实变更（角色位置/状态/资源/伏笔/时间） |
+| ★6 | Reflector | 更新 `tracking/` 下 4 个追踪文件 |
+| 7 | Normalizer | 字数 3000±200，段落变异系数检查 |
+| 8 | Auditor | solo 审查：15 维核心 + AI 痕迹 + 硬禁令 → blocking 则进 Step 9 |
+| 9 | Reviser | 定点修复 blocking；修后重跑 Step 8 |
 
-读取上下文：
-
-- `writer.json` / `project-state.json` — 项目配置
-- `outline/chapter_outline/ch_NNN.md` / `大纲/` — 本章章纲
-- `tracking/current_state.md` / `追踪/当前状态.md` — 角色位置/状态
-- `tracking/hooks.md` / `追踪/伏笔池.md` — 待处理伏笔
-- `setting/story_bible.md` / `设定/世界观.md` — 世界观约束
-- `setting/characters.md` / `设定/主角.md` — 角色信息
-
-### Step 1：Planner —— 章节规划
-
-在内存中生成章节意图（不写临时文件）：
-
-```
-章节号：{N}
-字数目标：3000
-核心目标：[一句话]
-情绪目标：[爽/紧张/反转/温情]
-必须保留：[列表中元素的延续]
-必须避免：[需要绕开的雷区]
-冲突设计：
-  - 主冲突：[描述]
-  - 次冲突：[描述]
-伏笔计划：
-  - 新埋：[列表]
-  - 推进：[列表]
-  - 回收：[列表]
-```
-
-来源：Moke moke-planner + story 情绪驱动设计。
-
-### Step 2：Composer —— 上下文编排
-
-从已读取的上下文中整理出写作用实际参考：
-
-- **角色活跃**：本章出现的角色及其当前状态
-- **设定约束**：本章涉及的世界观规则
-- **待回收伏笔**：需要在或可以本章涉及的伏笔
-- **时间锚点**：当前时间线位置
-
-### Step 3：Architect —— 章节结构
-
-基于 Planner 输出，设计本章结构：
-
-```
-【第{N}章：{标题}】
-
-开篇（0-500字）：[钩子场景]
-发展（500-1500字）：[铺垫/推进]
-转折/爽点（1500-2500字）：[核心高潮]
-结尾（2500-3000字）：[章末钩子/过渡]
-```
-
-### Step 4：Writer —— 正文写作
-
-基于 Architect 结构，写出 3000 字正文。
-
-写作铁则：
-- **一句一段**：句号处换行，每段不超过60汉字（对话和内心独白除外）
-- **对话独立成行**：用冒号或动作引出对话，禁止「他说」「她道」式对话标签。如：沈栀将茶杯往桌上一顿。「你到底想说什么？」
-- **禁止段落间空行**：正文段落之间不加空行，保持紧密节奏
-- **禁止大段描写堆砌**：描写必须穿插动作或对话，不连续超过3段纯描写
-- **禁止跳出视角**：第一人称或限知第三人称后，不切换到其他角色内心
-- **章节标题**：用 `## 第X章 章名` 格式，标题后保留一个空行
-- **章节之间**：不使用 `---`、水平分隔线或额外空白行
-- **避免元叙事**：不出现「正如前文所述」等跳出句
-- **避免「不是…而是…」句式**
-- **避免分析术语**：不说「内心挣扎」直接写挣扎的动作
-- **角色一致**：性格底色不突变（除非情境驱动）
-- **章末必须留钩子**：无论什么类型
-
-保存到 `chapters/ch_{NNN}.md`。若项目是旧中文结构，保存到 `正文/` 并沿用已有命名风格。
-
-### Step 5：Observer —— 事实提取
-
-从写好的章节中提取：
-
-- 角色位置变化
-- 角色状态变化
-- 新增资源/装备
-- 新增伏笔
-- 消耗的资源
-- 时间推进
-
-### Step 6：Reflector —— 状态更新
-
-基于 Observer 的输出，更新以下文件：
-
-- `tracking/current_state.md` — 角色位置/状态
-- `tracking/hooks.md` — 新埋伏笔 / 推进状态
-- `tracking/chapter_summaries.md` — 追加本章摘要（3-5句）
-- `tracking/resource_ledger.md` — 更新数值
-
-### Step 7：Normalizer —— 字数归一化
-
-检查字数：
-
-- 目标 3000 字，允许范围 2800-3200
-- 低于 2800 → 提示补充场景细节
-- 高于 3200 → 提示精简冗余描写
-
-确保段落不整段等长（变异系数检查）。
-
-### Step 8：Auditor —— 审计
-
-执行审查（详细见 review.md）。本章默认 solo 模式：
-
-- 检查 27 项基础维度（15 核心 + 12 扩展）
-- 检查 AI 痕迹 6 项（含 AI腔红线）
-- 检查硬性禁令 3 项
-- 对话三功能检验
-- 输出审查报告
-
-如有 blocking issue un-resolved → 进入 Step 9。
-
-### Step 9：Reviser —— 修订
-
-定点修复 Auditor 发现的问题：
-
-| 问题类型 | 修复方式 |
-|---------|---------|
-| 设定冲突 | 修改正文匹配设定 |
-| OOC | 改写角色行为 |
-| AI 痕迹 | 执行去AI味规则 |
-| 硬性禁令 | 删除/替换违规内容 |
-| 字数不达标 | 补充场景细节 |
-| 章末缺钩子 | 追加或强化钩子 |
-
-修复后重新运行 Step 8（Auditor），通过则继续。
-
-### 完成后
-
-更新 `writer.json`：
-
-```python
-state["chapters_done"] += 1
-state["current_chapter"] = ch
-state["last_action"] = "write"
-state["stage"] = "writing"
-```
-
-并且执行：
-- `tracking/hooks.md` — 标记已回收的伏笔为「已回收」
-- `tracking/chapter_summaries.md` — 确保摘要已追加
-- `tracking/current_state.md` — 确保状态已更新
-
----
+完成后：更新 `writer.json`，标记已回收伏笔，确保摘要和状态已同步。
 
 ## 轻量模式（--fast）
 
@@ -258,11 +104,91 @@ state["stage"] = "writing"
 
 ---
 
-## 批量模式（--batch N）
+### 批量模式（--batch N）
 
 适用于：连续写多章，减少上下文消耗。
 
-优先使用可用的 `moke-batch-writer` subagent。若当前环境无法调用该 agent，主会话按默认 5 步逐章串行执行，并在每章后更新追踪文件，避免批量写作造成状态漂移。
+**⚠️ 批量写前必须先执行预写总线对齐检查**（详见 `references/pre-write-alignment.md`）：加载总纲→卷纲→细纲→追踪，确保总线不偏离、前后能衔接。
+
+优先使用可用的批量写作 subagent。若当前环境无法调用，主会话按默认 5 步逐章串行执行，每章后更新追踪文件避免状态漂移。
+
+### 批量写前：声音内化（Voice Internalization）
+
+**批量写章前必须读最近 4-6 章已写正文**，不能只读大纲和设定。这是决定批量产出质量的关键步骤——跳过它会产出符合大纲但声音完全不对的章节。
+
+**为什么需要**：大纲定义"写什么"，而已写正文定义"怎么写"。每个作者/项目有独特的句长、节奏、感官密度、对话模式——这些无法从大纲中推断，只能从已写正文中吸收。
+
+**操作**：
+1. 按逆序读最近 4-6 章（如写 ch121-135，先读 ch116-120）
+2. 注意以下维度，在心里建立声音模板：
+   - **句长**：平均每句多少字？有无长句穿插短句的节奏模式？
+   - **感官密度**：每段有几层感官细节（视觉/听觉/触觉/嗅觉）？细节是粗线还是工笔？
+   - **对话模式**：对话用冒号引出还是独立成段？对话中穿插多少动作？对话平均多长？
+   - **心理描写**：是否直接写内心？还是通过动作外化？用「他知道」还是省略主语？
+   - **结尾风格**：章节怎么收尾？哲理/动作定格/场景淡出/钩子？
+   - **段落呼吸**：段落间空行节奏如何？有无连续短段制造紧迫感？
+
+3. **不要分析，要吸收。** 不用在笔记里写总结——读 4-6 章后声音会自然进入肌肉记忆。写第一章时如果前几段读起来像已写章节，就对齐了。
+
+**⚠️ delegate_task 批量写章限制**：单个 delegate 最多分配 5 章（≤5）。超过 5 章会导致 delegate 的 API 调用数（max_iterations=50）不够完成全部章节的写→审→修循环。实测：6 章任务在 50 次 API 调用后因 max_iterations 退出，只完成 2 章。拆成 4+3 或 5+5 即可。
+
+### delegate 写后三步自检（嵌入 delegate prompt）
+
+委派写章时，delegate prompt 中必须包含以下自检指令。delegate 每写完一章后立即执行，不合格就地修改，**不留到主会话返工**：
+
+```
+【写完每章后立即自检——不可跳过】
+
+自检 1：禁令扫描（10秒目测）
+  □ 全文无「——」
+  □ 全文无「不是…而是…」
+  □ 对话全用「」
+  □ 无「他知道」「忽然」「似乎」「仿佛」
+  任一命中 → 就地替换修改
+
+自检 2：字数 + 段落（30秒估算）
+  □ 按行数×每行平均字数估算，≥2500？
+    <2500 → 找该章最薄弱的场景，展开 1-2 段画面描写
+  □ 目测每段 ≤60 汉字？
+    超标段 → 在句号处拆分
+
+自检 3：章末钩子（10秒确认）
+  □ 读章末最后一段 → 读者读完会想翻下一章吗？
+    无钩子 → 加一句悬念/反转/威胁/期待收尾
+```
+
+完成后在每章末尾追加一行标记：`<!-- 自检通过 -->`
+
+### delegate context 模板
+
+委派 prompt 必须包含以下信息块：
+
+```
+【写章任务】
+- 章节范围：ch{N} - ch{M}（共 {K} 章）
+- 每章字数：≥2500 汉字
+- 章节命名：chapters/ch_{NNN}.md
+
+【硬性禁令（不可违反）】
+- 对话用「」/ 禁止「——」/ 禁止「不是…而是…」
+- AI高频词禁用：他知道/忽然/突然/似乎/仿佛/眼中闪过一丝/深吸一口气/心中一动
+- 每段≤60汉字，句号处换行
+
+【当前状态】
+- 主角等级：{level} / 权限：L{perm} / 位置：{location}
+- 金币余额：{gold}
+- 待回收伏笔：{hooks_summary}
+- 上一章结尾：{prev_chapter_ending}
+
+【章纲摘要】
+{chapter_outline_summary}
+
+【声音参考】
+已读最近 4 章正文（ch{N-4}-ch{N-1}），匹配句长/感官密度/对话模式/结尾风格。
+
+【写后三步自检】
+每章写完后立即执行：①禁令扫描→②字数+段落→③章末钩子。不合格就地修改。
+```
 
 ### 流程
 
@@ -288,6 +214,10 @@ state["stage"] = "writing"
 | Auditor | 每章 | 末尾统一，标记 blocker |
 | Reviser | 即时 | 统一标记，用户决策 |
 | 交互 | 无 | 仅在 blocker 时暂停 |
+
+### delegate_task 批次上限
+
+**≤5 章/批次安全**，6-7 章大概率完成但可能 timeout，8+ 章高风险。所有批量写章应拆为 ≤5 章的子任务。详见上方「批量写章限制」。
 
 ### 进度显示
 
@@ -334,9 +264,15 @@ state["stage"] = "writing"
 
 ---
 
+---
+
+## 批量写作避坑指南
+
+> 详见 `references/write-pitfalls.md`（11 项实战教训）。
+
 ## 成功标准
 
-- [ ] 正文文件保存到 `chapters/ch_{NNN}.md` 或旧结构 `正文/` 对应章节文件
+- [ ] 正文文件保存到 `chapters/ch_{NNN}.md`
 - [ ] 字数在目标范围内
 - [ ] 审计通过（solo 模式无 blocking issue）
 - [ ] 状态文件已更新

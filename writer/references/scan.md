@@ -1,7 +1,5 @@
 # 扫榜：跨平台市场分析与选题决策
 
-改编自 story-long-scan（worldwonderer），统一长篇/短篇扫榜，并适配 Hermes 工具链。
-
 ---
 
 ## 核心原则

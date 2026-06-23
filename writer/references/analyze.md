@@ -1,7 +1,5 @@
 # 拆文：爆款深度拆解
 
-改编自 story-long-analyze（worldwonderer），适配 Hermes 工具链。
-
 ---
 
 ## 核心原则

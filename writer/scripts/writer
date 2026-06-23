@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+"""Writer CLI — 统一脚本入口。
+
+用法：
+    python scripts/writer audit <chapters目录> [start] [end]    # 审计
+    python scripts/writer pad --batch <chapters目录>              # 字数追加
+    python scripts/writer split --batch <chapters目录>            # 段落拆分
+    python scripts/writer audit-5dim <chapters目录>               # 5维审查
+    python scripts/writer hook <chapters目录> [start] [end]       # 追读力分析
+    python scripts/writer rhythm <项目根> [--dim level]           # 节奏查询
+    python scripts/writer panorama <项目根>                       # 全景报告
+    python scripts/writer graph <项目根> [--main-only]            # 实体图谱
+    python scripts/writer fact <项目根> <cmd> [...]               # 事实库操作
+    python scripts/writer export <项目根> [--platform fanqie]     # 多平台导出
+    python scripts/writer backup                                  # 自动备份
+    python scripts/writer fix <chapters目录>                      # 一键修复(禁令+字数+段落)
+    python scripts/writer check <chapters目录>                    # 一键检查(审计+5维+追读力)
+
+脚本目录：所有子脚本位于本文件同级目录。
+"""
+
+import os
+import sys
+import subprocess
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).parent
+
+COMMANDS = {
+    'audit':       'audit.py',
+    'pad':         'pad_chapter.py',
+    'split':       'split_paragraphs.py',
+    'audit-5dim':  'audit_5dim.py',
+    'hook':        'analyze_hook.py',
+    'rhythm':      'analyze_rhythm.py',
+    'panorama':    'report_panorama.py',
+    'graph':       'report_graph.py',
+    'fact':        'fact_db.py',
+    'export':      'export.py',
+    'backup':      'backup.py',
+}
+
+FIX_ALIASES = {'fix': None, 'check': None}  # 复合命令
+
+
+def run_script(name, args):
+    script = SCRIPT_DIR / COMMANDS[name]
+    if not script.exists():
+        print(f"错误：脚本不存在 — {script}")
+        return 1
+    result = subprocess.run([sys.executable, str(script)] + args)
+    return result.returncode
+
+
+def cmd_fix(target):
+    """一键修复：pad → split → audit"""
+    print("=" * 50)
+    print("Writer Fix: 字数追加 → 段落拆分 → 审计终验")
+    print("=" * 50)
+
+    # 1. Pad
+    print("\n[1/3] 字数追加...")
+    rc = run_script('pad', ['--batch', target])
+    if rc != 0:
+        print("⚠️  pad 返回非零")
+
+    # 2. Split
+    print("\n[2/3] 段落拆分...")
+    rc = run_script('split', ['--batch', target])
+    if rc != 0:
+        print("⚠️  split 返回非零")
+
+    # 3. Audit
+    print("\n[3/3] 审计终验...")
+    rc = run_script('audit', [target])
+
+    print("\n" + "=" * 50)
+    print("修复完成" if rc == 0 else f"审计未通过 (exit {rc})，请检查上述输出")
+    return rc
+
+
+def cmd_check(target):
+    """一键检查：audit + 5dim + hook"""
+    print("=" * 50)
+    print("Writer Check: 审计 + 5维 + 追读力")
+    print("=" * 50)
+
+    rc1 = run_script('audit', [target])
+    print()
+    rc2 = run_script('audit-5dim', [target])
+    print()
+    rc3 = run_script('hook', [target])
+
+    total = sum([rc1, rc2, rc3])
+    print("\n" + "=" * 50)
+    print(f"检查{'通过' if total == 0 else '未通过'} (audit:{rc1} 5dim:{rc2} hook:{rc3})")
+    return total
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(0)
+
+    cmd = sys.argv[1]
+    args = sys.argv[2:]
+
+    if cmd == 'fix':
+        if not args:
+            print("用法: python scripts/writer fix <chapters目录>")
+            sys.exit(1)
+        sys.exit(cmd_fix(args[0]))
+
+    if cmd == 'check':
+        if not args:
+            print("用法: python scripts/writer check <chapters目录>")
+            sys.exit(1)
+        sys.exit(cmd_check(args[0]))
+
+    if cmd in COMMANDS:
+        sys.exit(run_script(cmd, args))
+
+    if cmd in ('help', '--help', '-h'):
+        print(__doc__)
+        sys.exit(0)
+
+    print(f"未知命令: {cmd}")
+    print(f"可用: {', '.join(sorted(list(COMMANDS.keys()) + ['fix', 'check']))}")
+    print("运行 'python scripts/writer help' 查看完整用法")
+    sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

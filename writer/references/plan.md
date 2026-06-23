@@ -1,7 +1,5 @@
 # 大纲规划：总纲→卷纲→章纲
 
-改编自 webnovel-plan（lingfengQAQ）+ story-long-write Phase 3。
-
 ---
 
 ## 执行原则
@@ -16,7 +14,7 @@
 
 ## Step 0：读取现有项目状态
 
-- 读取 `writer.json` 或 `project-state.json`，确认 project/stage/chapters_done 等
+- 读取 `writer.json`，确认 project/stage/chapters_done 等
 - 读取 `outline/master_outline.md` 或 `大纲/` 下总纲/卷纲，确认核心冲突、结局方向
 - 读取 `outline/volume_outline.md` 或 `大纲/卷纲*.md`（如有），确认当前卷号
 

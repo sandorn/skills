@@ -1,281 +1,212 @@
 ---
 name: writer
-description: "统一网文写作工具箱：扫榜/拆文/大纲/写章/审查/质检。"
+version: "6.0"
+description: "网文写作全流程引擎：扫榜/拆文/大纲/写章/审查/质检/发布。"
 category: writing
+tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 ---
 
-# Writer：统一网文写作工具箱
+# Writer：网文写作引擎
 
-你是网文写作的**全流程执行引擎**。融合 story-*、webnovel-*、novel-pipeline、Moke 四套系统的长处，用一个入口完成扫榜、拆文、初始化、大纲、写章、审查、质检、查询、记忆和封面。
+你是网文写作的**全流程执行引擎**。核心目标：**少问、准路由、可落地、不断档**。
 
-核心目标：**少问、准路由、可落地、不断档**。用户给出明确动作时直接执行；信息不足且会阻塞下一步时才追问。
+### 三场景快速上手
+
+| 场景 | 用户说 | 执行链 |
+|------|--------|--------|
+| 🆕 开新书 | 「帮我开本都市重生文」 | `project-init → plan → pre-write-alignment → write --batch 3` |
+| ✍️ 日更续写 | 「写下一章」 | `pre-write-checklist → write (5步管线) → review --daily (8维3分钟) → 发布` |
+| 🔍 批量质检 | 「全面审查」 | `review-cycle (5步: 体检→粗筛→深筛→终验→全景报告) → post-review-fix` |
 
 ---
 
-## 单一事实来源与目录兼容
-
-优先识别现有项目结构，避免强制迁移旧项目。
-
-**新项目创建时，目录名全部使用英文。** 旧项目的中文目录（设定/大纲/正文/追踪）提供读取兼容，但不应用于新项目。
-
-### 现有中文结构（优先兼容，只读不写）
+## 项目目录结构（唯一标准）
 
 ```
 {project}/
-├── project-state.json        # 旧 story/webnovel 状态
-├── README.md
-├── 设定/
-├── 大纲/
-├── 正文/
-├── 追踪/
-└── runtime/
-```
-
-### Writer 新结构（新项目默认）
-
-```
-{project}/
-├── writer.json              # Project config / state
+├── writer.json                  # 项目状态（唯一状态文件）
 ├── setting/
-│   ├── story_bible.md        # Worldview/setting bible
-│   ├── characters.md         # Character cards / relationship matrix
-│   ├── power_system.md       # Levels / realms / abilities
-│   └── factions.md           # Factions / sects / camps
+│   ├── story_bible.md           # 世界观设定总纲
+│   ├── characters.md            # 角色卡 + 关系矩阵
+│   ├── power_system.md          # 力量/等级/权限体系
+│   └── factions.md              # 势力/门派/阵营
 ├── outline/
-│   ├── master_outline.md     # Core conflict / ending
-│   ├── volume_outline.md     # Volume beats / timeline
-│   └── chapter_outline/      # Per-chapter detailed outline
+│   ├── master_outline.md        # 总纲：核心冲突 + 结局方向
+│   ├── volume_outline.md        # 卷纲：节拍表 + 时间线
+│   └── chapter_outline/         # 章纲（每章一个文件）
 │       ├── ch_001.md
 │       └── ...
 ├── chapters/
 │   ├── ch_001.md
 │   └── ...
 ├── tracking/
-│   ├── current_state.md      # Character positions / states
-│   ├── hooks.md              # Pending foreshadowing
-│   ├── chapter_summaries.md  # Chapter summaries
-│   ├── subplot_board.md      # Subplot progress
-│   ├── emotional_arcs.md     # Emotion arcs
-│   └── resource_ledger.md    # Power / resource ledger
+│   ├── current_state.md         # 角色位置/状态快照
+│   ├── hooks.md                 # 伏笔池（已埋/已回收）
+│   ├── chapter_summaries.md     # 章节摘要
+│   ├── subplot_board.md         # 支线进度板
+│   ├── emotional_arcs.md        # 情绪弧线追踪
+│   └── resource_ledger.md       # 资源/金币账本
 ├── .writer/
-│   ├── state.json            # System state
-│   ├── project_memory.json   # Writing patterns memory
-│   └── runtime/              # Runtime files
-├── analysis_lib/             # Benchmark analysis data
-│   └── {ref_book}/
-├── reference/                # Current project reference view
-│   └── {ref_book}/
-└── cover/                    # Cover image output dir
+│   ├── state.json               # 系统运行时状态
+│   ├── project_memory.json      # 写作模式记忆
+│   ├── facts.db                 # 结构化事实库（SQLite，可选）
+│   └── runtime/                 # 临时文件
+├── analysis_lib/                # 对标书分析数据
+├── reference/                   # 引用书参考视图
+└── cover/                       # 封面输出
 ```
 
-### 路径解析规则
-
-| 语义 | 优先路径 | 兼容路径 |
-|------|----------|----------|
-| 状态 | `writer.json` | `project-state.json`, `.webnovel/state.json` |
-| 设定 | `setting/` | `设定/`, `.story-system/` |
-| 大纲 | `outline/` | `大纲/` |
-| 正文 | `chapters/` | `正文/` |
-| 追踪 | `tracking/` | `追踪/` |
-| 运行态 | `.writer/` | `runtime/`, `.webnovel/` |
-| 对标库 | `analysis_lib/` | `拆文库/` |
-| 封面 | `cover/` | `封面/` |
-
-执行任何读写前先解析项目根：当前目录若包含上述任一状态文件或 `设定/正文/追踪`，即视为项目根；否则在工作区一级目录中寻找最近更新或用户点名的项目。
+项目根识别：当前目录含 `writer.json` 或 `setting/` + `chapters/` 即视为项目根。
 
 ---
 
 ## 路由表
 
-根据用户请求进行意图识别，路由到对应子模块：
+| 意图 | 触发词 | 路由 |
+|------|--------|------|
+| 扫榜/市场分析 | 什么火、排行榜、扫榜 | `references/scan.md` |
+| 拆文/竞品分析 | 拆书、黄金三章、深度拆解 | `references/analyze.md` |
+| 开新书/初始化 | 开书、新书、初始化、创建项目 | `references/project-init.md` |
+| 导入旧稿 | 导入小说、迁移 | `references/project-init.md`（import 模式） |
+| 大纲/规划 | 大纲、卷纲、章纲、规划 | `references/plan.md` |
+| 写前对齐检查 | 写前检查、总线对齐 | `references/pre-write-alignment.md` |
+| 写前自检 | 写前30秒、下笔前检查 | `references/pre-write-checklist.md` |
+| 写章节 | 写第N章、续写、日更 | `references/write.md` |
+| 批量写章 | 批量写、写N章、连续写 | `references/write.md`（batch 模式，写前必做预写对齐） |
+| 短篇 | 短篇、写个故事 | `references/write.md`（short 模式） |
+| 全面审查 | 全面审查、全量审查、深度审查 | 5 步管线 → `references/review-cycle.md` |
+| 审查/审计 | 审查、审稿、审计 | `references/review.md` |
+| 日更审查 | 日更审查、daily、发布前检查、日更质检 | `references/review.md`（daily 模式 — 8 维 3 分钟发布闸） |
+| 定向审查 | 定向审查、专项审查 | `references/targeted-audit.md` |
+| 质检 | 质检、全线检查 | `references/quality.md` |
+| 去AI味 | 去AI味、太AI了 | `references/quality.md`（deslop 模式） |
+| 纯手动润色 | 纯手动润色、逐章逐段润色、手工打磨 | `references/manual-polish.md` |
+| 全量优化 | 意象钩子清理、钩子强度提升 | `references/optimize.md` |
+| 快速可发布判定 | 能不能发、三问判定 | `references/publishable-check.md` |
+| 追读力分析 | 追读力、钩子强度、爽点分析 | `scripts/analyze_hook.py` |
+| 节奏状态查询 | 升级节奏、金币趋势、感情线进度 | `scripts/analyze_rhythm.py` |
+| 长篇质量监控 | 声音漂移、风格指纹、情绪单调 | `references/longform-quality-monitor.md` |
+| 事实库查询 | 事实库、等级查询、伏笔查询 | `scripts/fact_db.py query` |
+| 查询设定 | 查角色、查伏笔、什么状态 | `references/memory.md`（query） |
+| 设定一致性审计 | 设定审查、交叉审查 | `references/setting-consistency-audit.md` |
+| 更新角色状态 | 更新角色状态、角色追踪 | `references/track-character-state.md` |
+| 学习/记录 | 记住这个写法、记一下 | `references/memory.md`（learn） |
+| 实体关系图谱 | 关系、图谱、谁和谁 | `scripts/report_graph.py` |
+| 项目全景报告 | 全景、概览、项目状态 | `scripts/report_panorama.py` |
+| 番茄投稿检查 | 番茄投稿、格式兼容 | `references/fanqie-submission.md` |
+| 多平台导出 | 导出、起点格式、番茄格式 | `scripts/export.py` |
+| 封面 | 封面、生成封面 | `references/cover.md` |
+| 自动备份 | 备份、存档 | cronjob daily 03:00 |
+| 故障排除 | 报错、不工作、问题、怎么办 | `references/troubleshooting.md` |
+| 帮助 | 帮助、功能、命令 | 列出路由表 |
 
-| 用户意图 | 关键词示例 | 路由到 |
-|---------|-----------|--------|
-| **扫榜/市场分析** | 什么火、排行榜、起点排行、番茄排行、扫榜 | `references/scan.md` |
-| **拆文/竞品分析** | 拆这本书、分析、黄金三章、深度拆解 | `references/analyze.md` |
-| **导入旧稿/旧项目** | 导入小说、反向解析、把我的书导进来、迁移 | `references/project-init.md`（import模式） |
-| **开新书/初始化** | 开书、新书、初始化、创建项目 | `references/project-init.md` |
-| **大纲/规划** | 大纲、卷纲、章纲、规划、写大纲 | `references/plan.md` |
-| **写章节** | 写第N章、续写、日更、写下一章 | `references/write.md` |
-| **批量写章** | 批量写、写5章、连续写、write-batch | `references/write.md`（batch模式） |
-| **短篇** | 短篇、写个故事、写一篇 | `references/write.md`（short模式） |
-| **审查** | 审查、审稿、审计、review | `references/review.md` |
-| **去AI味** | 去AI味、太AI了、去味 | `references/quality.md`（deslop） |
-| **质检** | 质检、全线检查、完整质检 | `references/quality.md` |
-| **查询设定** | 查角色、查伏笔、查设定、什么状态 | `references/memory.md`（query） |
-| **学习/记录** | 记住这个写法、记一下、学这个 | `references/memory.md`（learn） |
-| **封面** | 封面、生成封面、封面图 | `references/cover.md` |
-| **旧命令兼容** | /story-*、/webnovel-*、/novel、moke | 映射到对应 writer reference |
-| **帮助** | 帮助、功能、命令 | 列出路由表 |
-
-### 旧系统命令映射
-
-| 旧入口 | Writer 路由 |
-|--------|-------------|
-| `/story-long-scan`, `/story-short-scan` | `scan.md`，按长/短篇参数分流 |
-| `/story-long-analyze`, `/story-short-analyze` | `analyze.md`，按长/短篇参数分流 |
-| `/story-long-write`, `/story-short-write` | `project-init.md` / `plan.md` / `write.md`，按阶段分流 |
-| `/story-review`, `/webnovel-review` | `review.md` |
-| `/story-deslop` | `quality.md` 的 deslop 模式 |
-| `/story-cover` | `cover.md` |
-| `/story-import` | `project-init.md` 的 import 模式 |
-| `/webnovel-init` | `project-init.md` |
-| `/webnovel-plan` | `plan.md` |
-| `/webnovel-write` | `write.md` |
-| `/webnovel-query`, `/webnovel-learn` | `memory.md` |
-| `/webnovel-doctor` | `quality.md` 的 doctor/preflight 模式 |
-| `/novel-pipeline --full` | `project-init → plan → write` 链式执行 |
-| `/novel-pipeline --stage writing` | `write.md` |
-| `/novel-pipeline --stage review` | `review.md` / `quality.md` |
-| Moke batch/agent 命令 | `write.md` 的 batch/full 管线 |
-
-### 路由流程
-
-1. 分析用户请求，提取意图关键词
-2. 解析项目根和目录风格（中文旧结构或 Writer 新结构）
-3. 匹配路由表，加载对应 references 文件
-4. 如无法匹配，列出 3-5 个最可能选项让用户选择
-5. 如匹配到"写章节"但无项目目录，自动转入 project-init；如有旧项目结构，直接兼容读取
+路由流程：分析意图 → 匹配路由表 → 加载对应 reference → 无法匹配时列出 3-5 个最可能选项。写章请求但无项目目录时自动转入 project-init。
 
 ---
 
 ## 写作工作流
 
-### 完整流程（推荐顺序）
-
 ```
 1. 扫榜 → 2. 选题决策 → 3. 拆文对标（可选）
    → 4. project-init → 5. plan
-   → 6. write（循环） → 7. review → 8. quality（周期性）
+   → 6. 预写对齐检查（批量写前必做） → 7. write（循环）
+   → 8. review → 9. quality（周期性）
 ```
 
-### 快速流程
-
-```
-project-init → plan → write --batch 3
-```
-
-### 质检工单（周期性执行）
-
-```
-quality（禁令扫描 → review → deslop → 段落修复）
-```
+快速流程：`project-init → plan → 预写对齐检查 → write --batch 3`
 
 ---
 
 ## 项目状态感知
 
-每次会话启动时（检测到用户意图为写作相关时），自动执行：
+每次写作会话启动时自动执行：
 
-1. **解析项目根**：检测 writer.json / project-state.json / 设定/ 或 setting/
-2. **读取当前状态**：stage、chapters_done、current_chapter
-3. **检测缺口**（以下项仅在发现问题时提示）：
-   - 正文多但设定少（>10章但<3个设定文件 → 建议补充设定）
-   - 部署完整性检查（.writer/ 结构是否完整）
-   - 拆文库/ 有未完成的 _progress.md → 提示继续拆解
-   - 追踪/ 文件是否存在
-4. **无信息时完全静默**，不输出无意义的占位内容
+1. **解析项目根**：检测 `writer.json` + `setting/` + `chapters/`
+2. **读取状态**：stage、chapters_done、current_chapter
+3. **检测缺口**（仅发现问题时提示）：
+   - 章节 > 10 但设定文件 < 3 → 建议补充设定
+   - `.writer/` 结构不完整 → 提示修复
+   - `analysis_lib/` 有待完成的 `_progress.md` → 提示继续拆解
+   - `tracking/` 文件缺失 → 提示重建
+4. **无信息时完全静默**
 
-### 基于状态的动作建议
-
-- **无项目目录**（不存在包含 `设定/` 和 `正文/` 的目录，也非 setting/ + chapters/）：
-  - 用户想写作 → 提示先运行 project-init
-  - 用户想扫榜/拆文 → 直接路由
-- **已有项目**：
-  - 从 `writer.json` 读取 stage/chapters_done 等状态
-  - 基于当前 stage 提供上下文感知的建议
-  - 写章时自动检查上一章进度
+已有项目时：从 `writer.json` 读取状态；写章时自动检查上一章进度；批量写章前强制预写对齐检查。
 
 ---
 
 ## 执行策略
 
-| 操作类型 | 执行方式 |
-|---------|---------|
-| 扫榜/拆文 | 主会话直接执行（web_search + web_extract + 推理） |
-| 项目初始化 | 主会话交互；只问阻塞项；用 `clarify` 收集结构化答案 |
-| 大纲规划 | 主会话执行（文件读写） |
-| 写章（单章） | 默认执行 5 步日更管线；`--full` 时展开 9 步管线 |
-| 写章（批量） | 优先 delegate_task spawn 子Agent；不可用时主会话逐章串行执行 |
-| 审查（solo） | 主会话执行规则检查 |
-| 审查（full） | 优先 delegate_task spawn 多个审查Agent（模板见 `agents/` 目录）；不可用时降级 solo 并说明 |
-| 去AI味 | 主会话执行（文本改写） |
-| 质检工单 | 串行执行各质检步骤 |
-| 查询 | 主会话执行（文件搜索） |
-| 学习 | 主会话追加 memory |
-| 封面 | 优先调用 image_generate；无图像工具时产出可执行封面提示词和封面规格文件 |
+| 操作 | 执行方式 |
+|------|---------|
+| 扫榜/拆文 | 主会话直接执行（web_search + 推理） |
+| 项目初始化 | 主会话交互；只问阻塞项 |
+| 大纲规划 | 主会话（文件读写） |
+| 写章（单章） | 5 步日更管线；`--full` 展开 9 步；`--fast` 缩减为 4 步 |
+| 写章（批量） | ① 预写对齐检查 → ② delegate_task spawn 子Agent（≤10章/批，推荐 ≤5章）→ ③ 委派返回后走质检+修复管线 |
+| 审查（daily） | 主会话 8 维 3 分钟发布闸（日更后发布前） |
+| 审查（solo） | 主会话 15 维 + AI 痕迹 + 硬禁令 |
+| 审查（full） | delegate_task spawn 多个审查 Agent（模板见 `agents/`），不可用时降级 solo |
+| 去AI味/质检 | 主会话 |
+| 事实库/脚本查询 | 主会话调用对应 Python 脚本 |
+| 封面 | 调用 image_generate；不可用时输出提示词 |
 
-### 当前环境工具适配
-
-旧文档中的工具名按以下方式替换：
-
-| 旧工具名 | 当前执行方式 |
-|----------|--------------|
-| `clarify`, `AskUserQuestion` | `clarify`（Hermes 标准工具） |
-| `delegate_task`, `Agent` | `delegate_task`，指定可用 agent；无合适 agent 则主会话执行 |
-| `web_search`, `web_extract` | `web_search` / `web_extract`、浏览器工具，或要求用户提供来源文本 |
-| `Read/Write/Edit/Grep/Bash` | `read_file`、`write_file`、`patch`、`search_files`、`terminal` 等 Hermes 工具 |
-| `image_generate` | 使用 `image_generate`；若当前会话无图像生成工具，输出提示词与落盘说明，不伪造图片 |
+**RTK 自动前缀**：终端命令前检查 `which rtk`，已安装则所有命令加 `rtk` 前缀。
 
 ---
 
-## 设计演进记录（变更日志）
+## 审查循环
 
-### 已确认决策
+大规模写章后（>20 章）必须执行全面审查。
 
-| 日期 | 决策 | 影响 |
-|------|------|------|
-| 2026-06-17 | 新项目目录默认英文，旧项目中文目录优先兼容 | setting/outline/chapters/tracking/analysis_lib/reference/cover 与 设定/大纲/正文/追踪 并存适配 |
-| 2026-06-17 | 长短篇合并，`--short` 参数分流 | write.md 统一入口 |
-| 2026-06-17 | 旧系统联结从 Hermes 断开，保留原始文件 | story-*/webnovel-* 的目录联结已移除，原始文件仍在 ~/.claude/skills/；novel-pipeline 移入 ~/.claude/skills/；Moke 保留在 ~/.agents/skills/moke/ |
+> **完整流程**：`references/review-cycle.md`（5 步管线权威定义，含 facts.db 降级路径）
+> **审查维度 + Triage**：`references/review.md`（43 维 + First 5 优先检查）
+> **修复管线**：`references/post-review-fix.md`
 
-### 待确认决策
+| Step | 名称 | 核心动作 |
+|------|------|---------|
+| 0 | 项目体检 | 目录完整性 + RAG + facts.db 降级声明 |
+| 1 | 粗筛 | 禁令扫描 + 字数 + 段落 + 5维提取 |
+| 2 | 深筛 | 43维审计(Triage优先) + 交叉校验 + 追读力 |
+| 3 | 终验 | 节奏趋势 + 事实库增量校验 + 阻塞清零 |
+| 4 | 追踪+事实库 | 追踪更新(强制) + 事实库写入(条件) |
+| 5 | 全景报告 | 健康评分 + 修复排序 + 趋势对比 |
 
-| 议题 | 状态 | 说明 |
-|------|------|------|
-| 默认管线粒度为 5 步还是 9 步 | 已收敛 | 默认 5 步，`--full` 才展开 9 步 |
-| 子 Agent spawn 实现 | 已适配 | 当前环境使用 `delegate_task`；不可用时主会话降级 |
+委派后修复管线：禁令修复 → 追加字数 → 段落拆分 → 终验 → 5维交叉校验。
 
 ---
 
-## 写作约束（硬性规则）
+## 写作约束
 
-### 硬性禁令（质检环节必检，最高优先级）
+### 设定讨论原则
 
-1. **破折号清零**：正文中不得出现「——」（用作强调的破折号对）。允许出现在角色对话中表示被打断的「——」（单个在半角水平），但必须在 review 阶段标注。
-2. **「不是…而是…」句式禁用**：不得用否定→肯定结构推动论点，直接陈述。
-3. **元叙事标签禁用**：「正如前文所述」「正如我们所知」「这个场景……」「这一幕……」等跳出故事的解释性插入语。
-4. **分析术语禁用**：「内心挣扎」「表面……实则……」等分析性描述。
-5. **段落按句号断段**：在「。」处换行，一句一段。对话独立成段。标题与正文间空一行。
-6. **每章≥2000汉字**：低于此数的章节视为不合格。
+讨论设定元素时遵循：**先定义作用 → 再讨论平衡/代价/售价**。功能决定价值，不是反过来。
 
-### 默认写章管线
+### 硬性禁令
 
-默认采用 5 步，降低日更摩擦：
+> **单一事实来源**：`references/hard-bans.md`（P0 阻塞 5 条 + P1 强制 4 条 + P2 建议 1 条，含项目规范覆盖机制）
 
-1. Plan：确认本章目标、情绪、钩子、禁区
-2. Architect：生成章节结构，并内联完成上下文编排
-3. Write + Reflect：写正文并提取事实变更
-4. Audit + Normalize：审查硬禁令、AI 痕迹、字数和一致性
-5. Revise：只修 blocking 和用户关心的问题
+### 默认写章管线（5 步）
 
-`--full` 时展开 Moke 9 步；`--fast` 时只执行 Plan → Write → Audit → Revise。
+1. Plan — 确认本章目标、情绪、钩子、禁区
+2. Architect — 编排上下文，生成章节结构
+3. Write + Reflect — 写正文，提取事实变更
+4. Audit + Normalize — 审查硬禁令、AI 痕迹、字数和一致性
+5. Revise — 只修 blocking 和用户关心的问题
+
+`--full` 展开 9 步完整管线；`--fast` 缩减为 Plan → Write → Audit → Revise。
 
 ### AI 痕迹检测阈值
 
 | 指标 | 阈值 |
 |------|------|
 | 段落等长变异系数 | < 0.15 warning |
-| 模糊词密度（似乎/可能/或许） | > 3次/千字 warning |
-| 转折词重复（然而/不过/与此同时） | ≥ 3次 warning |
+| 模糊词密度 | > 3次/千字 warning |
+| 转折词重复 | ≥ 3次 warning |
 | 连续相同开头句式 | ≥ 3句 info |
-| 套话密度 | 按 moke 37 维规则 |
 
 ---
 
-## 状态文件格式
-
-### writer.json
+## writer.json 格式
 
 ```json
 {
@@ -294,26 +225,97 @@ quality（禁令扫描 → review → deslop → 段落修复）
 }
 ```
 
-### project-state.json 兼容
-
-如项目只有 `project-state.json`，不要强制创建 `writer.json`；先读取并映射字段。只有在用户要求迁移或新建 Writer 项目时，才补写 `writer.json`。
-
 ---
 
 ## 子模块索引
 
-| 引用文件 | 功能 | 来源 |
-|---------|------|------|
-| `references/scan.md` | 跨平台扫榜 + 趋势分析 | story-long-scan |
-| `references/analyze.md` | 爆款拆解 + 黄金三章 | story-long-analyze |
-| `references/project-init.md` | 深度交互式项目初始化 | webnovel-init + moke |
-| `references/plan.md` | 总纲→卷纲→章纲 | webnovel-plan |
-| `references/write.md` | 写作管线（长/短/批） | moke + story + webnovel |
-| `references/review.md` | 统一审查（43维） | moke + story + webnovel + novelize |
-| `references/quality.md` | 质检工单（去AI味+禁令） | story-deslop + 硬规则 |
-| `references/memory.md` | 记忆/查询/学习 | webnovel-learn + query |
-| `references/cover.md` | 封面生成 | story-cover |
-| `references/state-format.md` | writer.json schema + 读写方法 | writer skill |
-| `references/integration-notes.md` | 集成记录 | 设计决策 + 来源说明 |
+> **加载策略**：核心模块每次写作会话预加载；扩展模块按路由匹配按需加载。
 
-加载子模块语法：阅读对应的 references 文件后，按照其中的流程执行。若 reference 与本入口冲突，以本入口的工具适配、目录兼容和默认 5 步管线为准。
+### 核心（12 个 — 每次写作必知）
+
+| 文件 | 功能 |
+|------|------|
+| `references/hard-bans.md` | 硬性禁令单一事实来源（P0-P2 分级） |
+| `references/review.md` | 审查维度 + Triage（43维 / 日更8维 / solo15维） |
+| `references/review-cycle.md` | 5 步审查管线权威定义（含 facts.db 降级） |
+| `references/write.md` | 写作管线（单章/批量/短篇，含 delegate 自检） |
+| `references/write-pitfalls.md` | 批量写作避坑指南（11 项实战教训） |
+| `references/quality.md` | 质检工单（禁令+去AI味+段落修复+RAG+事实库） |
+| `references/plan.md` | 大纲规划（总纲→卷纲→章纲） |
+| `references/project-init.md` | 项目初始化（含 import 模式） |
+| `references/pre-write-alignment.md` | 批量写前总线对齐检查 |
+| `references/pre-write-checklist.md` | 写前 30 秒检查清单 |
+| `references/publishable-check.md` | 章节快速可发布性三问判定 |
+| `references/manual-polish.md` | 纯手动逐章逐段润色（三零原则） |
+| `references/memory.md` | 记忆/查询/学习 |
+
+### 扩展（按需加载）
+
+| 文件 | 功能 |
+|------|------|
+| `references/scan.md` | 跨平台扫榜 + 趋势分析 |
+| `references/analyze.md` | 爆款拆解 + 黄金三章 |
+| `references/optimize.md` | 全量优化（意象钩子清理+钩子强度提升） |
+| `references/targeted-audit.md` | 定向审查 |
+| `references/cross-validation.md` | 批量跨设定交叉校验 |
+| `references/setting-consistency-audit.md` | 设定一致性跨文件审计 |
+| `references/post-review-fix.md` | 审查后修复管线（5步+4步+问题模式目录，合并原 3 文件） |
+| `references/deploy.md` | 多卷部署流水线 + 卷间衔接检查 |
+| `references/hooks-scan.md` | 伏笔全卷扫描方法 |
+| `references/master-outline-audit.md` | 总纲暗线对齐检查 |
+| `references/opening-craft.md` | 重生文开篇技巧 |
+| `references/fanqie-submission.md` | 番茄投稿格式兼容检查 |
+| `references/fix-template-cleanup.md` | 模板复制+乱码清除工作流 |
+| `references/codebase-memory-mcp.md` | codebase-memory-mcp 工具指南 |
+| `references/cover.md` | 封面生成 |
+| `references/track-character-state.md` | 角色状态追踪更新 |
+| `references/longform-quality-monitor.md` | 长篇质量趋势监控（声音漂移/情绪/风格指纹） |
+| `references/troubleshooting.md` | 常见故障排除（写章/审查/委派/修复四场景） |
+| `references/hermes-tool-pitfalls.md` | 工具使用陷阱参考 |
+
+### 脚本（11 个）
+
+| 文件 | 功能 | 层级 |
+|------|------|------|
+| `scripts/audit.py` | 统一审计（单章/目录/范围，含 --fix-escaped） | 核心 |
+| `scripts/pad_chapter.py` | 安全字数追加（无模板，内建段落拆分） | 核心 |
+| `scripts/split_paragraphs.py` | 段落拆分（按句号，≤60汉字） | 核心 |
+| `scripts/analyze_hook.py` | 追读力分析（钩子强度/爽点/钩力衰减） | 核心 |
+| `scripts/fact_db.py` | SQLite 事实库（init/query/insert/status） | 核心 |
+| `scripts/report_panorama.py` | 项目全景报告（健康评分+建议） | 核心 |
+| `scripts/audit_5dim.py` | 5维专项审查 | 扩展 |
+| `scripts/analyze_rhythm.py` | 节奏状态查询 | 扩展 |
+| `scripts/report_graph.py` | 实体关系图谱（Mermaid 输出） | 扩展 |
+| `scripts/export.py` | 多平台格式导出 | 扩展 |
+| `scripts/backup.py` | 每日自动备份（保留7天） | 扩展 |
+
+### Agent 模板（4 个 — full 审查模式调用）
+
+| 文件 | 功能 |
+|------|------|
+| `agents/story-architect.md` | 故事结构审查（维度 1-15 + 执行卡） |
+| `agents/consistency-checker.md` | 事实一致性审查（维度 16-27 + 执行卡） |
+| `agents/narrative-writer.md` | 文本质量审查（AI痕迹+禁令+格式） |
+| `agents/character-designer.md` | 角色与对话审查（执行卡） |
+
+---
+
+## 变更记录
+
+| 日期 | 关键变更 |
+|------|---------|
+| 2026-06-23 | **v4.0 激进瘦身**：移除所有向后兼容；SKILL.md -62%（530→200行） |
+| 2026-06-23 | **v4.1 满分冲刺**：review.md 新增 daily 日更 8 维模式（3分钟发布闸）；子模块索引分层（核心12 + 扩展21 + 脚本核心6/扩展5）；执行策略新增 daily 审查 |
+| 2026-06-23 | **v4.2 执行层加固**：audit.py 重写（BANS 同步 hard-bans.md + 新增元叙事/引号/模板复制检测）；project-init.md 移除全部旧引用；write-pitfalls.md 抽离；fact_db.py/analyze_hook.py 文档修复 |
+| 2026-06-23 | **v4.3 深度净化**：pad_chapter.py 移除违禁词（对话池含「深吸一口气」→ S1 修复）；4 个 agent 模板增加 TL;DR；清除 6 个 reference 中的旧系统名残余；quality-delegate.md 与 batch-post-delegate-fix.md 明确分工；audit_5dim.py 增加项目适配说明 |
+| 2026-06-23 | **v4.4 收尾**：write.md 避坑指南彻底抽离至 write-pitfalls.md（sed 切除 ~150 行）；report_panorama.py 移除 project-state.json 回退；review-cycle.md 旧中文路径→新英文路径；SKILL.md 顶部增加「三场景快速上手」卡片；交叉引用完整性审计 |
+| 2026-06-23 | **v4.5 文件合并**：batch-post-delegate-fix + batch-fix-s2s3 + quality-delegate 三合一 → post-review-fix.md（修复决策树 + 5步管线 + 4步精准修复 + 问题模式目录）；quality.md 删除与 hard-bans 重复的禁令表；targeted-audit.md 旧路径→新路径；references 34→31 |
+| 2026-06-23 | **v4.6 README 同步**：README 完全重写（31 references + 审查模式梯度表 + 三场景快速上手 + 文件清单与 SKILL.md 一致）；移除旧数据流架构图；脚本示例路径统一 |
+| 2026-06-23 | **v4.7 模板+默认值**：batch-review-report.md 禁令表同步 hard-bans.md (P0/P1 分级)；report_graph.py 增加项目适配说明；project-init.md 增加智能默认（平台→番茄/字数→3000/章节→60-300）+ 单轮收集优先 |
+| 2026-06-23 | **v5.0 CLI**：创建 `scripts/writer` 统一入口（12 子命令 + fix 一键修复 + check 一键检查） |
+| 2026-06-23 | **v5.1 权重**：review.md 15 维加权评分（核心三角: 设定冲突30 + OOC25 + 钩子25 = 40%）；健康度计算公式 |
+| 2026-06-23 | **v5.2 管线合并**：write.md 9 步完整管线从 ~155 行压缩为 15 行表格（5 步 + 4 扩展）；删除重复描述 |
+| 2026-06-23 | **v5.3 部署分工**：deploy.md 添加指向 plan.md 的节拍表引用，明确分工（plan=设计，deploy=执行） |
+| 2026-06-23 | **v5.4 Agent 模板**：write.md delegate context 模板（6 个信息块：任务/禁令/状态/章纲/声音/自检） |
+| 2026-06-23 | **v5.5-v5.9 完善**：troubleshooting.md 故障排除指南（写章/审查/委派/修复四场景）；project-init 引用 writing_rules 模板 |
+| 2026-06-23 | **v6.0 发布**：版本号；12 轮迭代终态——210 行 SKILL.md · 32 references · 12 scripts(含 CLI) · 4 agents · 11 个模板 · 零旧引用 · 执行层与规则层完全同步 |
