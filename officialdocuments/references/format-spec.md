@@ -1,4 +1,4 @@
-# 公文排版规范（GB/T 9704-2025）
+# 公文排版规范（GB/T 9704-2012）
 
 本规范用于 `officialdocuments` skill 生成正式 `.docx` 报告、请示、通知、函件等文档。生成 Word 正式稿时，优先调用 `scripts/gb_gongwen.py`，不得只用 Markdown 或 pandoc 裸转。
 
@@ -75,21 +75,32 @@ python ~/.agents/skills/officialdocuments/scripts/gb_gongwen.py \
 
 ## 模板策略
 
-旧规范提到 `C:/Users/Administrator/Documents/custom-reference.docx`：
-
-- 如用户明确要求沿用模板、保留复杂页眉页脚、图片、表格或单位固定模板，可使用 reference-doc / 模板复制方案。
-- 默认正式公文交付优先使用 `gb_gongwen.py`，因为它不依赖 Word、pandoc 样式映射或 python-docx，能稳定写入核心公文版式。
+如用户要求沿用特定 Word 模板（含复杂页眉页脚、图片、表格），可使用 pandoc `--reference-doc` 方案。默认正式公文交付优先使用 `gb_gongwen.py`——不依赖 Word、pandoc 样式映射或 python-docx，稳定写入核心公文版式。
 
 ## 生成后验证
 
-每次生成 `.docx` 后至少验证：
+每次生成 `.docx` 后必须验证以下项，缺一不可：
 
-1. 文件存在且可被 pandoc 或 Word 打开。
-2. 反向读取文本，确认标题、一级标题、关键问题段落存在。
-3. 解包或读取 `word/document.xml`，确认包含：
-   - `方正小标宋简体`
-   - `仿宋_GB2312`
-   - `黑体`
-   - `楷体_GB2312`
-   - 页边距 `top=2098 / bottom=1985 / left=1588 / right=1474`
-4. 正式报送前人工打开 Word 检查分页、图片、落款和页码。
+1. 页面：上 3.7cm、下 3.5cm、左 2.8cm、右 2.6cm
+2. 标题：方正小标宋简体，二号（约 22pt），居中
+3. 正文：仿宋_GB2312，三号（约 16pt）
+4. 一级标题（`一、`）：黑体，三号
+5. 二级标题（`（一）`）：楷体_GB2312，三号
+6. 段落：首行缩进 2 字符，固定 30 磅行距
+7. 内容：标题、各级标题、正文关键段落均完整写入，不能只验证文件存在
+8. 产物：输出路径、文件大小、关键 XML 样式检查结果要在最终回复中说明
+
+验证方法：解压 `.docx` 检查 `word/document.xml` 与 `word/styles.xml` 中的字体、字号、页边距、缩进、行距。正式报送前人工打开 Word 检查分页、图片、落款和页码。
+
+### 失败信号
+
+- 只说"已生成 docx"，但没有验证版式
+- 生成的文档能打开但像普通笔记/Markdown 导出
+- skill 参考资料里有格式要求，但没有按此节逐项验证
+
+### 推荐流程
+
+1. 先将正文整理为结构化 Markdown（标题、`## 一、...`、`### （一）...`）
+2. 使用 `scripts/gb_gongwen.py` 生成 `.docx`
+3. 按上述 8 项逐项验证
+4. 如脚本缺失或失效，优先修复脚本；不要退回到无样式保障的 pandoc 默认导出

@@ -1,5 +1,6 @@
 ---
 name: vba-addin-deliver
+version: 2.0.0
 description: Excel VBA 插件全流程：代码/Ribbon/打包/测试。
 
 tags: [vba, excel, ribbon, addin, xlam]
@@ -10,93 +11,92 @@ linked_files:
   references:
     - references/rules.md
     - references/delivery-checklist.md
+    - references/vba-patterns.md
 ---
 
 # VBA Add-in Deliver
 
-## 角色设定
+## 角色
 
-你是一位 Excel VBA 插件交付专家，精通以下全链路：
+Excel VBA 插件交付专家。全程不需要用户打开 VBA 编辑器、手工写 Ribbon XML、操作注册表。
 
-- VBA 业务逻辑开发
-- Office Ribbon XML 功能区定制
-- Office Open XML 格式封装（xlam/xlsm）
-- PowerShell 构建与 COM 自动化
-- Windows 注册表操作与安装卸载脚本
+**核心理念**：用约束让 AI 不出错——提供已验证的规则 + 跑通的模板骨架，AI 只写业务逻辑，不动框架。
 
-## 核心设计理念
+**技术选型**：PowerShell（Windows 自带，零依赖，COM 天然配合），不引入 Python 依赖链。
 
-**用"约束"让 AI 不出错。** 不是让 AI 自由发挥，而是提供一套明确的：
-
-- 什么可以做、什么不能做、怎么做更稳的规则
-- 已经跑通的模板骨架
-- AI 只需要写业务逻辑，框架不用大动刀
-
-**为什么选 PowerShell 而不是 Python？**
-
-1. Windows 自带，零安装
-2. 无依赖版本冲突
-3. 天然与 Excel COM 无缝配合
-4. 注册表、ZIP、脚本操作顺手搞定
-
-## 工作流
-
-### 阶段 1：需求澄清（PM 助理）
-
-在开始写任何代码之前，必须先搞清楚：
-
-1. **使用范围**：当前工作簿临时用，还是通用插件？
-2. **入口方式**：功能区 Ribbon 按钮，还是工作表内形状按钮？
-3. **目标用户**：自己用，还是分发给同事/客户？
-4. **使用频率**：一次性任务，还是日常反复使用？
-5. **Office 版本**：32 位还是 64 位？Excel 2016+ 还是更早？
-6. **功能清单**：具体要做什么操作？输入什么？输出什么？
-
-确认后再进入阶段 2。
-
-### 阶段 2：模板化开发（开发工程师）
-
-基于 `templates/build.ps1` 构建脚本骨架：
-
-- 用户只需要描述业务逻辑
-- AI 在模板基础上小改 VBA 代码
-- Ribbon XML、图标、关系文件由脚本自动处理
-- 文件格式决策见 `references/rules.md`
-
-### 阶段 3：交付打包
-
-1. 自动生成 Office Open XML 包结构
-2. 嵌入 Ribbon XML + 图标资源
-3. 修改 .rels 关系文件
-4. 输出 .xlam（加载项）或 .xlsm（宏工作簿）
-5. 生成安装/卸载 .bat 脚本（注册表操作）
-
-### 阶段 4：自测验证（测试工程师）
-
-1. 用 PowerShell COM 打开 Excel
-2. 写入模拟数据
-3. 运行核心功能
-4. 验证结果是否正确
-5. 检查不同 Excel 版本兼容性
-
-全程不需要用户打开 VBA 编辑器、复制粘贴代码、用第三方工具画 Ribbon、手工写注册表脚本。
-
-## 文件格式决策
-
-| 场景                 | 格式 | 原因                           |
-| -------------------- | ---- | ------------------------------ |
-| 通用插件，分发给多人 | xlam | 隐藏式加载项，不干扰用户工作簿 |
-| 当前工作簿专用宏     | xlsm | 宏与数据绑定在一起             |
-| 模板分发给用户填空   | xlsm | 用户填入数据后运行宏           |
-
-详见 `references/rules.md`。
+---
 
 ## 触发词
 
-VBA插件、Excel插件、xlam、xlsm、Ribbon、功能区、Excel加载项、VBA交付、VBA打包、Excel工具开发
+| 触发词 | 场景 |
+|--------|------|
+| VBA插件、Excel插件、xlam、Excel加载项 | 通用加载项开发 |
+| xlsm、VBA交付、VBA打包 | 宏工作簿交付 |
+| Ribbon、功能区 | 功能区 UI 定制 |
+| Excel工具开发 | 完整工具开发 |
 
-## 目录结构
+---
 
-- templates/build.ps1 — PowerShell 构建脚本骨架
-- references/rules.md — 约束规则与踩坑经验
-- references/delivery-checklist.md — 交付前检查清单
+## 工作流
+
+### 阶段 1：需求澄清
+
+1. **使用范围**：临时用还是通用插件？
+2. **入口方式**：Ribbon 按钮还是工作表形状按钮？
+3. **目标用户**：自己用还是分发？
+4. **Office 版本**：32/64 位？Excel 2016+？
+5. **功能清单**：输入什么？输出什么？
+
+**产出**：确认文种（xlam/xlsm）+ Ribbon 布局清单 + 功能点列表。格式决策见 [`rules.md`](references/rules.md) 速查表。
+
+### 阶段 2：模板化开发
+
+1. 运行 `build.ps1 -ProjectName "XXX" -OutputFormat "xlam"` 生成 OOXML 骨架
+2. 编写 VBA 业务模块（.bas），按 [`rules.md`](references/rules.md) 编码规范
+3. 通过 COM 自动化或 VBE 手动导入 VBA 代码到骨架
+
+**产出**：含 VBA 代码的 `.xlam` / `.xlsm`，Ribbon 按钮已绑定到 VBA 过程。
+
+### 阶段 3：交付打包
+
+1. 运行 `build.ps1` 重新打包（确保 VBA 嵌入后结构完整）
+2. 自动生成 `install.bat` + `uninstall.bat`
+3. 编写 `README.txt`（安装步骤 + 使用说明 + 版本号）
+
+**产出**：dist/ 目录含 `.xlam`/`.xlsm` + `install.bat` + `uninstall.bat` + `README.txt`。
+
+### 阶段 4：自测验证
+
+1. `install.bat` 安装到当前用户注册表
+2. 启动 Excel，验证 Ribbon 出现且按钮可点击
+3. 用模拟数据跑核心功能，检查输出正确
+4. 测试错误路径（空输入、异常数据）有提示
+5. `uninstall.bat` 卸载，确认注册表清除
+
+**产出**：全部 🔴 项通过的 [`delivery-checklist.md`](references/delivery-checklist.md)。
+
+---
+
+## 子文件
+
+| 文件 | 内容 | 何时用 |
+|------|------|--------|
+| `templates/build.ps1` | OOXML 构建脚本骨架 | 项目创建 / 打包 |
+| `references/rules.md` | 约束规则 + 踩坑经验 | 开发全程查阅 |
+| `references/delivery-checklist.md` | 交付前检查清单 | 定稿前核验 |
+| `references/vba-patterns.md` | VBA 可复用代码模板 | 写 VBA 时复制粘贴 |
+
+---
+
+> 📎 关联文件：[build.ps1](templates/build.ps1) · [rules.md](references/rules.md) · [checklist](references/delivery-checklist.md) · [patterns](references/vba-patterns.md)
+
+### 速查卡
+
+| 想做什么 | 去哪 |
+|----------|------|
+| 创建新插件项目 | `build.ps1 -ProjectName "XXX" -OutputFormat "xlam"` |
+| 选 xlam 还是 xlsm | [rules.md 速查表](references/rules.md) |
+| 写 VBA 代码 | [vba-patterns.md](references/vba-patterns.md) 复制模板 |
+| 嵌入 VBA 到骨架 | [rules.md VBA 嵌入方法](references/rules.md) |
+| Ribbon 不显示 | [rules.md 排错指南](references/rules.md) |
+| 交付前检查 | [delivery-checklist.md](references/delivery-checklist.md) 逐项 🔴→🟡→○ |

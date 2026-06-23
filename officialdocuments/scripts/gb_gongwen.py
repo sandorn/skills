@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""GB/T 9704-2025 标准公文 docx 排版引擎（纯 XML+zipfile）。
+"""GB/T 9704-2012 标准公文 docx 排版引擎（纯 XML+zipfile）。
 
 用途：
     生成符合常用公文版式的 .docx，避免仅用 pandoc 导致中文字体、页边距、
@@ -30,15 +30,15 @@
 PARTS 格式：
     (样式id, 文本[, 首行缩进?, 对齐?])
     - "13" = 标题（二号方正小标宋简体，居中）
-    - "14" = 一级标题（三号黑体，自动加“一、”）
-    - "15" = 二级标题（三号楷体_GB2312，自动加“（一）”）
-    - "16" = 三级标题（三号仿宋_GB2312 加粗，自动加“1．”）
+    - "14" = 一级标题（三号黑体，自动加"一、"）
+    - "15" = 二级标题（三号楷体_GB2312，自动加"（一）"）
+    - "16" = 三级标题（三号仿宋_GB2312 加粗，自动加"1．"）
     - "19" = 正文（三号仿宋_GB2312）
     - "sign" = 落款，格式 ("sign", "署名", "日期")
 
 Markdown 输入规则：
     - 第一行作为标题；也可用 --title 覆盖。
-    - 已带编号的标题（如“一、总体情况”“（一）问题”）会识别层级并去掉编号，
+    - 已带编号的标题（如"一、总体情况""（一）问题"）会识别层级并去掉编号，
       再由脚本统一自动编号，避免重复编号。
     - 普通段落作为正文。
     - Markdown 图片语法会跳过；图片需人工插入或后续扩展处理。
@@ -59,7 +59,7 @@ import zipfile
 from pathlib import Path
 from xml.sax.saxutils import escape as _xml_escape
 
-# ═══════════════════ 排版规格（GB/T 9704-2025） ═══════════════════
+# ═══════════════════ 排版规格（GB/T 9704-2012） ═══════════════════
 
 STYLES = {
     "13": ("公文：标题", "方正小标宋简体", 44, False, "center"),  # 二号 22pt
@@ -86,6 +86,18 @@ PAGE = {  # A4，单位 twips
 INDENTED_HEADS = {"14", "15", "16"}
 CN_NUM = "〇一二三四五六七八九十"
 
+def _h1_num(n: int) -> str:
+    """一级标题中文序号，>10 时兜底为阿拉伯数字。"""
+    if n <= 10:
+        return CN_NUM[n]
+    return str(n)
+
+def _h2_num(n: int) -> str:
+    """二级标题中文序号。"""
+    if n <= 10:
+        return CN_NUM[n]
+    return str(n)
+
 H1_RE = re.compile(r"^([一二三四五六七八九十]+)、\s*(.*)$")
 H2_RE = re.compile(r"^（([一二三四五六七八九十]+)）\s*(.*)$")
 H3_RE = re.compile(r"^(\d+)[.．、]\s*(.*)$")
@@ -95,17 +107,18 @@ def _esc(s: object) -> str:
     return _xml_escape(str(s), {"\"": "&quot;"})
 
 
-def generate(parts: list[tuple], output_path: str | os.PathLike[str]) -> None:
+def generate(parts: list[tuple], output_path: str | os.PathLike[str], *, author: str = "") -> None:
     """生成 docx。
 
     Args:
         parts: 段落列表，格式见模块文档。
         output_path: 输出 .docx 路径。
+        author: 起草单位/作者，写入文档属性。
     """
-    _build_docx(parts, Path(output_path))
+    _build_docx(parts, Path(output_path), author=author)
 
 
-def _build_docx(parts: list[tuple], output_path: Path) -> None:
+def _build_docx(parts: list[tuple], output_path: Path, *, author: str = "") -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     tmp = Path(tempfile.mkdtemp(prefix="gb_gongwen_"))
     try:
@@ -119,8 +132,8 @@ def _build_docx(parts: list[tuple], output_path: Path) -> None:
         w("[Content_Types].xml", _xml_content_types())
         w("_rels/.rels", _xml_rels())
         w("word/_rels/document.xml.rels", _xml_doc_rels())
-        w("docProps/core.xml", _xml_core(parts))
-        w("docProps/app.xml", _xml_app())
+        w("docProps/core.xml", _xml_core(parts, author=author))
+        w("docProps/app.xml", _xml_app(author=author))
         w("word/styles.xml", _xml_styles())
         w("word/document.xml", _xml_document(parts))
 
@@ -174,15 +187,15 @@ def _xml_document(parts: list[tuple]) -> str:
         indent = bool(entry[2]) if len(entry) > 2 else False
         align = entry[3] if len(entry) > 3 else None
 
-        # 自动编号。调用方传入标题正文即可，不要带“一、”“（一）”。
+        # 自动编号。调用方传入标题正文即可，不要带"一、""（一）"。
         if sid == "14":
             h1 += 1
             h2 = h3 = 0
-            text = f"{CN_NUM[h1]}、{text}"
+            text = f"{_h1_num(h1)}、{text}"
         elif sid == "15":
             h2 += 1
             h3 = 0
-            text = f"（{CN_NUM[h2]}）{text}"
+            text = f"（{_h2_num(h2)}）{text}"
         elif sid == "16":
             h3 += 1
             text = f"{h3}．{text}"
@@ -286,26 +299,28 @@ def _xml_doc_rels() -> str:
 </Relationships>"""
 
 
-def _xml_core(parts: list[tuple]) -> str:
+def _xml_core(parts: list[tuple], *, author: str = "") -> str:
     title = ""
     for entry in parts:
         if entry and entry[0] == "13":
             title = str(entry[1])
             break
+    creator = _esc(author) if author else "公文排版引擎"
     return (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" '
         'xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" '
         'xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
-        f'<dc:title>{_esc(title)}</dc:title><dc:creator>Hermes Agent</dc:creator>'
-        '<cp:lastModifiedBy>Hermes Agent</cp:lastModifiedBy></cp:coreProperties>'
+        f'<dc:title>{_esc(title)}</dc:title><dc:creator>{creator}</dc:creator>'
+        f'<cp:lastModifiedBy>{creator}</cp:lastModifiedBy></cp:coreProperties>'
     )
 
 
-def _xml_app() -> str:
-    return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+def _xml_app(*, author: str = "") -> str:
+    app = _esc(author) if author else "公文排版引擎"
+    return f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
-  <Application>Hermes Agent</Application>
+  <Application>{app}</Application>
 </Properties>"""
 
 
@@ -350,11 +365,22 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.input and args.output:
-        text = Path(args.input).read_text(encoding="utf-8-sig")
-        parts = markdown_to_parts(text, args.title, args.author, args.date)
-        generate(parts, args.output)
-        print(f"created: {args.output}")
-        return 0
+        inpath = Path(args.input)
+        if not inpath.exists():
+            print(f"error: 输入文件不存在: {args.input}", file=__import__("sys").stderr)
+            return 1
+        text = inpath.read_text(encoding="utf-8-sig")
+        if not text.strip():
+            print(f"error: 输入文件为空: {args.input}", file=__import__("sys").stderr)
+            return 1
+        try:
+            parts = markdown_to_parts(text, args.title, args.author, args.date)
+            generate(parts, args.output, author=args.author)
+            print(f"created: {args.output}")
+            return 0
+        except ValueError as e:
+            print(f"error: {e}", file=__import__("sys").stderr)
+            return 1
 
     demo = [
         ("13", "关于子公司经营管理情况的报告"),
@@ -370,7 +396,7 @@ def main() -> int:
         ("19", "以上报告如无不妥，请审阅。", True),
         ("sign", "富泽人寿保险股份有限公司", "2026年6月16日"),
     ]
-    out = Path.home() / "Documents" / "子管" / "测试公文排版.docx"
+    out = Path("公文排版样例.docx")
     generate(demo, out)
     print(f"OK: {out}")
     return 0

@@ -9,14 +9,24 @@ param(
     [string]$Description = "VBA Excel Add-in",
     [string]$OutputDir = ".\dist",
     [string]$RibbonLabel = "My Tools",
-    [string[]]$IconFiles = @(),
     [switch]$SkipTest
 )
 
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+# Validate output format
+if ($OutputFormat -notin @("xlam","xlsm")) {
+    Write-Host "Error: OutputFormat must be 'xlam' or 'xlsm', got '$OutputFormat'" -ForegroundColor Red
+    exit 1
+}
+
+# Validate temp directory
+if (-not $env:TEMP -or -not (Test-Path $env:TEMP)) {
+    Write-Host "Error: TEMP directory not accessible. Set `$env:TEMP to a writable path." -ForegroundColor Red
+    exit 1
+}
+
 $WorkDir = Join-Path $env:TEMP ("vba_build_" + [Guid]::NewGuid().ToString('N').Substring(0,8))
 $OutputFile = Join-Path $OutputDir "$ProjectName.$OutputFormat"
 
@@ -24,6 +34,7 @@ Write-Host "=== VBA Add-in Builder ===" -ForegroundColor Cyan
 Write-Host "Project : $ProjectName"
 Write-Host "Format  : $OutputFormat"
 Write-Host "Output  : $OutputFile"
+Write-Host "Note    : This script builds the OOXML skeleton. Embed VBA code (vbaProject.bin) separately via Excel COM or manual VBE import." -ForegroundColor DarkGray
 
 New-Item -ItemType Directory -Path (Join-Path $WorkDir "_rels") -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $WorkDir "customUI") -Force | Out-Null
@@ -41,6 +52,7 @@ $ct = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   <Override PartName="/xl/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
   <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
   <Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>
+  <Override PartName="/xl/vbaProject.bin" ContentType="application/vnd.ms-office.vbaProject"/>
 </Types>'
 $ct | Out-File -FilePath (Join-Path $WorkDir "[Content_Types].xml") -Encoding UTF8
 
@@ -90,6 +102,7 @@ $wbr = @"
   <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>
   <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
   <Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>
+  <Relationship Id="rId5" Type="http://schemas.microsoft.com/office/2006/relationships/vbaProject" Target="vbaProject.bin"/>
 </Relationships>
 "@
 $wbr | Out-File -FilePath (Join-Path $WorkDir "xl\_rels\workbook.xml.rels") -Encoding UTF8
@@ -138,13 +151,24 @@ $th | Out-File -FilePath (Join-Path $WorkDir "xl\theme\theme1.xml") -Encoding UT
 
 # ============ Pack ZIP ============
 New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
-if (Test-Path $OutputFile) { Remove-Item $OutputFile -Force }
+if (Test-Path $OutputFile) {
+    try {
+        Remove-Item $OutputFile -Force -ErrorAction Stop
+    } catch {
+        Write-Host "Error: Cannot overwrite '$OutputFile' — file may be locked by Excel. Close Excel and retry." -ForegroundColor Red
+        exit 1
+    }
+}
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [System.IO.Compression.ZipFile]::CreateFromDirectory($WorkDir, $OutputFile)
 Write-Host "Package created: $OutputFile" -ForegroundColor Green
 
 # ============ Generate install/uninstall scripts ============
+# install.bat writes to HKCU (user-level, no admin required)
+# Uses %~dp0 to locate the add-in file relative to the script's own directory
+# Note: Microsoft Store Excel uses a different registry layout; install.bat
+# may not work for Store-installed Office. Check via regedit first.
 $installBat = @"
 @echo off
 chcp 65001 >nul
@@ -152,15 +176,18 @@ echo === Install $ProjectName ===
 set ADDIN_PATH=%~dp0$ProjectName.$OutputFormat
 reg add "HKCU\Software\Microsoft\Office\$ExcelVersion\Excel\AddIns\$ProjectName" /v "Description" /t REG_SZ /d "$Description" /f
 reg add "HKCU\Software\Microsoft\Office\$ExcelVersion\Excel\AddIns\$ProjectName" /v "LoadBehavior" /t REG_DWORD /d 3 /f
-reg add "HKCU\Software\Microsoft\Office\$ExcelVersion\Excel\AddIns\$ProjectName" /v "Manifest" /t REG_SZ /d "%%ADDIN_PATH%%" /f
+reg add "HKCU\Software\Microsoft\Office\$ExcelVersion\Excel\AddIns\$ProjectName" /v "Manifest" /t REG_SZ /d "%ADDIN_PATH%" /f
 echo Done! Please restart Excel to load the add-in.
 pause
 "@
 
+# uninstall.bat kills ALL Excel processes — warns the user first
 $uninstallBat = @"
 @echo off
 chcp 65001 >nul
 echo === Uninstall $ProjectName ===
+echo This will close all Excel windows. Save your work first!
+pause
 taskkill /f /im EXCEL.EXE 2>nul
 reg delete "HKCU\Software\Microsoft\Office\$ExcelVersion\Excel\AddIns\$ProjectName" /f
 echo Done!
@@ -184,17 +211,26 @@ if (-not $SkipTest) {
         $wb = $excel.Workbooks.Open($OutputFile)
         $ws = $wb.Worksheets(1)
         $ws.Cells(1,1) = "Test data"
-        Write-Host "COM open OK, test data written" -ForegroundColor Green
+        Write-Host "COM open OK — OOXML structure valid, file can be opened by Excel" -ForegroundColor Green
         $wb.Close($false)
         $excel.Quit()
         [System.Runtime.InteropServices.Marshal]::ReleaseComObject($excel) | Out-Null
     } catch {
-        Write-Host "Self-test skipped (Excel may not be installed): $_" -ForegroundColor DarkYellow
+        Write-Host "COM test failed (Excel may not be installed or file is locked): $_" -ForegroundColor DarkYellow
     }
 }
 
 Write-Host "`n=== Build complete ===" -ForegroundColor Cyan
-Write-Host "Output dir : $(Resolve-Path $OutputDir)"
+try {
+    Write-Host "Output dir : $(Resolve-Path $OutputDir -ErrorAction Stop)"
+} catch {
+    Write-Host "Output dir : $OutputDir"
+}
 Write-Host "Add-in     : $OutputFile"
 Write-Host "Install    : install.bat"
 Write-Host "Uninstall  : uninstall.bat"
+Write-Host "`nReferences:" -ForegroundColor DarkGray
+Write-Host "  SKILL.md    : ../SKILL.md"
+Write-Host "  rules.md    : ../references/rules.md"
+Write-Host "  checklist   : ../references/delivery-checklist.md"
+Write-Host "  vba-patterns: ../references/vba-patterns.md"
