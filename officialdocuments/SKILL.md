@@ -40,6 +40,21 @@ linked_files:
 
 > **严禁"请示报告"叠用。** 向不相隶属机关禁用"请示"，下行禁用"请示"。
 
+### 触发边界（不触发）
+
+以下情况**不应**触发本 skill，避免误拦截用户的普通写作或非公文场景：
+
+| 场景 | 说明 |
+|------|------|
+| 网页文章/公众号推文/新闻稿 | 非正式公文，不套公文版式 |
+| 普通邮件/内部备忘/会议纪要 | 非正式行文，不强制六要素 |
+| 学术论文/技术报告/商业计划书 | 非行政机关公文 |
+| 纯文字润色（无文种触发词） | 用户仅要求"改通顺""缩写一段话"，未指名公文类型 |
+| 用户明确说"不用公文格式" | 尊重用户明示 |
+| 仅询问公文知识/规范 | 解答即可，不创建文件 |
+
+> **原则**：必须有明确的文种触发词（请示/报告/通知/函/建议书/检查报告/提示函），或用户显式 `/公文`，才调用本 skill 的完整流程。
+
 ---
 
 ## 核心规则
@@ -49,6 +64,7 @@ linked_files:
 3. **待确认项必须列出** — 不确定的数据/人名/日期用 `XX` 占位，列入 `## 待确认事项`
 4. **检查报告也按正式公文交付** — 必须套用 `scripts/gb_gongwen.py` 达到可报送的版式要求
 5. **格式不合格必须返工** — 用户指出格式问题时，回到 `format-spec.md` 重新生成并按质量门逐项验证，不解释
+6. **交付前必须通过质量门** — 任何 `.docx` 产物必须在回复中说明 `format-spec.md` 8 项验证结果；用户要求"可报送专业版式"时，8 项必须全部通过，缺一不可
 
 ---
 
@@ -65,11 +81,22 @@ linked_files:
 | `references/checklist.md` | 发文前自检清单 | 定稿前核验 |
 | `scripts/gb_gongwen.py` | Word 排版引擎（纯 XML+zipfile） | 正式 docx 导出首选 |
 
-## 快速开始
+## 维护与验收提示
 
-1. **判断文种**：需批复→请示 / 仅汇报→报告 / 需执行→通知 / 对外商洽→函 / 提建议→建议书
+当需要优化或调试本 skill 时，按以下顺序验收，避免把“看起来改了”误报为完成：
+
+1. **先看实质 diff**：在 Windows/MSYS 环境下，Claude Code 或编辑器可能造成 CRLF、可执行位、权限位变化，`git diff --stat` 会显示整文件变化；应同时查看 `git diff --ignore-space-at-eol`、`git diff --summary`，区分内容修改与权限/换行噪声。
+2. **清理临时产物**：运行 `py_compile` 或脚本测试后，删除 `scripts/__pycache__/`、临时样例目录和测试 docx，避免污染 skill 库。
+3. **验证 frontmatter**：不得新增 Hermes 用户 skill 不支持的字段，如 `trigger`、`priority`、`auto_load`、`override_model`、`model`、`lock`、`disable_tools`。
+4. **验证脚本可运行**：至少执行 `python3 -m py_compile scripts/gb_gongwen.py`、`python3 scripts/gb_gongwen.py --help`，并生成一个最小 sample.docx 后解压检查 `word/document.xml` 与 `word/styles.xml`。
+5. **报告必须基于真实输出**：最终说明应列出修改文件、实质优化项、验证命令和验证结果；若 Claude Code 到达 `max-turns` 但已写入文件，仍要以本地 diff 和验证结果为准，不直接判定失败。
+
+
 2. **创建文件**：`公文_<文种>_<事由简称>.md`
 3. **选择模板**：查阅 `references/templates.md`
 4. **填写 + 自检**：替换占位项 → 用 `references/checklist.md` 逐项核验
-5. **导出**：需 .docx 时按 `references/workflow.md` 执行
-6. **验证**：交付前按 `references/format-spec.md` 质量门逐项检查
+5. **导出 docx**：按 `references/workflow.md` 执行 `scripts/gb_gongwen.py`；命令行：
+   ```bash
+   python scripts/gb_gongwen.py "公文_XX.md" "公文_XX.docx" --author "发文机关" --date "2026年X月X日"
+   ```
+6. **验证版式**：按 `references/format-spec.md` 质量门 8 项逐项检查，解压 docx 验证 XML

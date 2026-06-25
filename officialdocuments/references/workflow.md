@@ -103,7 +103,8 @@ flowchart TD
 python ~/.agents/skills/officialdocuments/scripts/gb_gongwen.py \
   “输入.md” “输出.docx” \
   --title “关于XXX的报告” \
-  --author “子公司管理室”
+  --author “子公司管理室” \
+  --date “2026年6月19日”
 ```
 
 ### 备选导出：Pandoc + reference-doc

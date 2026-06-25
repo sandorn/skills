@@ -54,6 +54,7 @@ import argparse
 import os
 import re
 import shutil
+import sys
 import tempfile
 import zipfile
 from pathlib import Path
@@ -331,7 +332,11 @@ def markdown_to_parts(text: str, title: str | None = None, author: str | None = 
         raise ValueError("输入为空，且未指定 --title")
 
     doc_title = title or lines[0].strip("# ").strip()
-    body_lines = lines if title else lines[1:]
+    # 如外部指定标题，且第一行是 Markdown 标题行（以 # 开头），则跳过
+    if title and lines and lines[0].startswith("#"):
+        body_lines = lines[1:]
+    else:
+        body_lines = lines if title else lines[1:]
     parts: list[tuple] = [("13", doc_title)]
 
     for raw in body_lines:
@@ -367,11 +372,11 @@ def main() -> int:
     if args.input and args.output:
         inpath = Path(args.input)
         if not inpath.exists():
-            print(f"error: 输入文件不存在: {args.input}", file=__import__("sys").stderr)
+            print(f"error: 输入文件不存在: {args.input}", file=sys.stderr)
             return 1
         text = inpath.read_text(encoding="utf-8-sig")
         if not text.strip():
-            print(f"error: 输入文件为空: {args.input}", file=__import__("sys").stderr)
+            print(f"error: 输入文件为空: {args.input}", file=sys.stderr)
             return 1
         try:
             parts = markdown_to_parts(text, args.title, args.author, args.date)
@@ -379,7 +384,7 @@ def main() -> int:
             print(f"created: {args.output}")
             return 0
         except ValueError as e:
-            print(f"error: {e}", file=__import__("sys").stderr)
+            print(f"error: {e}", file=sys.stderr)
             return 1
 
     demo = [
