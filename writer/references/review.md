@@ -1,6 +1,6 @@
 # 审查：统一 43 维质量审计
 
-改编自 Moke 37 维审计 + story-review 多模式 + webnovel-review JSON 指标落库。
+改编自 37 维审计框架 + 多模式审查 + JSON 指标落库。
 
 ---
 
@@ -216,7 +216,7 @@ Step C: 全量（仅 full 模式 + 子 agent 并行时启用）
 
 ### Step 0：批量审查预处理（章节数 ≥ 5）
 
-当审查 5 章及以上时，**必须**先执行 `references/cross-validation.md` 的 Step 1-2（提取设定基准值 + 逐章过检）。批量审查中最致命的错误是正文与多份设定文档之间的数值/状态不一致——单章审查无法发现，因为偏差是累积的。
+当审查 5 章及以上时，**必须**先执行 `references/setting-consistency-audit.md` 的 Step 3-4（正文 vs 设定交叉校验）。批量审查中最致命的错误是正文与多份设定文档之间的数值/状态不一致——单章审查无法发现，因为偏差是累积的。
 
 **前置审计继承**：如果项目已有之前的审查报告（如 `审查报告-ch01-20.md`），必须先加载旧报告，逐条验证之前报告的 S1 阻塞问题是否已修复，再开始新一轮审查。在报告中注明修复状态（✅已修复 / ❌仍存在），避免重复报告已修复的问题。
 
@@ -309,16 +309,16 @@ with open(ch_path, 'r', encoding='utf-8') as f:
 
 ## full 模式
 
-当用于审查多章或全文时，优先使用 `delegate_task` spawn 子Agent 并行执行：
+当用于审查多章或全文时，优先使用子代理委派（sub-agent delegation）并行执行：
 
 每个子Agent 加载对应 `agents/` 目录下的指令模板：
 
-| Agent | 模板文件 | 职责维度组 | 模型建议 |
+| Agent | 模板文件 | 职责维度组 | 推荐模型级别 |
 |-------|---------|-----------|---------|
-| **story-architect** | `agents/story-architect.md` | 结构审查（维度 1-15）+ 全量追加（维度 37-43） | sonnet |
-| **consistency-checker** | `agents/consistency-checker.md` | 事实/设定/伏笔审查（维度 16-27 含 AI腔红线） | haiku |
-| **narrative-writer** | `agents/narrative-writer.md` | 文本/AI痕迹/硬禁令审查（维度 28-36 含对话三功能检验） | haiku |
-| **character-designer** | `agents/character-designer.md` | 角色与对话审查（按需追加） | sonnet |
+| **story-architect** | `agents/story-architect.md` | 结构审查（维度 1-15）+ 全量追加（维度 37-43） | sonnet-class |
+| **consistency-checker** | `agents/consistency-checker.md` | 事实/设定/伏笔审查（维度 16-27 含 AI腔红线） | haiku-class |
+| **narrative-writer** | `agents/narrative-writer.md` | 文本/AI痕迹/硬禁令审查（维度 28-36 含对话三功能检验） | haiku-class |
+| **character-designer** | `agents/character-designer.md` | 角色与对话审查（按需追加） | sonnet-class |
 
 子Agent 只返回报告，主会话汇总。
 

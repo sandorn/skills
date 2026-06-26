@@ -6,7 +6,7 @@
 
 ## 触发时机
 
-任何批量写章前（主会话直接写 / delegate_task 委派写），**必须先执行此检查**。单章日更可酌情跳过，但新卷首章或新批首章必做。
+任何批量写章前（主会话直接写 / 子代理委派写），**必须先执行此检查**。单章日更可酌情跳过，但新卷首章或新批首章必做。
 
 ---
 
@@ -123,23 +123,23 @@ write.md 的「执行前预检」侧重于**检查项目结构完整性**（writ
 
 ### 读大纲（获取当前卷目标）
 ```bash
-read_file "outline/master_outline.md"
-read_file "outline/volume_outline.md"
+cat "outline/master_outline.md"
+cat "outline/volume_outline.md"
 ```
 
 ### 读追踪（获取当前世界快照）
 ```bash
-read_file "tracking/current_state.md"
-read_file "tracking/hooks.md"
-read_file "tracking/chapter_summaries.md"
+cat "tracking/current_state.md"
+cat "tracking/hooks.md"
+cat "tracking/chapter_summaries.md"
 ```
 
 ### 读细纲（获取批次的章纲）
 ```bash
-read_file "outline/chapter_outline/ch_{NNN}.md"
+cat "outline/chapter_outline/ch_{NNN}.md"
 ```
 
-### 5维状态校验（execute_code）
+### 5维状态校验（内联脚本）
 ```python
 import re, os
 

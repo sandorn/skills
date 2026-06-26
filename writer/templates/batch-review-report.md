@@ -156,3 +156,72 @@
 *审查日期：{date}*
 *审查模型：{model}*
 *审查章数：{N}章 | 总字数：~{N}*
+
+---
+
+# Full 模式审查报告格式（多 Agent 并行）
+
+> 当使用 full 模式时，4 个子代理并行审查。主会话汇总各代理报告并合并为完整报告。
+
+## Agent 分发
+
+| Agent | 职责维度 | 审查章数 | 状态 | 耗时 |
+|-------|---------|---------|------|------|
+| story-architect | D1-15 + D37-43 | {N} | ✅/❌ | {M}min |
+| consistency-checker | D16-27 + AI腔红线 | {N} | ✅/❌ | {M}min |
+| narrative-writer | D28-36 + 禁令 + 格式 | {N} | ✅/❌ | {M}min |
+| character-designer | 角色+对话专项 | {N} | ✅/跳过 | {M}min |
+
+## 汇总结果
+
+| 等级 | 数量 | 涉及章节 |
+|------|------|---------|
+| S1 (阻塞) | {N} | ch{NNN}, ch{NNN} |
+| S2 (重要) | {N} | — |
+| S3 (建议) | {N} | — |
+| S4 (提示) | {N} | — |
+
+## 跨 Agent 冲突矩阵
+
+当两个以上 Agent 对同一章节/同一维度给出不同判定时：
+
+| 章节 | 维度 | Agent A 判定 | Agent B 判定 | 裁决 |
+|------|------|-------------|-------------|------|
+| ch{NNN} | OOC | S2 (story-architect) | S4 (character-designer) | 取严格→S2 |
+
+## 各 Agent 报告摘要
+
+### story-architect
+
+```
+{嵌入 story-architect 的 VERDICT + 关键 S1/S2}
+```
+
+### consistency-checker
+
+```
+{嵌入 consistency-checker 的 VERDICT + 关键 S1/S2}
+```
+
+### narrative-writer
+
+```
+{嵌入 narrative-writer 的评分 + 关键 findings}
+```
+
+### character-designer (if enabled)
+
+```
+{嵌入 character-designer 的 VERDICT + 关键 findings}
+```
+
+## 总体可发布判定
+
+| 条件 | 状态 |
+|------|------|
+| S1 全部清零 | ✅/❌ |
+| S2 修复率 >80% | ✅/❌ |
+| 字数达标率 >95% | ✅/❌ |
+| 模板复制已清除 | ✅/❌ |
+
+**判定**: {可以发布 / 修复后发布 / 需要重审}

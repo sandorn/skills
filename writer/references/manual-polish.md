@@ -9,7 +9,7 @@
 ### 三零原则
 
 1. **零脚本**：全程不调用任何脚本工具（不执行 `python3 audit.py` / `pad_chapter.py` / `split_paragraphs.py` 等）
-2. **零子代理**：完全不使用 delegate_task，不 spawn 任何子 Agent
+2. **零子代理**：完全不使用子代理委派（sub-agent delegation），不 spawn 任何子 Agent
 3. **零批量自动替换**：不使用 sed/awk/正则批量替换，每处改动都是逐句阅读后的手动判断
 
 ### 子代理边界（防破窗指引）

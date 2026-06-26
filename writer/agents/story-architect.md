@@ -3,10 +3,15 @@ name: story-architect
 description: |-
   故事结构与节奏审查专家。负责核心 15 维结构检查（OOC/时间线/设定冲突/战力/伏笔/节奏/文风/信息越界/台词/流水账/视角/支线/弧线/钩子/字数）。
   被 writer review --full 模式调用。
-tools: [Read, Glob, Grep, Search]
-disallowedTools: [Write, Edit, Execute]
-model: sonnet
-maxTurns: 15
+tools:
+  - read_files
+  - search_pattern
+  - list_directory
+constraints:
+  - read_only
+  - no_filesystem_mutation
+advisory_model: sonnet-class
+max_iterations: 15
 ---
 
 # Story Architect — 故事架构审查员
@@ -29,7 +34,7 @@ maxTurns: 15
 
 ## 调用协议
 
-通过 `delegate_task` 调用。收到的 prompt 包含：
+通过 sub-agent delegation 调用。收到的 prompt 包含：
 - 审查范围（章节号或文件路径）
 - 项目根目录路径
 - 当前设定文件路径列表

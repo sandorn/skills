@@ -97,6 +97,26 @@ def cmd_check(target):
     return total
 
 
+VERSION = "7.0"
+
+
+def cmd_doctor():
+    """验证所有子脚本是否可用"""
+    print("=" * 50)
+    print(f"Writer Doctor v{VERSION}")
+    print("=" * 50)
+    all_ok = True
+    for name, script_file in sorted(COMMANDS.items()):
+        script = SCRIPT_DIR / script_file
+        exists = "✅" if script.exists() else "❌"
+        if not script.exists():
+            all_ok = False
+        print(f"  {exists} {name:12s} → {script_file}")
+    print("-" * 50)
+    print(f"结果: {'全部通过' if all_ok else '存在问题 — 检查上述 ❌ 项'}")
+    return 0 if all_ok else 1
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__)
@@ -104,6 +124,13 @@ def main():
 
     cmd = sys.argv[1]
     args = sys.argv[2:]
+
+    if cmd in ('--version', '-V', 'version'):
+        print(f'writer v{VERSION}')
+        sys.exit(0)
+
+    if cmd == 'doctor':
+        sys.exit(cmd_doctor())
 
     if cmd == 'fix':
         if not args:

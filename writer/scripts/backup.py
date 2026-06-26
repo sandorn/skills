@@ -1,23 +1,23 @@
-#!/usr/bin/env bash
-"""每日自动备份 — 打包正文/设定/大纲/追踪，保留最近7天。
+#!/usr/bin/env python3
+"""每日自动备份 — 打包 chapters/setting/outline/tracking，保留最近7天。
 
-配置方式（根据项目路径修改 PROJECT_ROOT）：
-    0 3 * * * bash scripts/auto_backup.sh
+用法：
+    python3 scripts/backup.py <项目根目录> [--retention DAYS]
+
+配置 cron：
+    0 3 * * * cd /path/to/project && python3 scripts/backup.py .
 
 该脚本由 cronjob 每日本地时间凌晨3点执行。
-备份文件路径：{PROJECT_ROOT}/.writer/backups/YYYY-MM-DD.tar.gz
+备份文件路径：{project_root}/.writer/backups/YYYY-MM-DD.tar.gz
 """
 
-import os, sys, tarfile, shutil, glob
+import os
+import sys
+import tarfile
+import glob
+import argparse
 from datetime import datetime, timedelta
 from pathlib import Path
-
-
-# ⚠️ 修改此行指向实际项目根目录
-PROJECT_ROOT = "D:/Writer/重生2001：传奇带进现实"
-
-BACKUP_DIR = os.path.join(PROJECT_ROOT, ".writer", "backups")
-RETENTION_DAYS = 7
 
 
 def should_include(name):
@@ -38,18 +38,24 @@ def should_include(name):
     return True
 
 
-def create_backup():
-    os.makedirs(BACKUP_DIR, exist_ok=True)
+def create_backup(project_root, retention_days=7):
+    project_root = os.path.abspath(project_root)
+    if not os.path.isdir(project_root):
+        print(f"❌ 项目目录不存在: {project_root}")
+        sys.exit(1)
+
+    backup_dir = os.path.join(project_root, ".writer", "backups")
+    os.makedirs(backup_dir, exist_ok=True)
 
     date_str = datetime.now().strftime('%Y-%m-%d')
-    backup_file = os.path.join(BACKUP_DIR, f'{date_str}.tar.gz')
+    backup_file = os.path.join(backup_dir, f'{date_str}.tar.gz')
 
     if os.path.exists(backup_file):
         print(f"⏭️  今日备份已存在: {backup_file}")
         return
 
     # 收集要备份的文件
-    base = Path(PROJECT_ROOT)
+    base = Path(project_root)
     files_to_backup = []
     total_size = 0
 
@@ -60,6 +66,10 @@ def create_backup():
         if should_include(rel):
             files_to_backup.append((str(f), rel))
             total_size += f.stat().st_size
+
+    if not files_to_backup:
+        print(f"⚠️  项目目录无文件: {project_root}")
+        return
 
     # 创建 tar.gz
     with tarfile.open(backup_file, 'w:gz') as tar:
@@ -72,8 +82,8 @@ def create_backup():
     print(f"   {len(files_to_backup)} 文件 ({size_mb:.1f} MB → {archive_mb:.1f} MB)")
 
     # 清理过期备份
-    cutoff = datetime.now() - timedelta(days=RETENTION_DAYS)
-    for old in sorted(glob.glob(os.path.join(BACKUP_DIR, '*.tar.gz'))):
+    cutoff = datetime.now() - timedelta(days=retention_days)
+    for old in sorted(glob.glob(os.path.join(backup_dir, '*.tar.gz'))):
         old_date_str = os.path.basename(old).replace('.tar.gz', '')
         try:
             old_date = datetime.strptime(old_date_str, '%Y-%m-%d')
@@ -83,9 +93,27 @@ def create_backup():
         except ValueError:
             pass  # 文件名不符合日期格式，跳过
 
-    print(f"💾 当前备份数: {len(glob.glob(os.path.join(BACKUP_DIR, '*.tar.gz')))}")
-    print(f"📁 备份目录: {BACKUP_DIR}")
+    remaining = glob.glob(os.path.join(backup_dir, '*.tar.gz'))
+    print(f"💾 当前备份数: {len(remaining)}")
+    print(f"📁 备份目录: {backup_dir}")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Writer 项目每日自动备份',
+        epilog='示例: python3 scripts/backup.py . --retention 14'
+    )
+    parser.add_argument(
+        'project_root',
+        help='项目根目录路径（包含 writer.json 或 setting/ + chapters/）'
+    )
+    parser.add_argument(
+        '--retention', type=int, default=7,
+        help='备份保留天数（默认: 7）'
+    )
+    args = parser.parse_args()
+    create_backup(args.project_root, args.retention)
 
 
 if __name__ == '__main__':
-    create_backup()
+    main()

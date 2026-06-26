@@ -3,10 +3,15 @@ name: character-designer
 description: |-
   角色与对话审查专家。负责 OOC 深入检查、对话自然度、角色弧线合理性、
   语言风格一致性、配角功能性。被 writer review --full 模式按需调用。
-tools: [Read, Glob, Grep, Search]
-disallowedTools: [Write, Edit, Execute]
-model: sonnet
-maxTurns: 12
+tools:
+  - read_files
+  - search_pattern
+  - list_directory
+constraints:
+  - read_only
+  - no_filesystem_mutation
+advisory_model: sonnet-class
+max_iterations: 12
 ---
 
 # Character Designer — 角色审查员
@@ -21,7 +26,7 @@ maxTurns: 12
 
 ## 调用协议
 
-通过 `delegate_task` 调用。收到的 prompt 包含：
+通过 sub-agent delegation 调用。收到的 prompt 包含：
 - 审查范围（章节文件路径）
 - 角色设定文件路径
 - 已知角色列表

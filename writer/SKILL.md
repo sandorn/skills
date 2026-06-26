@@ -138,19 +138,19 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 
 | 操作 | 执行方式 |
 |------|---------|
-| 扫榜/拆文 | 主会话直接执行（web_search + 推理） |
+| 扫榜/拆文 | 主会话直接执行（web/content search + 推理） |
 | 项目初始化 | 主会话交互；只问阻塞项 |
 | 大纲规划 | 主会话（文件读写） |
 | 写章（单章） | 5 步日更管线；`--full` 展开 9 步；`--fast` 缩减为 4 步 |
-| 写章（批量） | ① 预写对齐检查 → ② delegate_task spawn 子Agent（≤10章/批，推荐 ≤5章）→ ③ 委派返回后走质检+修复管线 |
+| 写章（批量） | ① 预写对齐检查 → ② sub-agent delegation 并行写章（≤5章/批）→ ③ 委派返回后走质检+修复管线 |
 | 审查（daily） | 主会话 8 维 3 分钟发布闸（日更后发布前） |
 | 审查（solo） | 主会话 15 维 + AI 痕迹 + 硬禁令 |
-| 审查（full） | delegate_task spawn 多个审查 Agent（模板见 `agents/`），不可用时降级 solo |
+| 审查（full） | sub-agent delegation 并行审查（模板见 `agents/`），不可用时降级 solo |
 | 去AI味/质检 | 主会话 |
 | 事实库/脚本查询 | 主会话调用对应 Python 脚本 |
-| 封面 | 调用 image_generate；不可用时输出提示词 |
+| 封面 | Use available image generation tool; if unavailable, output prompt only |
 
-**RTK 自动前缀**：终端命令前检查 `which rtk`，已安装则所有命令加 `rtk` 前缀。
+**Shell 别名加速**：终端命令前检查是否安装了命令加速代理（如 `rtk`），已安装则所有命令加对应前缀。
 
 ---
 
@@ -172,6 +172,48 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 | 5 | 全景报告 | 健康评分 + 修复排序 + 趋势对比 |
 
 委派后修复管线：禁令修复 → 追加字数 → 段落拆分 → 终验 → 5维交叉校验。
+
+### 审查模式梯度
+
+| 模式 | 命令 | 维度 | 耗时 | 适用场景 |
+|------|------|------|------|---------|
+| **quick** | `review --quick` | 纯规则扫描 | 30s | 写章过程中自检 |
+| **daily** | `review --daily` | 8 维必检 | 3min | 日更后发布前闸门 |
+| **solo** | `review` | 15 维 + AI痕迹 | 5min | 每 5 章例行审查 |
+| **lean** | `review --lean` | 27 维 | 10min | 每 10 章深度审查 |
+| **full** | `review --full` | 43 维（4 Agent 并行） | 30min | 每卷结束 / 批量写章后 |
+
+### Full 模式：多 Agent 并行审查
+
+Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独立的子代理并行执行，每个子代理专注一个维度组：
+
+```
+主会话
+  ├── story-architect     → 结构审查（D1-15 + D37-43）
+  │     First 5 必检：设定冲突→OOC→章末钩子→时间线→战力崩坏
+  │     命中 S1 立即停止，其余维按章节类型定向激活
+  │
+  ├── consistency-checker → 事实一致性（D16-27 + AI腔红线）
+  │     数值/词汇/利益链/年代/降智/爽点虚化/大纲偏离/伏笔/金手指
+  │     集成 AI 腔红线：章末升华/直述情绪/纯心理/万能比喻/同声化
+  │
+  ├── narrative-writer    → 文本质量（D28-36 + 禁令 + 格式）
+  │     AI 痕迹 6 维 + 硬禁令 3 项 + 对话三功能检验 + 格式合规
+  │
+  └── character-designer  → 角色与对话（按需启用）
+        遮名测试 + OOC 深入 + 配角工具人检测 + 语言风格一致性
+```
+
+**执行流程**：
+1. 主会话分发：将审查范围 + 设定文件路径 + 禁令列表分发到 4 个子代理
+2. 并行审查：4 个子代理同时执行，只读不写，各自输出 S1-S4 分级报告
+3. 汇总合并：主会话收集 4 份报告 → 合并为统一审查报告 → 处理跨 Agent 冲突
+4. 冲突裁决：当两个 Agent 对同一维度给出不同判定时，取更严格的等级
+5. 降级兜底：如果子代理不可用或启动失败，自动降级为 lean/solo
+
+**子代理模板**：`agents/story-architect.md` / `consistency-checker.md` / `narrative-writer.md` / `character-designer.md`
+
+**报告模板**：`templates/batch-review-report.md`（含 Full 模式专用汇总格式 + 跨 Agent 冲突矩阵）
 
 ---
 
@@ -238,7 +280,7 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 | `references/hard-bans.md` | 硬性禁令单一事实来源（P0-P2 分级） |
 | `references/review.md` | 审查维度 + Triage（43维 / 日更8维 / solo15维） |
 | `references/review-cycle.md` | 5 步审查管线权威定义（含 facts.db 降级） |
-| `references/write.md` | 写作管线（单章/批量/短篇，含 delegate 自检） |
+| `references/write.md` | 写作管线（单章/批量/短篇，含 sub-agent delegation 自检） |
 | `references/write-pitfalls.md` | 批量写作避坑指南（13 项实战教训） |
 | `references/quality.md` | 质检工单（禁令+去AI味+段落修复+RAG+事实库） |
 | `references/plan.md` | 大纲规划（总纲→卷纲→章纲） |
@@ -257,9 +299,7 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 | `references/analyze.md` | 爆款拆解 + 黄金三章 |
 | `references/optimize.md` | 全量优化（意象钩子清理+钩子强度提升） |
 | `references/targeted-audit.md` | 定向审查 |
-| `references/cross-validation.md` | 批量跨设定交叉校验 |
-| `references/cross-setting-consistency.md` | 跨设定一致性审查指南（大纲/设定/卷纲交叉校验） |
-| `references/setting-consistency-audit.md` | 设定一致性跨文件审计 |
+| `references/setting-consistency-audit.md` | 设定一致性跨文件审计（统一入口：设定内部→大纲→正文→卷间→修复） |
 | `references/post-review-fix.md` | 审查后修复管线（5步+4步+问题模式目录，合并原 3 文件） |
 | `references/deploy.md` | 多卷部署流水线 + 卷间衔接检查 |
 | `references/hooks-scan.md` | 伏笔全卷扫描方法 |
@@ -267,12 +307,14 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 | `references/opening-craft.md` | 重生文开篇技巧 |
 | `references/fanqie-submission.md` | 番茄投稿格式兼容检查 |
 | `references/fix-template-cleanup.md` | 模板复制+乱码清除工作流 |
-| `references/codebase-memory-mcp.md` | codebase-memory-mcp 工具指南 |
+| `references/project-knowledge-base.md` | 项目知识库工具集成指南 |
 | `references/cover.md` | 封面生成 |
 | `references/track-character-state.md` | 角色状态追踪更新 |
 | `references/longform-quality-monitor.md` | 长篇质量趋势监控（声音漂移/情绪/风格指纹） |
 | `references/troubleshooting.md` | 常见故障排除（写章/审查/委派/修复四场景） |
-| `references/hermes-tool-pitfalls.md` | 工具使用陷阱参考 |
+| `references/tool-pitfalls.md` | 通用工具陷阱参考 |
+| `references/tool-pitfalls-windows.md` | Windows 特有工具陷阱（write_file 换行丢失、PowerShell 引号冲突） |
+| `references/project-review-novel-gaming-manifest.md` | 《网游具现：我能看见卡池》项目审查完成记录与工具教训 |
 
 ### 脚本（11 个）
 
@@ -305,6 +347,7 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 
 | 日期 | 关键变更 |
 |------|---------|
+| 2026-06-26 | **v7.0 通用化**：移除所有 Claude/Hermes 专用术语（delegate_task→sub-agent delegation, web_search→web/content search, image_generate→image generation tool, search_files→grep/pattern search, Moke/Hermes 移除）；agent YAML 泛化（tools→capabilities, model→advisory_model, maxTurns→max_iterations）；hermes-tool-pitfalls.md→tool-pitfalls.md（通用工具陷阱）；codebase-memory-mcp.md→project-knowledge-base.md（通用知识库指南）；SKILL.md 执行策略与子模块索引同步更新 |
 | 2026-06-23 | **v4.0 激进瘦身**：移除所有向后兼容；SKILL.md -62%（530→200行） |
 | 2026-06-23 | **v4.1 满分冲刺**：review.md 新增 daily 日更 8 维模式（3分钟发布闸）；子模块索引分层（核心12 + 扩展21 + 脚本核心6/扩展5）；执行策略新增 daily 审查 |
 | 2026-06-23 | **v4.2 执行层加固**：audit.py 重写（BANS 同步 hard-bans.md + 新增元叙事/引号/模板复制检测）；project-init.md 移除全部旧引用；write-pitfalls.md 抽离；fact_db.py/analyze_hook.py 文档修复 |

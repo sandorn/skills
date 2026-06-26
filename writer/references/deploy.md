@@ -14,7 +14,7 @@
 第N卷 详细大纲(60章事件线)
   ↓
 ├─ 审查:节拍表 vs 详细大纲 vs 总纲 (交叉校验)
-├─ 写章: delegate_task 并行批量
+├─ 写章: sub-agent delegation 并行批量
 ↓
 审查: 3轮循环 (详见 `references/review-cycle.md`)
 ↓
@@ -65,7 +65,7 @@ grep -n '突然\|忽然\|他知道\|不是.*而是\|似乎\|仿佛' chapters/ch*
 # 逐条 patch 替换
 
 # 阶段3: 字数不足修复
-# 用 execute_code 批量扫描,对不足章在末尾追加场景
+# 用内联脚本批量扫描,对不足章在末尾追加场景
 ```
 
 ---

@@ -89,9 +89,9 @@ python3 scripts/audit_5dim.py 正文/               # 5维专项
 - 命中 blocking → 停止，修复，重查 First 5
 - 通过后按章节类型定向激活其余维度
 
-### 2b. 跨设定交叉校验（`cross-validation.md` + `setting-consistency-audit.md`）
+### 2b. 跨设定交叉校验（`setting-consistency-audit.md`）
 
-对照设定文件的数值基准值，逐章检查正文一致性。
+对照设定文件的数值基准值，逐章检查正文一致性。统一入口，覆盖设定内部→大纲→正文→卷间→修复全链路。
 
 ### 2c. 追读力分析（`analyze_hook.py`）
 

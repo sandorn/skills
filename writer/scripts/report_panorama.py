@@ -177,7 +177,7 @@ def check_codebase_memory(project_root):
     """检查 MCP codebase-memory 状态"""
     try:
         result = subprocess.run(
-            ['codebase-memory-mcp.exe', 'cli', 'index_status',
+            ['index-tool', 'cli', 'index_status',
              json.dumps({'project': os.path.basename(project_root)})],
             capture_output=True, text=True, timeout=10
         )
@@ -297,10 +297,10 @@ def generate_report(project_root, stats, chapters, setting, tracking, state, fac
     lines.append('')
 
     # ===== MCP 代码库状态 =====
-    lines.append('## 🔌 RAG / MCP 状态')
+    lines.append('## 🔌 外部知识库状态')
     lines.append('')
     cbm_status = check_codebase_memory(project_root)
-    lines.append(f'codebase-memory-mcp: {cbm_status}')
+    lines.append(f'外部知识库: {cbm_status}')
     lines.append('')
 
     # ===== 健康评分 =====

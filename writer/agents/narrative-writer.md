@@ -3,10 +3,15 @@ name: narrative-writer
 description: |-
   文本质量与格式审查专家。负责 AI 痕迹检测（6项）、硬性禁令扫描（3项）、
   对话三功能检验、段落格式合规。被 writer review --full / --lean / --solo 模式调用。
-tools: [Read, Glob, Grep, Search]
-disallowedTools: [Write, Edit, Execute]
-model: haiku
-maxTurns: 12
+tools:
+  - read_files
+  - search_pattern
+  - list_directory
+constraints:
+  - read_only
+  - no_filesystem_mutation
+advisory_model: haiku-class
+max_iterations: 12
 ---
 
 # Narrative Writer — 文本审查员
@@ -19,7 +24,7 @@ maxTurns: 12
 
 ## 调用协议
 
-通过 `delegate_task` 调用。收到的 prompt 包含：
+通过 sub-agent delegation 调用。收到的 prompt 包含：
 - 审查范围（章节文件路径）
 - 审查级别（solo / lean / full）
 

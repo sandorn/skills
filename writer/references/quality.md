@@ -24,18 +24,17 @@
 
 对 blocking 级问题逐项修复：
 
-> **项目特定禁止词**：如果项目 `设定/写作规范.md` 或 `setting/writing_rules.md` 中定义了更严格的禁止词列表（如额外禁用 `心中一动`、`似乎/仿佛`、`某种…的感觉` 等），以项目规范为准。质检时优先读取项目规范文件中的硬性禁令表，覆盖本文件默认的 `BAN_RULES`。
+> **禁令定义**：`references/hard-bans.md`（单一事实来源，P0-P2 分级）。`quality.md` 不定义禁令，仅定义修复策略。
+> **项目扩展**：如项目 `setting/writing_rules.md` 中有更严格的禁止词，以项目规范为准，但与 hard-bans.md 冲突时 hard-bans.md 优先。
 
-| 禁令 | 修复规则 |
+| 修复维度 | 修复规则 |
 |------|---------|
-| 破折号「——」 | 删除或替换为逗号/句号。对话中表示打断的「——」（单条半角）可保留但标注 |
-| ASCII引号 `"..."` | 全文替换为「」。`sed -i 's/"\([^"]*\)"/「\1」/g'`，含中文内容的双引号对。避免 write_file JSON 转义残留 |
-| Unicode弯引号 `""` | 全文替换为「」。`python3 -c "t=open(f).read();open(f,'w').write(t.replace('\u201c','「').replace('\u201d','」'))"`。ASCII引号扫描不命中Unicode编码的弯引号（U+201C/U+201D），需单独检测 |
-| 「不是…而是…」 | 删除否定部分，仅保留正面陈述 |
-| 元叙事标签 | 直接删除标签 |
+| 破折号/引号 | `audit.py` + `sed` 批量清除；对话打断可保留但标注 |
+| 「不是…而是…」句式 | 删除否定部分，仅保留正面陈述 |
+| 元叙事标签 | 直接删除 |
 | 分析术语 | 改写为具体动作和描写 |
-| AI高频词 | 逐词替换（忽然→猛地/突然/一瞬；深吸一口气→停顿了一下/缓了缓；眼中闪过→垂下眼/别开目光；他知道→意识到/察觉；命运→去掉或用具体词；如潮水般→去掉；仿佛春风→去掉） |
-| 模板复制 | 章首/章末分别检测，对比最近3章50字指纹 | 章首相同→改写开篇句型；**章末相同→S1阻塞，删除所有模板段落并逐章重写** |
+| AI高频词 | 逐词替换（忽然→猛地/突然；深吸一口气→缓了缓；他知道→意识到/察觉） |
+| 模板复制 | `audit.py` 自动检测；章末相同→S1 阻塞，逐章重写 |
 
 ### Step 3：审查
 
@@ -79,7 +78,7 @@ Pass 3 — 回自然感：注入停顿、犹豫、矛盾和口语感
 - 对话独立成段
 - 标题与正文间隔空行
 
-**注意：批量字数扩充时的段落陷阱。** 用 `echo >>` 或批处理追加文字来扩充字数时，追加内容通常会变成一行超长段落（数百汉字）。扩充完成后必须跑句号拆分——按 `。！？` 断段，确保每段≤60汉字。拆分脚本见 `$SKILL_DIR/scripts/split_paragraphs.py`。
+**注意：批量字数扩充时的段落陷阱。** 用 `echo >>` 或批处理追加文字来扩充字数时，追加内容通常会变成一行超长段落（数百汉字）。扩充完成后必须跑句号拆分——按 `。！？` 断段，确保每段≤60汉字。拆分脚本见 `scripts/split_paragraphs.py`。
 
 #### 4.2 AI 痕迹修复
 
@@ -173,29 +172,29 @@ def validate_output(content):
 
 **所有检查只读，不修改任何文件。**
 
-### RAG 健康检查（利用 MCP codebase-memory）
+### RAG 健康检查（利用项目知识库）
 
-当 MCP codebase-memory 已部署时，doctor 额外执行以下 RAG 健康检查：
+当项目知识库工具已部署时，doctor 额外执行以下健康检查：
 
 ```bash
-# 1. 检查 MCP 是否可连接
-CBM="codebase-memory-mcp.exe"
-if ! command -v $CBM &>/dev/null; then
-    echo "❌ codebase-memory-mcp 未安装"
+# 1. 检查知识库工具是否可连接
+IDX_TOOL="index-tool"
+if ! command -v $IDX_TOOL &>/dev/null; then
+    echo "❌ 项目知识库工具未安装"
 else
     # 2. 索引状态
-    STATUS=$($CBM cli index_status '{"project":"D-Writer"}' 2>/dev/null)
+    STATUS=$($IDX_TOOL cli index_status '{"project":"<project>"}' 2>/dev/null)
     echo "📊 索引状态: $STATUS"
 
     # 3. 索引覆盖：统计已索引文件 vs 实际文件
-    INDEXED=$($CBM cli query_graph '{"project":"D-Writer","query":"MATCH (f:File) RETURN count(f)"}' 2>/dev/null)
-    ACTUAL=$(find 正文/ -maxdepth 1 -name '*.md' | wc -l)
+    INDEXED=$($IDX_TOOL cli query_graph '{"project":"<project>","query":"MATCH (f:File) RETURN count(f)"}' 2>/dev/null)
+    ACTUAL=$(find chapters/ -maxdepth 1 -name '*.md' | wc -l)
     echo "📁 索引覆盖: ${INDEXED:-?} 已索引 / ${ACTUAL} 实际"
 
     # 4. 抽样验证：最新5章是否在索引中
-    LATEST=$(ls -t 正文/*.md | head -5 | xargs -I{} basename {})
+    LATEST=$(ls -t chapters/*.md | head -5 | xargs -I{} basename {})
     for f in $LATEST; do
-        FOUND=$($CBM cli query_graph "{\"project\":\"D-Writer\",\"query\":\"MATCH (f:File) WHERE f.name = \\\"$f\\\" RETURN f.name\"}" 2>/dev/null)
+        FOUND=$($IDX_TOOL cli query_graph "{\"project\":\"<project>\",\"query\":\"MATCH (f:File) WHERE f.name = \\\"$f\\\" RETURN f.name\"}" 2>/dev/null)
         if [ -z "$FOUND" ] || [ "$FOUND" = "{}" ]; then
             echo "⚠️  最新章未索引: $f"
         fi
@@ -204,7 +203,7 @@ fi
 ```
 
 **检查清单**：
-- □ codebase-memory-mcp CLI 可访问
+- □ 项目知识库 CLI 可访问
 - □ 索引状态为 ready
 - □ 已索引文件数 ≈ 实际文件数（偏差 < 5% 为正常）
 - □ 最新 5 章均在索引中
@@ -270,9 +269,9 @@ fi
 ```bash
 cd "{project_root}" && python3 -c "
 import re, os
-for f in sorted(os.listdir('正文')):  # 或 'chapters'
+for f in sorted(os.listdir('chapters')):  # 或 'chapters'
     if f.endswith('.md'):
-        path = os.path.join('正文', f)
+        path = os.path.join('chapters', f)
         text = open(path, 'r', encoding='utf-8').read()
         chinese = len(re.findall(r'[\u4e00-\u9fff]', text))
         dashes = len(re.findall('——', text))
@@ -347,7 +346,7 @@ print('Done.')
 ### 通用段落重复扫描（模板复制检测）
 
 ```python
-# 在 execute_code 中运行
+# 在内联脚本/代码执行中运行
 import re, os
 from difflib import SequenceMatcher
 
@@ -403,6 +402,6 @@ grep -cE '因为|所以|由于' 正文/ch*.md
    
    注意：叠料不改情节。所有新增内容必须落在已有场景内，不另起新事件。
 
-   **⚠️ 扩充后必须跑段落拆分。** 无论用何种方式追加文字（echo >>、批处理、Python write），追加内容极易变成超长行（数百汉字挤在一行）。扩充完成后立即运行 `$SKILL_DIR/scripts/split_paragraphs.py --batch <正文目录>` 按句号拆分，确保每段≤60汉字。
+   **⚠️ 扩充后必须跑段落拆分。** 无论用何种方式追加文字（echo >>、批处理、Python write），追加内容极易变成超长行（数百汉字挤在一行）。扩充完成后立即运行 `scripts/split_paragraphs.py --batch <正文目录>` 按句号拆分，确保每段≤60汉字。
 
 5. **复检**：修完后重新运行一体化扫描确认全部 PASS（段落≤60 + 字数≥2500 + 禁令清零 + 标题格式）

@@ -31,19 +31,19 @@
 |--------|------|------|
 | 高 | 卷末章内的备注/总结段落 | ch297 刘秋翻笔记本逐一备注所有角色 |
 | 高 | 角色名字出现在章标题 | ch288-林芷琪的论文出书, ch282-周正阳拒体育经纪 |
-| 中 | `search_files` pattern=角色名 + file_glob 限定范围 | `search_files(pattern='赵天龙', file_glob='ch2[5-9]*.md')` |
-| 低 | 全量搜索（大规模时降级使用） | `search_files(pattern='老周', path='正文/')` |
+| 中 | grep/pattern search 按文件名模式缩小范围 | `grep -l '赵天龙' chapters/ch2[5-9]*.md` |
+| 低 | 全量搜索（大规模时降级使用） | `grep -r '老周' chapters/` |
 
 ### 3. 批量搜索技巧
 
-用 `search_files` 的 `file_glob` 缩小范围，避免扫描全部300章：
+用文件名模式 glob 缩小搜索范围，避免扫描全部章节：
 
 ```bash
 # 搜索角色在后期章节的出现
-search_files(pattern='赵天龙', file_glob='ch2[5-9]*.md', target='content', output_mode='files_only')
+grep -l '赵天龙' chapters/ch2[5-9]*.md
 
 # 多个角色可合并搜索
-search_files(pattern='老刀|赵凯|阿九', file_glob='ch29*.md', target='content', output_mode='files_only')
+grep -lE '老刀|赵凯|阿九' chapters/ch29*.md
 ```
 
 ### 4. 合成状态文件
@@ -113,13 +113,10 @@ search_files(pattern='老刀|赵凯|阿九', file_glob='ch29*.md', target='conte
 
 ```bash
 # 扫描新章中出现的已知角色名
-search_files(pattern='刘秋|林芷琪|季东海|赵天龙|周正阳|孙经理|丁三',
-             file_glob='ch29[0-5]*.md',  # 只扫新章范围
-             target='content',
-             output_mode='files_only')
+grep -lE '刘秋|林芷琪|季东海|赵天龙|周正阳|孙经理|丁三' chapters/ch29[0-5]*.md
 ```
 
-发现状态变化后，用 `patch` 工具逐条更新 `追踪/角色状态.md` 对应角色的行。
+发现状态变化后，逐条更新 `追踪/角色状态.md` 对应角色的行。
 
 ---
 

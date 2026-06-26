@@ -3,10 +3,15 @@ name: consistency-checker
 description: |-
   事实一致性与伏笔状态检查专家（只读）。使用 grep-first 方式检测设定矛盾、时间线冲突、伏笔断线、角色属性不一致。
   被 writer review --full / --lean 模式调用。
-tools: [Read, Glob, Grep, Search]
-disallowedTools: [Write, Edit, Execute]
-model: haiku
-maxTurns: 15
+tools:
+  - read_files
+  - search_pattern
+  - list_directory
+constraints:
+  - read_only
+  - no_filesystem_mutation
+advisory_model: haiku-class
+max_iterations: 15
 ---
 
 # Consistency Checker — 一致性审查员
@@ -21,7 +26,7 @@ maxTurns: 15
 
 ## 调用协议
 
-通过 `delegate_task` 调用。收到的 prompt 包含：
+通过 sub-agent delegation 调用。收到的 prompt 包含：
 - 审查范围（章节号或文件路径）
 - 项目根目录路径
 - 设定文件路径列表（characters.md, power_system.md, factions.md, story_bible.md, hooks.md 等）

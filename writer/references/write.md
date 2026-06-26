@@ -7,7 +7,7 @@
 | 模式 | 命令示例 | 说明 |
 |------|---------|------|
 | **默认模式** | `write 第5章` | 5 步日更管线：Plan → Architect → Write+Reflect → Audit+Normalize → Revise |
-| **完整模式** | `write 第5章 --full` | 展开 Moke 9 步完整管线 |
+| **完整模式** | `write 第5章 --full` | 展开 9 步完整管线 |
 | **轻量模式** | `write 第5章 --fast` | 跳过 Observer/Reflector/Normalizer |
 | **批量模式** | `write --batch 3` | 一次性规划，批量写入 |
 | **短篇模式** | `write --short` | 短篇小说写作 |
@@ -57,7 +57,7 @@ if not os.path.exists(ch_outline) and state.get("stage") != "planning":
 
 ### Step 2：Architect
 
-合并原 Moke Composer + Architect：整理角色、设定、伏笔、时间锚点，并生成章节结构。
+合并 Composer + Architect：整理角色、设定、伏笔、时间锚点，并生成章节结构。
 
 ### Step 3：Write + Reflect
 
@@ -130,7 +130,7 @@ if not os.path.exists(ch_outline) and state.get("stage") != "planning":
 
 3. **不要分析，要吸收。** 不用在笔记里写总结——读 4-6 章后声音会自然进入肌肉记忆。写第一章时如果前几段读起来像已写章节，就对齐了。
 
-**⚠️ delegate_task 批量写章限制**：单个 delegate 最多分配 5 章（≤5）。超过 5 章会导致 delegate 的 API 调用数（max_iterations=50）不够完成全部章节的写→审→修循环。实测：6 章任务在 50 次 API 调用后因 max_iterations 退出，只完成 2 章。拆成 4+3 或 5+5 即可。
+**⚠️ 子代理批量写章限制**：单个子代理最多分配 5 章（≤5）。超过 5 章会导致子代理的迭代预算不够完成全部章节的写→审→修循环。实测：6 章任务在预算耗尽后退出，只完成 2 章。拆成 4+3 或 5+5 即可。
 
 ### delegate 写后三步自检（嵌入 delegate prompt）
 
@@ -215,9 +215,9 @@ if not os.path.exists(ch_outline) and state.get("stage") != "planning":
 | Reviser | 即时 | 统一标记，用户决策 |
 | 交互 | 无 | 仅在 blocker 时暂停 |
 
-### delegate_task 批次上限
+### 子代理批次上限
 
-**≤5 章/批次安全**，6-7 章大概率完成但可能 timeout，8+ 章高风险。所有批量写章应拆为 ≤5 章的子任务。详见上方「批量写章限制」。
+**≤5 章/批次安全**，6-7 章大概率完成但可能超时，8+ 章高风险。所有批量写章应拆为 ≤5 章的子任务。详见上方「批量写章限制」。
 
 ### 进度显示
 

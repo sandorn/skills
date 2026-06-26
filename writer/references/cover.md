@@ -1,6 +1,6 @@
 # 封面生成
 
-改编自 story-cover，适配 Hermes image_generate 工具。
+改编自 story-cover，适配图像生成工具。
 
 ---
 
@@ -30,7 +30,27 @@
 
 ## Step 3：生成封面
 
-优先使用当前环境可用的图像生成工具生成。若当前会话没有图像生成工具，不伪造图片；改为生成可直接用于图像模型的提示词，并保存封面规格说明：
+### 检测图像生成能力
+
+优先检测当前环境是否对接了图像生成工具（MCP 或其他图像生成 API）：
+
+```python
+# 检测逻辑
+def check_image_tool():
+    """检测可用的图像生成工具"""
+    tools = []
+    # 检测常见 MCP 图像工具
+    for tool_name in ['image_generate', 'image_gen', 'dalle', 'midjourney_mcp']:
+        if tool_available(tool_name):
+            tools.append(tool_name)
+    return tools
+
+available = check_image_tool()
+```
+
+### 路径 A：有图像生成工具
+
+直接调用，生成封面：
 
 ```python
 prompt = f"""
@@ -44,9 +64,39 @@ prompt = f"""
 - 专业网文封面风格，色彩饱和度适中
 - 竖版构图，适合在线阅读平台
 """
+# 调用可用的图像生成工具
 ```
 
-注意：image_generate 工具会自动处理 aspect_ratio（竖版 portrait）。
+生成后下载保存到本地：
+
+```bash
+curl -L -o "cover/{书名}_封面.png" "{生成的URL}"
+```
+
+### 路径 B：无图像生成工具
+
+不伪造图片；改为输出可直接用于外部图像模型的提示词，保存到 `cover/{书名}_prompt.txt`：
+
+```python
+prompt = f"""
+A Chinese web novel cover, vertical/portrait orientation.
+Title: {书名}
+Author: {作者名}
+
+Style: {风格描述}
+- Professional web novel cover art style
+- Title and author name clearly centered
+- {题材}-specific visual elements
+- Moderate color saturation
+- Portrait composition suitable for online reading platforms
+- High quality, detailed illustration
+"""
+# 保存提示词
+with open(f'cover/{书名}_prompt.txt', 'w') as f:
+    f.write(prompt)
+```
+
+用户可将此提示词复制到 Midjourney / Stable Diffusion / DALL-E 等外部工具自行生成封面。
 
 ---
 
@@ -54,7 +104,37 @@ prompt = f"""
 
 封面图输出到 `cover/{书名}_封面.png` 或旧结构 `封面/{书名}_封面.png`。
 
-如果 image_generate 返回的是 URL，先下载保存到本地。
+如果图像生成工具返回的是 URL，先下载保存到本地：
+
+```bash
+# 使用 curl 下载
+curl -L -o "cover/{书名}_封面.png" "{生成的URL}"
+
+# 或使用 wget
+wget -O "cover/{书名}_封面.png" "{生成的URL}"
+```
+
+---
+
+## 多平台封面尺寸
+
+| 平台 | 推荐尺寸 | 比例 | 格式 | 备注 |
+|------|---------|------|------|------|
+| 番茄小说 | 608 × 855 | 5:7 | PNG/JPG | 竖版，文字清晰居中 |
+| 起点中文网 | 600 × 800 | 3:4 | JPG | 竖版，≤2MB |
+| 飞卢 | 600 × 800 | 3:4 | JPG | 竖版 |
+| 晋江 | 600 × 800 | 3:4 | JPG | 竖版，≤1MB |
+| 通用 | 1200 × 1600 | 3:4 | PNG | 高清，可缩放至各平台 |
+
+---
+
+## 降级方案
+
+如果当前环境没有图像生成工具：
+
+1. 生成详细的图像生成提示词（prompt）保存为 `cover/{书名}_prompt.txt`
+2. 提示词包含：书名、作者名、风格描述、构图要求、平台尺寸
+3. 用户可将提示词复制到 Midjourney / Stable Diffusion / DALL-E 等外部工具生成
 
 ---
 

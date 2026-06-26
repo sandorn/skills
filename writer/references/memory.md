@@ -31,7 +31,66 @@
 
 ---
 
-## 功能二：学习（learn）
+## 功能二：检索（retrieve）
+
+从 `project_memory.json` 中检索已学习的写作模式，用于指导当前写作。
+
+### 触发时机
+
+- 写章前（pre-write-checklist 阶段）
+- 用户询问「之前怎么写的」「这个模式」
+- 预写对齐检查时自动检索相关模式
+
+### 检索方式
+
+```python
+import json
+
+def retrieve_patterns(memory_file, pattern_type=None, category=None, limit=5):
+    """检索已学习的写作模式"""
+    with open(memory_file, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    patterns = data.get('patterns', [])
+    
+    # 按类型筛选
+    if pattern_type:
+        patterns = [p for p in patterns if p.get('type') == pattern_type]
+    if category:
+        patterns = [p for p in patterns if category in p.get('category', '')]
+    
+    # 按重要性排序
+    importance_order = {'high': 0, 'medium': 1, 'low': 2}
+    patterns.sort(key=lambda p: importance_order.get(p.get('importance', 'low'), 2))
+    
+    return patterns[:limit]
+```
+
+### 写前检索清单
+
+在写章前，检查是否有适用于当前场景的模式：
+
+| 场景 | 检索类型 | 示例 |
+|------|---------|------|
+| 章节开篇 | `hook` | 检查已学习的开篇钩子模式 |
+| 对话场景 | `dialogue` | 检查对话节奏/语气模式 |
+| 爽点落地 | `payoff` | 检查已学习的爽点结构 |
+| 情绪转折 | `emotion` | 检查情绪外化模式 |
+| 章末收束 | `hook` + `format` | 检查章末钩子模式 |
+
+### 集成到写前对齐
+
+在 `pre-write-alignment.md` 的 4 层检查中，自动检索相关模式并将匹配结果纳入上下文：
+
+```
+写前检索: {N} 个相关模式已加载
+  - hook/开篇钩子: pattern_003 "死亡场景+时间锚点" (high)
+  - payoff/爽点落地: pattern_007 "三连击+反转收尾" (high)
+```
+
+---
+
+## 功能三：学习（learn）
 
 当用户说「记住这个写法」「学这个」「记一下」时触发。
 
