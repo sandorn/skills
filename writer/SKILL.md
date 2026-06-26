@@ -239,7 +239,7 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 | `references/review.md` | 审查维度 + Triage（43维 / 日更8维 / solo15维） |
 | `references/review-cycle.md` | 5 步审查管线权威定义（含 facts.db 降级） |
 | `references/write.md` | 写作管线（单章/批量/短篇，含 delegate 自检） |
-| `references/write-pitfalls.md` | 批量写作避坑指南（11 项实战教训） |
+| `references/write-pitfalls.md` | 批量写作避坑指南（13 项实战教训） |
 | `references/quality.md` | 质检工单（禁令+去AI味+段落修复+RAG+事实库） |
 | `references/plan.md` | 大纲规划（总纲→卷纲→章纲） |
 | `references/project-init.md` | 项目初始化（含 import 模式） |
@@ -258,6 +258,7 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 | `references/optimize.md` | 全量优化（意象钩子清理+钩子强度提升） |
 | `references/targeted-audit.md` | 定向审查 |
 | `references/cross-validation.md` | 批量跨设定交叉校验 |
+| `references/cross-setting-consistency.md` | 跨设定一致性审查指南（大纲/设定/卷纲交叉校验） |
 | `references/setting-consistency-audit.md` | 设定一致性跨文件审计 |
 | `references/post-review-fix.md` | 审查后修复管线（5步+4步+问题模式目录，合并原 3 文件） |
 | `references/deploy.md` | 多卷部署流水线 + 卷间衔接检查 |

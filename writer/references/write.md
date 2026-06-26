@@ -268,7 +268,7 @@ if not os.path.exists(ch_outline) and state.get("stage") != "planning":
 
 ## 批量写作避坑指南
 
-> 详见 `references/write-pitfalls.md`（11 项实战教训）。
+> 详见 `references/write-pitfalls.md`（13 项实战教训）。
 
 ## 成功标准
 
