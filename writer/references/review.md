@@ -22,6 +22,7 @@
 | **solo** | `review` | 15维 + AI痕迹 | 5min | 每 5 章 |
 | **lean** | `review --lean` | 27维 | 10min | 每 10 章 |
 | **full** | `review --full` | 43维（子Agent并行） | 30min | 每卷/批量后 |
+| **manual-pass** | 逐章通读（主会话人工） | 语调+文风+禁令 | 不限 | 用户明确要求逐章审查时 |
 
 ---
 
