@@ -314,6 +314,7 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 | `references/troubleshooting.md` | 常见故障排除（写章/审查/委派/修复四场景） |
 | `references/tool-pitfalls.md` | 通用工具陷阱参考 |
 | `references/tool-pitfalls-windows.md` | Windows 特有工具陷阱（write_file 换行丢失、PowerShell 引号冲突、git show 管道编码损坏、write_file 不落地、上游编码深度修复） |
+| `references/encoding-fix-recipe.md` | Git 中文编码修复方案：诊断→确认→用干净的旧版本重建（不可在乱码文件上修复，字节级损坏不可逆） |
 | `references/project-review-novel-gaming-manifest.md` | 《网游具现：我能看见卡池》项目审查完成记录与工具教训 |
 
 ### 脚本（11 个）
