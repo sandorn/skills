@@ -122,7 +122,7 @@ done
 
 **预防**：
 - `audit.py --fix-escaped` 内置转义引号检测+自动修复
-- `pad_chapter.py` 写入后自动扫描并清除转义引号
+- `audit.py --fix-escaped` 写入后自动扫描并清除转义引号
 - 质检流水线步骤7专门扫描此类残留
 - **全文统一用「」替代 `""`**，从根源避免转义问题
 
@@ -136,4 +136,3 @@ done
 - 代码执行环境中的 Python `open/write` — 完全可控
 - 文本替换工具的短文本精确匹配（不含引号）— 可靠
 - `python scripts/split_paragraphs.py --batch` — 段落拆分，独立工具
-- `python scripts/pad_chapter.py` — 字数补齐，内建安全写入

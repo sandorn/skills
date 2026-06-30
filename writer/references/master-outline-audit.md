@@ -117,4 +117,4 @@
 
 - 在完成全部卷大纲规划后，主会话直接执行本检查（不需子代理委派）
 - 耗时约 2-5 分钟，收益极高——避免后续大规模返工
-- 配合 `references/setting-consistency-audit.md` 使用（后者侧重设定/正文/卷间的一致性审计，覆盖更广）
+- 配合 `references/setting-consistency-audit.md` 使用（后者侧重设定/chapters/卷间的一致性审计，覆盖更广）

@@ -41,7 +41,7 @@ python scripts/audit.py chapters/
 **扫描命令**：
 ```bash
 grep -rn '"' chapters/ | grep -v '^[[:space:]]*#'    # ASCII引号（可用 audit.py 替代）
-grep -rn $'\u201c\|\u201d' 正文/                  # 弯引号
+grep -rn $'\u201c\|\u201d' chapters/                  # 弯引号
 ```
 
 ### 4. 破折号

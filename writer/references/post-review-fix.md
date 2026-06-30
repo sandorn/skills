@@ -24,7 +24,7 @@ S1 级问题（禁令违规/字数不足/段落超标/模板复制）→ 走 `qu
 | quality.md 步骤 | 操作 | 对应脚本 |
 |-----------------|------|---------|
 | Step 1 | 禁令扫描+修复 | `python scripts/audit.py chapters/ --fix-escaped` |
-| Step 2 | 字数/段落修复 | `python scripts/pad_chapter.py --batch chapters/` |
+| Step 2 | 字数/段落修复 | 标记不足章 → 手工扩充 → `python scripts/split_paragraphs.py --batch chapters/` |
 | Step 5 | 终验 | `python scripts/audit.py chapters/` |
 
 **不通过则回到 Step 1。** 修复完成后追加 Step 5 维交叉校验（见下方）。
@@ -102,10 +102,10 @@ python scripts/audit_5dim.py chapters/
 子Agent 写正文时仍自然使用违禁词。不可预防，必须写后审计。
 
 ### 字数不足
-子Agent 常产出 1700-2300 字。统一用 `pad_chapter.py` 修复。
+子Agent 常产出 1700-2300 字。标记不足章，由主会话逐章手工扩充。
 
 ### 超长段落（>42 汉字）
-主因：追加不换行。预防：禁止手工追加，统一用 `pad_chapter.py`。
+主因：追加不换行。预防：字数不足通过手工扩充 + `split_paragraphs.py` 拆分。
 
 ### 章末模板复制（S1 级）
 多章章末段落完全一致。检测：`audit.py` 模板复制检测。修复：逐章用独特白描重写。

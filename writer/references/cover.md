@@ -40,7 +40,7 @@ def check_image_tool():
     """检测可用的图像生成工具"""
     tools = []
     # 检测常见 MCP 图像工具
-    for tool_name in ['image_generate', 'image_gen', 'dalle', 'midjourney_mcp']:
+    for tool_name in ['image_generation', 'image_gen', 'dalle', 'midjourney_mcp']:
         if tool_available(tool_name):
             tools.append(tool_name)
     return tools

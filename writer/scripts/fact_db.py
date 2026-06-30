@@ -6,7 +6,7 @@
   - 正文内容留在 .md 文件（人类可读、git diff 友好）
   - 结构化事实存入 SQLite（机器可查、增量更新、可聚合）
   - 写章/审章管线自动 INSERT，不手动维护
-  - doctor 用此库替代 grep/search_files 做快速状态查询
+  - doctor 用此库替代 grep/grep/pattern search 做快速状态查询
 
 用法：
     python fact_db.py init <project_root>             # 初始化数据库
