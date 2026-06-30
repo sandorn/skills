@@ -15,7 +15,7 @@
 输出格式：Markdown 报告，含每个维度的趋势表和评估。
 """
 
-import re, os, sys, json, sqlite3
+import re, os, sys, json, sqlite3, argparse
 from collections import defaultdict
 from datetime import datetime
 
@@ -324,25 +324,29 @@ def generate_report(project_root, ch_start, ch_end, dims):
 
 
 def main():
-    if len(sys.argv) < 2:
-        print(__doc__)
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description='节奏状态查询 — 等级/金币/感情线/钩力趋势 聚合分析',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument('project_root', help='项目根目录')
+    parser.add_argument('--ch', nargs=2, type=int, metavar=('START', 'END'), default=None,
+                        help='章节范围')
+    parser.add_argument('--dim', choices=['level', 'gold', 'hook', 'love'], default=None,
+                        help='仅查询指定维度')
+    args = parser.parse_args()
 
-    project_root = sys.argv[1]
+    project_root = args.project_root
     ch_start = 0
     ch_end = 9999
     dims = None
 
-    args = sys.argv[2:]
-    for i, a in enumerate(args):
-        if a == '--ch' and i + 1 < len(args):
-            ch_start = int(args[i + 1])
-            if i + 2 < len(args) and args[i + 2].isdigit():
-                ch_end = int(args[i + 2])
-        if a == '--dim' and i + 1 < len(args):
-            dims = [args[i + 1]]
-            ch_start = 0
-            ch_end = 9999
+    if args.ch is not None:
+        ch_start, ch_end = args.ch
+    if args.dim is not None:
+        dims = [args.dim]
+        ch_start = 0
+        ch_end = 9999
 
     report = generate_report(project_root, ch_start, ch_end, dims)
     print(report)

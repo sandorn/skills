@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """字数补齐脚本 v6：全文稀疏段智能扩充。
 
+⚠️ 项目适配：第103行的 MAIN_CHARACTERS 模式包含示例项目角色名（刘秋、林芷琪等）。
+   使用前请修改为当前项目角色，或设为空列表跳过角色感知扩充。
+
 核心变化 v5→v6：
   - v5 仅在章末追加（尾段延续），章首中段不动
   - v6 扫描全文，定位「薄段」（短段落/稀疏描写），就地扩充
@@ -16,6 +19,7 @@
 import re, os, sys, random, hashlib
 from pathlib import Path
 from collections import Counter
+from split_paragraphs import split_full_text  # 唯一段落拆分实现
 
 TARGET = 2500
 CHAR_THRESH = 60
@@ -271,25 +275,7 @@ def expand_full_text(lines, bs, needed_chars):
     return '\n'.join(new_lines), total_added
 
 
-def split_paragraphs(text):
-    """按句号拆分超标段落（≤60汉字）"""
-    lines = text.split('\n')
-    new_lines = []
-    for line in lines:
-        s = line.strip()
-        if not s or s.startswith('#') or s.startswith(('「', '『')):
-            new_lines.append(line)
-            continue
-        cn = count_chinese(s)
-        if cn <= 60:
-            new_lines.append(line)
-            continue
-        leading = line[:len(line) - len(line.lstrip())]
-        parts = re.split(r'(?<=[。！？])', s)
-        for p in parts:
-            if p.strip():
-                new_lines.append(leading + p.rstrip())
-    return '\n'.join(new_lines)
+# split_paragraphs 已迁移至 split_paragraphs.py::split_full_text（单一实现）
 
 
 def pad_file_end(filepath, target=TARGET):
@@ -318,7 +304,7 @@ def pad_file_end(filepath, target=TARGET):
 
     extra = f'他看了一眼{obj}。\\n{obj}还是老样子。\\n他把视线移开。\\n'
     padded = content.rstrip() + '\\n' + extra + '\\n'
-    padded = split_paragraphs(padded)
+    padded = split_full_text(padded)
 
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(padded)
@@ -349,7 +335,7 @@ def pad_file_full(filepath, target=TARGET):
         return False
 
     # 段落拆分
-    padded = split_paragraphs(padded)
+    padded = split_full_text(padded)
 
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(padded)

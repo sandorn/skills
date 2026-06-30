@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """5维专项审查：权限/等级/金额/属性/感情线 全卷一键扫描
 
+⚠️ 项目适配：感情线关键词（第64行）包含示例项目角色名（林芷琪、白月光等）。
+   使用前请修改为当前项目角色/感情线关键词。
+
 用法：python scripts/audit_5dim.py <chapters目录>
 示例：python scripts/audit_5dim.py chapters/
 
@@ -10,10 +13,17 @@
    本脚本为通用框架，项目特定模式硬编码在正则中，使用前检查是否匹配当前项目。
 """
 
-import re, os, sys
+import re, os, sys, argparse
 
 def main():
-    d = sys.argv[1] if len(sys.argv) > 1 else '.'
+    parser = argparse.ArgumentParser(
+        description='5维专项审查：权限/等级/金额/属性/感情线 全卷一键扫描',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument('directory', nargs='?', default='.', help='chapters目录')
+    args = parser.parse_args()
+    d = args.directory
     fs = sorted([f for f in os.listdir(d) if f.startswith('ch') and f.endswith('.md')])
 
     print(f"{'章节':<8} {'等级':<10} {'权限':<8} {'属性':<12} {'金额':<15} {'感情':<4}")

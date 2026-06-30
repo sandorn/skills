@@ -14,7 +14,7 @@
   4. 钩子退化检测：连续3章钩子强度下降 → 标记警
 """
 
-import re, os, sys, json
+import re, os, sys, json, argparse
 from collections import Counter
 from pathlib import Path
 
@@ -174,11 +174,19 @@ def analyze_chapter(filepath):
 
 
 def main():
-    if len(sys.argv) < 2:
-        print(__doc__)
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description='追读力分析脚本 — 钩子强度 + 爽点分布 + 节奏间隔',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument('target', help='chapters目录')
+    parser.add_argument('start', nargs='?', type=int, default=None, help='起始章节号')
+    parser.add_argument('end', nargs='?', type=int, default=None, help='结束章节号')
+    parser.add_argument('--ch', nargs=2, type=int, metavar=('START', 'END'), default=None,
+                        help='章节范围 (替代位置参数)')
+    args = parser.parse_args()
 
-    target = sys.argv[1]
+    target = args.target
 
     if not os.path.isdir(target):
         print(f"错误：{target} 不是目录")
@@ -187,19 +195,11 @@ def main():
     files = sorted([f for f in os.listdir(target) if f.endswith('.md')])
 
     # 范围过滤
-    ch_start = None
-    ch_end = None
-    args = sys.argv[2:]
-    for i, a in enumerate(args):
-        if a == '--ch' and i + 1 < len(args):
-            if ch_start is None:
-                ch_start = int(args[i + 1])
-            else:
-                ch_end = int(args[i + 1])
-        elif a.isdigit() and ch_start is None:
-            ch_start = int(a)
-        elif a.isdigit() and ch_end is None:
-            ch_end = int(a)
+    if args.ch is not None:
+        ch_start, ch_end = args.ch
+    else:
+        ch_start = args.start
+        ch_end = args.end
 
     if ch_start is not None:
         files = [f for f in files if

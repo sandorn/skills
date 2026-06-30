@@ -49,12 +49,21 @@
 
 ---
 
-## 一致性校验（按需加载 — 3 个）
+## 一致性校验（按需加载 — 2 个）
 
 | 文件 | 功能 | 关键依赖 |
 |------|------|---------|
 | `setting-consistency-audit.md` | 设定一致性跨文件审计（统一入口：内部→大纲→正文→卷间→修复） | — |
 | `track-character-state.md` | 角色状态追踪更新 | — |
+
+---
+
+## 文风规范与转换（按需加载 — 2 个）
+
+| 文件 | 功能 | 关键依赖 |
+|------|------|---------|
+| `style-sop.md` | 可扩展文风SOP模块（番茄风默认，预留多文风接口） | — |
+| `style-transfer.md` | 文风转换/批量AI润色管线 | `scripts/polish.py`, `style-sop.md` |
 
 ---
 
@@ -97,6 +106,9 @@ hard-bans.md (单一事实来源)
 plan.md → deploy.md → review-cycle.md
 project-init.md → templates/project-skeleton/ (11 templates)
 setting-consistency-audit.md (合并 cross-validation + cross-setting-consistency)
+
+style-sop.md → style-transfer.md → scripts/polish.py  (文风系统)
+style-sop.md → quality.md (禁令/参数映射到质检管线)
 ```
 
 ---
@@ -105,6 +117,7 @@ setting-consistency-audit.md (合并 cross-validation + cross-setting-consistenc
 
 | 脚本 | 功能 | 层级 |
 |------|------|------|
+| `scripts/polish.py` | AI润色/文风转换（模型无关） | 核心 |
 | `scripts/audit.py` | 统一审计（单章/目录/范围） | 核心 |
 | `scripts/pad_chapter.py` | 安全字数追加 | 核心 |
 | `scripts/split_paragraphs.py` | 段落拆分（≤60汉字） | 核心 |
@@ -117,6 +130,15 @@ setting-consistency-audit.md (合并 cross-validation + cross-setting-consistenc
 | `scripts/report_graph.py` | 实体关系图谱 | 扩展 |
 | `scripts/export.py` | 多平台格式导出 | 扩展 |
 | `scripts/backup.py` | 每日自动备份 | 扩展 |
+| `scripts/tests/test_core.py` | 核心函数单元测试（14用例） | 测试 |
+
+---
+
+## 文风预设速查
+
+| 预设文件 | 说明 |
+|----------|------|
+| `references/presets/fanqie-quick-anti.md` | 番茄爆款轻松逆袭风 — 系统提示词预设 |
 
 ---
 
@@ -137,4 +159,4 @@ setting-consistency-audit.md (合并 cross-validation + cross-setting-consistenc
 |-----------|---------|---------|---------|
 | 5.x | sys.argv-based | writer.json v1 | Claude 专用 |
 | 6.x | 混合 (argparse + sys.argv) | writer.json v1 | Claude 专用 |
-| 7.0 (当前) | 混合 (argparse + sys.argv) | writer.json v1 | **通用** |
+| 7.6 (当前) | 统一 argparse | writer.json v1 | **通用** |

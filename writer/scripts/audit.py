@@ -10,7 +10,7 @@
 
 禁令与 hard-bans.md 保持同步（单一事实来源）。
 """
-import re, os, sys
+import re, os, sys, argparse
 
 # === 禁令规则（与 references/hard-bans.md 同步） ===
 
@@ -164,6 +164,7 @@ def audit_text(text, prev_texts=None, fix_escaped=False):
         issues.append('段落超标:' + ','.join(long_lines[:5]))
 
     # 模板复制检测
+    template_issues = None
     if prev_texts:
         template_issues = detect_template_copy(text, prev_texts)
         if template_issues:
@@ -196,16 +197,38 @@ def audit_file(filepath, prev_texts=None, fix_escaped=False, dry_run=False):
 
 
 def main():
-    if len(sys.argv) < 2:
-        print(__doc__)
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description='统一审计脚本：单章/目录/范围 三模式',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument('target', help='目标文件或目录')
+    parser.add_argument('start', nargs='?', type=int, default=None, help='起始章节号')
+    parser.add_argument('end', nargs='?', type=int, default=None, help='结束章节号')
+    parser.add_argument('--verify', action='store_true', help='仅检测不修改')
+    parser.add_argument('--fix-escaped', action='store_true', help='自动修复转义引号')
+    parser.add_argument('--dump-bans', action='store_true',
+                        help='输出当前禁令规则（供与 hard-bans.md 对比校验）')
+    args = parser.parse_args()
 
-    args = sys.argv[1:]
-    verify_only = '--verify' in args
-    fix_escaped = '--fix-escaped' in args
-    args = [a for a in args if a not in ('--verify', '--fix-escaped')]
+    if args.dump_bans:
+        import json as _json
+        ban_data = {
+            "source": "audit.py BANS (应与 references/hard-bans.md 同步)",
+            "p0_blocking": {k: v for k, v in BANS.items()},
+            "p1_forced": {
+                "chars_min": CHARS_THRESHOLD,
+                "para_max": PARA_THRESHOLD,
+            },
+            "template_similarity": TEMPLATE_SIMILARITY,
+            "template_fingerprint_len": TEMPLATE_FINGERPRINT_LEN,
+        }
+        print(_json.dumps(ban_data, ensure_ascii=False, indent=2))
+        sys.exit(0)
 
-    target = args[0]
+    target = args.target
+    verify_only = args.verify
+    fix_escaped = args.fix_escaped
 
     # 单文件模式
     if os.path.isfile(target):
@@ -231,14 +254,8 @@ def main():
     files = sorted([f for f in os.listdir(target) if f.endswith('.md')])
 
     # 范围过滤
-    ch_start = ch_end = None
-    for a in args[1:]:
-        if a.lstrip('-').isdigit():
-            n = int(a.lstrip('-')) if a.startswith('-') else int(a)
-            if ch_start is None:
-                ch_start = n
-            elif ch_end is None:
-                ch_end = n
+    ch_start = args.start
+    ch_end = args.end
 
     if ch_start is not None:
         ch_end = ch_end or ch_start + 999

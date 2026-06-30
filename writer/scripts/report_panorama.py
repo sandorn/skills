@@ -8,26 +8,14 @@
 输出格式：Markdown，含项目信息、章节统计、角色统计、质量指标、结构健康。
 """
 
-import re, os, sys, json, subprocess
-from collections import Counter, defaultdict
+import re, os, sys, json, subprocess, argparse
+from collections import Counter
 from pathlib import Path
 from datetime import datetime
 
 
 def count_chinese(text):
     return len(re.findall(r'[\u4e00-\u9fff]', text))
-
-
-def run_script(script_path, args):
-    """运行 writer 脚本并捕获输出"""
-    try:
-        result = subprocess.run(
-            [sys.executable, script_path] + args,
-            capture_output=True, text=True, timeout=30
-        )
-        return result.stdout
-    except Exception as e:
-        return f"[错误: {e}]"
 
 
 def load_writer_json(project_root):
@@ -185,10 +173,11 @@ def check_codebase_memory(project_root):
             return result.stdout.strip()
         return '未响应'
     except Exception:
+        print("警告: index-tool 未安装，跳过知识库索引检查", file=sys.stderr)
         return '未安装'
 
 
-def generate_report(project_root, stats, chapters, setting, tracking, state, fact_stats):
+def generate_report(project_root, stats, chapters, setting, tracking, state, fact_stats, skip_external=False):
     """生成全景报告"""
     lines = []
 
@@ -299,8 +288,11 @@ def generate_report(project_root, stats, chapters, setting, tracking, state, fac
     # ===== MCP 代码库状态 =====
     lines.append('## 🔌 外部知识库状态')
     lines.append('')
-    cbm_status = check_codebase_memory(project_root)
-    lines.append(f'外部知识库: {cbm_status}')
+    if skip_external:
+        lines.append('外部知识库: 已跳过 (--skip-external)')
+    else:
+        cbm_status = check_codebase_memory(project_root)
+        lines.append(f'外部知识库: {cbm_status}')
     lines.append('')
 
     # ===== 健康评分 =====
@@ -364,16 +356,19 @@ def generate_report(project_root, stats, chapters, setting, tracking, state, fac
 
 
 def main():
-    if len(sys.argv) < 2:
-        print(__doc__)
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description='项目全景报告 — 结构化项目概览 + 统计数据 + 质量指标',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument('project_root', help='项目根目录')
+    parser.add_argument('--output', metavar='FILE', help='写入文件')
+    parser.add_argument('--skip-external', action='store_true', help='跳过外部知识库索引检查')
+    args = parser.parse_args()
 
-    project_root = sys.argv[1]
-    output_file = None
-    if '--output' in sys.argv:
-        idx = sys.argv.index('--output')
-        if idx + 1 < len(sys.argv):
-            output_file = sys.argv[idx + 1]
+    project_root = args.project_root
+    output_file = args.output
+    skip_external = args.skip_external
 
     if not os.path.isdir(project_root):
         print(f"错误：项目目录不存在 - {project_root}")
@@ -388,7 +383,7 @@ def main():
 
     # 生成报告
     report = generate_report(project_root, stats, chapters, setting,
-                              tracking, state, fact_stats)
+                              tracking, state, fact_stats, skip_external)
 
     if output_file:
         with open(output_file, 'w', encoding='utf-8') as f:

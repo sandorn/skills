@@ -1,5 +1,28 @@
 # 硬性禁令（单一事实来源）
 
+<!--
+  MACHINE_SYNC: audit.py BANS 字典应与此文件保持同步。
+  校验命令: python scripts/audit.py --dump-bans | diff - <(此文件的 YAML 段)
+  最后同步: 2026-06-30 v7.6
+
+  ```yaml
+  bans_p0:
+    - id: B01, name: 对话引号, pattern: 「」, severity: blocking
+    - id: B02, name: 破折号, pattern: ——, severity: blocking
+    - id: B03, name: 不是...而是, pattern: 不是.*而是, severity: blocking
+    - id: B04, name: 元叙事, severity: blocking
+    - id: B05, name: AI高频词, severity: blocking
+      keywords: [忽然, 突然, 他知道, 似乎, 仿佛, 眼中闪过一丝, 深吸一口气, 心中一动]
+  bans_p1:
+    - id: B06, name: 段落超长, max: 60, severity: forced
+    - id: B07, name: 字数不足, min: 2500, severity: forced
+    - id: B08, name: 字数追加方式, must_use: pad_chapter.py, severity: forced
+    - id: B09, name: 子代理批次上限, max: 5, severity: forced
+  bans_p2:
+    - id: B10, name: 卷间衔接检查, severity: advisory
+  ```
+-->
+
 本文档是 writer skill 所有禁令的**唯一权威定义**。SKILL.md、README.md、quality.md 均通过引用本文档获取禁令列表，不再各自维护副本。
 
 ---

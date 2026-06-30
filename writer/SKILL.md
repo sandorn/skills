@@ -1,7 +1,7 @@
 ---
 name: writer
-version: "7.5"
-description: "网文写作全流程引擎：扫榜/拆文/大纲/写章/审查/质检/发布。"
+version: "7.6"
+description: "网文写作全流程引擎：扫榜/拆文/大纲/写章/审查/质检/发布/文风转换。"
 category: writing
 tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 ---
@@ -81,6 +81,8 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 | 质检 | 质检、全线检查 | `references/quality.md` |
 | 去AI味 | 去AI味、太AI了 | `references/quality.md`（deslop 模式） |
 | 纯手动润色 | 纯手动润色、逐章逐段润色、手工打磨 | `references/manual-polish.md` |
+| 文风转换/批量润色 | 文风转换、转写、润色、批量润色、AI润色、豆包润色 | `references/style-transfer.md` → `scripts/polish.py` |
+| 文风规范 | 文风SOP、文风参数、禁令清单 | `references/style-sop.md` |
 | 全量优化 | 意象钩子清理、钩子强度提升 | `references/optimize.md` |
 | 快速可发布判定 | 能不能发、三问判定 | `references/publishable-check.md` |
 | 追读力分析 | 追读力、钩子强度、爽点分析 | `scripts/analyze_hook.py` |
@@ -425,7 +427,8 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 
 > 详见 `references/corruption-fix-bu-shi.md`（污染修复参考）
 
----\n\n## 变更记录\n\n| 日期 | 关键变更 |\n|------|---------|\n| 2026-06-29 | **v7.5 manual-polish 闸门加固**：manual-polish.md Step 3 新增「逐章闸门」（三问自检，任一否禁入下一章）；⑦ 报告格式强制维度表+改前→改后例句，列四类退化报告为禁止形式；陷阱四「润色降级为禁令修复」判例；hard-bans.md B03 扩展覆盖「不是…是…」短式变体 |
+---\n\n## 变更记录\n\n| 日期 | 关键变更 |\n|------|---------|\n| 2026-06-30 | **v7.6 文风系统**：新增 `references/style-sop.md`（可扩展文风SOP模块，6维接口+番茄预设）；新增 `references/style-transfer.md`（文风转换/批量AI润色管线）；新增 `scripts/polish.py`（模型无关通用润色脚本，支持断点续传+字数控制）；SKILL.md 路由表新增文风转换/转写/文风规范条目；修复 `audit.py` template_issues NameError；清理 `report_panorama.py` 死代码 run_script()+unused import；清理 `report_graph.py` 死代码 count_chinese()；`pad_chapter.py`/`audit_5dim.py` 增加项目适配警告；`00-index.md` 补全文风系统文件和缺失引用 |
+| 2026-06-29 | **v7.5 manual-polish 闸门加固**：manual-polish.md Step 3 新增「逐章闸门」（三问自检，任一否禁入下一章）；⑦ 报告格式强制维度表+改前→改后例句，列四类退化报告为禁止形式；陷阱四「润色降级为禁令修复」判例；hard-bans.md B03 扩展覆盖「不是…是…」短式变体 |
 | 2026-06-29 | **v7.4 逐章审查加固**：SKILL.md 逐章审查路由大幅扩展（明确禁止脚本/加速/跳过；新增「不用脚本」触发词和五条硬性禁令）；SKILL.md 新增「章节污染模式速查」节（①②③三种污染模式+修复方法）|\n| 2026-06-28 | **v7.3 审查+重构+污染**：新增 `references/corruption-fix-bu-shi.md`（「不→是」污染修复权威参考）；委派后校验节重构（外链参考文件 + 逐章审查路由 + 开篇节奏重构指引）；write-pitfalls.md 新增避坑 14-18（Windows路径/文风偏好/开篇重构/声音定调/批量替换污染）；SKILL.md 声音偏好节扩展（番茄小说向） |
 | 2026-06-28 | **v7.2 委派后污染校验**：新增「委派后校验」节；状态感知新增 `writing_rules.md` 自动加载 |
 | 2026-06-26 | **v7.0 通用化**：移除所有 Claude/Hermes 专用术语（delegate_task→sub-agent delegation, web_search→web/content search, image_generate→image generation tool, search_files→grep/pattern search, Moke/Hermes 移除）；agent YAML 泛化（tools→capabilities, model→advisory_model, maxTurns→max_iterations）；hermes-tool-pitfalls.md→tool-pitfalls.md（通用工具陷阱）；codebase-memory-mcp.md→project-knowledge-base.md（通用知识库指南）；SKILL.md 执行策略与子模块索引同步更新 |

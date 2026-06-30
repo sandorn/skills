@@ -11,52 +11,10 @@
    本脚本为通用框架，硬编码的角色数据来自示例项目，使用前替换为当前项目角色。
 """
 
-import re, os, sys, json
+import re, os, sys, json, argparse
 from collections import defaultdict, Counter
 from pathlib import Path
 
-
-def count_chinese(text):
-    return len(re.findall(r'[\u4e00-\u9fff]', text))
-
-
-# ===========================
-# 已知角色库（含别名和关系线索）
-# ===========================
-# 从实战项目提取的主要角色集
-MAIN_CHARACTERS = {
-    '刘秋': {'aliases': ['他', '主角', '刘秋哥'], 'type': '主角', 'faction': '主角方'},
-    '林芷琪': {'aliases': ['芷琪', '琪琪', '林老师'], 'type': '女主', 'faction': '主角方'},
-    '季东海': {'aliases': ['东海', '季总'], 'type': '重要配角', 'faction': '主角方'},
-    '赵天龙': {'aliases': ['天龙', '无极天尊'], 'type': '对抗→盟友', 'faction': '转化方'},
-    '周正阳': {'aliases': ['正阳', '周队'], 'type': '重要配角', 'faction': '主角方'},
-    '方远': {'aliases': ['远方', '方组长'], 'type': '重要配角', 'faction': '主角方'},
-    '赵凯': {'aliases': ['凯哥', '凯子'], 'type': '配角', 'faction': '主角方'},
-    '韩主任': {'aliases': ['韩老师', '韩教授'], 'type': '师长', 'faction': '主角方'},
-    '魏之明': {'aliases': ['魏老师', '老魏'], 'type': '师长', 'faction': '主角方'},
-    '老周': {'aliases': ['周叔'], 'type': '配角', 'faction': '主角方'},
-    '小段': {'aliases': ['段秘书'], 'type': '配角', 'faction': '主角方'},
-    '老韩头': {'aliases': ['老韩'], 'type': '配角', 'faction': '主角方'},
-    '阿九': {'aliases': ['九哥'], 'type': '对抗→盟友', 'faction': '转化方'},
-    '王磊': {'aliases': [], 'type': '配角', 'faction': '主角方'},
-    '孙经理': {'aliases': ['孙总'], 'type': '配角', 'faction': '中立'},
-    '丁三': {'aliases': [], 'type': '配角', 'faction': '中立'},
-    '林海涛': {'aliases': ['林叔', '林总'], 'type': '长辈', 'faction': '主角方'},
-    '刘建国': {'aliases': ['老刘', '刘叔'], 'type': '长辈', 'faction': '主角方'},
-    '王秀兰': {'aliases': ['刘妈', '秀兰'], 'type': '长辈', 'faction': '主角方'},
-}
-
-# 关系触发模式：A 和 B 同时出现在章末50字内的 co-occurrence
-# 以及特定的关系动词
-RELATION_VERBS = {
-    '恋人': r'(?:确定关系|在一起|男朋友|女朋友|表白|告白|恋爱)',
-    '合作': r'(?:合作|签约|联盟|联手|合伙|入股)',
-    '师徒': r'(?:师父|徒弟|学生|弟子|教导|指点|拜师)',
-    '敌对': r'(?:对手|敌人|死对头|仇人|针对|打压|冲突)',
-    '同事': r'(?:同事|搭档|队友|同班|同门|共事)',
-    '雇佣': r'(?:雇佣|老板|员工|雇|下属|手下|秘书)',
-    '家人': r'(?:父亲|母亲|儿子|女儿|兄弟|姐妹|爷爷|奶奶)',
-}
 
 
 def extract_characters_from_text(text, known_chars=None):
@@ -318,26 +276,26 @@ def generate_mermaid(char_freq, cooccur, relation_list, main_only=False):
 
 
 def main():
-    if len(sys.argv) < 2:
-        print(__doc__)
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description='实体关系图谱生成 — 从正文+追踪文件提取角色关系 → 输出Mermaid格式',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument('project_root', help='项目根目录')
+    parser.add_argument('--main-only', action='store_true', help='仅主角关系圈')
+    parser.add_argument('--ch', nargs=2, type=int, metavar=('START', 'END'), default=None,
+                        help='章节范围')
+    parser.add_argument('--output', metavar='FILE', help='写入文件')
+    args = parser.parse_args()
 
-    project_root = sys.argv[1]
-    main_only = '--main-only' in sys.argv
-    output_file = None
-
-    # 参数解析
+    project_root = args.project_root
+    main_only = args.main_only
+    output_file = args.output
     ch_start = None
     ch_end = None
-    args = sys.argv[2:]
-    for i, a in enumerate(args):
-        if a == '--ch' and i + 1 < len(args):
-            if ch_start is None:
-                ch_start = int(args[i + 1])
-            else:
-                ch_end = int(args[i + 1])
-        if a == '--output' and i + 1 < len(args):
-            output_file = args[i + 1]
+
+    if args.ch is not None:
+        ch_start, ch_end = args.ch
 
     char_freq, cooccur, relation_list, files = build_entity_graph(
         project_root, main_only, ch_start, ch_end)

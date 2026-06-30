@@ -20,6 +20,7 @@ v2 改进：
 
 import re
 import sys
+import argparse
 from pathlib import Path
 
 
@@ -59,6 +60,27 @@ def split_paragraph(line: str, max_chars: int = 60) -> list[str]:
     return result if result else [line]
 
 
+def split_full_text(text: str, max_chars: int = 60) -> str:
+    """处理全文：按行拆分超标段落，保留标题/对话行和缩进。
+    供 pad_chapter.py 等脚本复用。"""
+    lines = text.split('\n')
+    new_lines = []
+    for line in lines:
+        s = line.strip()
+        if not s or s.startswith('#') or s.startswith(('「', '『')):
+            new_lines.append(line)
+            continue
+        if count_chinese(s) <= max_chars:
+            new_lines.append(line)
+            continue
+        leading = line[:len(line) - len(line.lstrip())]
+        parts = re.split(r'(?<=[。！？])', s)
+        for p in parts:
+            if p.strip():
+                new_lines.append(leading + p.rstrip())
+    return '\n'.join(new_lines)
+
+
 def process_file(filepath: Path, verify_only: bool = False) -> dict:
     """处理单个文件，返回统计信息"""
     with open(filepath, 'r', encoding='utf-8') as f:
@@ -96,18 +118,26 @@ def process_file(filepath: Path, verify_only: bool = False) -> dict:
 
 
 def main():
-    if len(sys.argv) < 2:
+    parser = argparse.ArgumentParser(
+        description='按句号/问号/感叹号拆分超长段落，确保每段≤60汉字',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument('target', nargs='?', help='目标文件 (或配合 --batch)')
+    parser.add_argument('--batch', metavar='DIR', help='批量处理目录下所有 .md')
+    parser.add_argument('--verify', action='store_true', help='仅检测不修改')
+    args = parser.parse_args()
+
+    verify_only = args.verify
+
+    if args.batch:
+        dir_path = Path(args.batch)
+        files = sorted(dir_path.glob('*.md'))
+    elif args.target:
+        files = [Path(args.target)]
+    else:
         print(__doc__)
         sys.exit(1)
-
-    verify_only = '--verify' in sys.argv
-    batch = '--batch' in sys.argv
-
-    if batch:
-        dir_path = Path(sys.argv[-1])
-        files = sorted(dir_path.glob('*.md'))
-    else:
-        files = [Path(sys.argv[-1])]
 
     total_long = 0
     total_new = 0
