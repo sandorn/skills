@@ -1,6 +1,6 @@
 # Writer Skill 架构全景图
 
-> v7.8 final | 2026-06-30
+> v7.9 | 2026-06-30 — facts.db 全自动版本管理
 
 ---
 
@@ -83,15 +83,15 @@ character-designer   角色+对话 | 按需(4条件) | S1停止 | 降级协议
 ## 四、脚本 (10个)
 
 ```
-READONLY (5) — 只读分析
+READONLY (4) — 只读分析
   analyze_hook        追读力分析 (钩子/爽点)
-  analyze_rhythm      节奏查询 (等级/金币/感情线)
-  fact_db             SQLite事实库 (6表)
+  analyze_rhythm      节奏查询 (等级/金币/感情线) → 数据来自 fact_db
   report_panorama     项目全景报告
   report_graph        实体关系图谱 (Mermaid)
 
-SAFE_WRITE (1) — 修改但.bak备份
-  split_paragraphs    段落拆分 (按句号, ≤42汉字)
+SAFE_WRITE (2) — 修改但仅操作独立数据文件
+  fact_db             SQLite事实库+版本管理 (8表, sync/version/query, 写章自动调用)
+  split_paragraphs    段落拆分 (按句号, ≤42汉字, .bak备份)
 
 EXPORT_ONLY (1) — 独立输出目录
   export              多平台导出 (番茄/起点/飞卢)
@@ -114,6 +114,10 @@ INFRA (1)
                   batch:对齐    daily:8维  quality:5步
                   single:自检   solo:15维  post-fix:判定
                                full:43维(4Agent)
+
+写章自动记录:  Step3→fact_db sync(提取事实)+version(draft)
+              Step4→fact_db version(reviewed)
+质检通过:      Step5→fact_db version(polished)
 
 润色: style-transfer(API批量) | manual-polish(零脚本逐章)
 ```
@@ -167,7 +171,7 @@ P2 建议:
 |------|------|
 | 总文件 | 46 |
 | Reference | 29 |
-| 脚本 | 10 (R:5, SW:1, E:1, C:2, I:1) |
+| 脚本 | 10 (R:4, SW:2, E:1, C:2, I:1) |
 | 路由 | 29 |
 | 审查维度 | 43 (4 Agent) |
 | 禁令 | 10 (P0:5, P1:4, P2:1) |

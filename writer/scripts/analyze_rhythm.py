@@ -225,7 +225,7 @@ def generate_report(project_root, ch_start, ch_end, dims):
     lines.append('')
 
     if not conn:
-        lines.append('> ⚠️ facts.db 未初始化。运行 `python3 scripts/fact_db.py init .` 后重新查询')
+        lines.append('> ⚠️ facts.db 未初始化。运行 `python scripts/fact_db.py init .` 后重新查询')
         lines.append('')
         skip_db = True
     else:

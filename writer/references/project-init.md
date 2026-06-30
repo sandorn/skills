@@ -113,6 +113,11 @@ mkdir -p {project}/setting {project}/outline/chapter_outline {project}/chapters 
 }
 ```
 
+初始化事实库：
+```bash
+python scripts/fact_db.py init .
+```
+
 ---
 
 ## Step 5：填充核心设定

@@ -27,7 +27,14 @@ S1 级问题（禁令违规/字数不足/段落超标/模板复制）→ 走 `qu
 | Step 2 | 字数/段落修复 | 标记不足章 → 手工扩充 → `python scripts/split_paragraphs.py --batch chapters/` |
 | Step 5 | 终验 | `python scripts/audit.py chapters/` |
 
-**不通过则回到 Step 1。** 修复完成后追加 Step 5 维交叉校验（见下方）。
+**不通过则回到 Step 1。** 修复完成后追加 5 维交叉校验（见下方）并保存版本：
+
+```bash
+python scripts/fact_db.py mirror . chapters/ch_{NNN}.md
+python scripts/fact_db.py version . chapters/ch_{NNN}.md reviewed
+# 修复后自动重跑审查，验证修复未引入新问题
+python scripts/audit.py chapters/
+```
 
 ### S1 完成后：5维交叉校验
 

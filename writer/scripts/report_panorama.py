@@ -264,7 +264,7 @@ def generate_report(project_root, stats, chapters, setting, tracking, state, fac
         if 'pending_hooks' in fact_stats:
             lines.append(f'待回收伏笔: {fact_stats["pending_hooks"]} 条')
     else:
-        lines.append('> facts.db 未初始化 — 运行: `python3 scripts/fact_db.py init .`')
+        lines.append('> facts.db 未初始化 — 运行: `python scripts/fact_db.py init .`')
     lines.append('')
 
     # ===== MCP 代码库状态 =====
@@ -323,7 +323,7 @@ def generate_report(project_root, stats, chapters, setting, tracking, state, fac
     if stats and stats['total_chapters'] > 10 and len(setting) < 3:
         suggestions.append('- 章节多但设定少，建议补充设定文件')
     if not os.path.exists(os.path.join(project_root, '.writer', 'facts.db')):
-        suggestions.append('- 事实库未初始化: `python3 scripts/fact_db.py init .`')
+        suggestions.append('- 事实库未初始化: `python scripts/fact_db.py init .`')
     if stats and stats['below_threshold'] > stats['total_chapters'] * 0.1:
         suggestions.append(f'- 字数不足率偏高 ({stats["below_threshold"]}/{stats["total_chapters"]})，建议 safe_pad 批量追加')
     if stats and stats['total_bans'] > 0:

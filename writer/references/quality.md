@@ -26,7 +26,7 @@
 
 | 修复维度 | 修复规则 |
 |------|---------|
-| 破折号/引号 | `python scripts/audit.py <dir> --fix-escaped`；对话打断可保留但标注 |
+| 破折号/引号 | `python scripts/audit.py <dir> --fix-escaped`；修复后立即 `fact_db.py mirror` 同步数据库 |
 | 「不是…而是…」句式 | 删除否定部分，仅保留正面陈述 |
 | 元叙事标签 | 直接删除 |
 | 分析术语 | 改写为具体动作和描写 |
@@ -38,11 +38,12 @@
 扫描字数不足和段落超标的章节，用专用脚本修复：
 
 ```bash
-# 段落拆分
+# 段落拆分 + 同步数据库
 python scripts/split_paragraphs.py --batch chapters/
+python scripts/fact_db.py mirror . chapters/ch_{NNN}.md  # 拆分后镜像最新正文
 ```
 
-字数不足时：`audit.py` 标记不足章 → 作者/主模型手工扩充（展开场景描写/感官细节/角色反应）→ 段落拆分。
+字数不足时：`audit.py` 标记不足章 → 作者/主模型手工扩充 → 段落拆分 → mirror 数据库。
 
 **禁止 `echo >>` 或手工拼接追加**（见 `hard-bans.md` B08）。
 
@@ -119,6 +120,12 @@ python scripts/audit.py chapters/
 ```
 
 输出逐章字数/违禁/段落超标状态。如果全部 PASS（字数≥2500 + 禁令清零 + 段落≤42），质检完成。
+
+质检通过后镜像正文并保存版本快照：
+```bash
+python scripts/fact_db.py mirror . chapters/ch_{NNN}.md     # 镜像最新正文
+python scripts/fact_db.py version . chapters/ch_{NNN}.md polished
+```
 
 ---
 

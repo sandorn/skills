@@ -49,8 +49,16 @@ if not os.path.exists(ch_outline) and state.get("stage") != "planning":
 
 ### Step 1：Plan
 
-确认章节号、字数目标、核心事件、情绪目标、必须包含、必须避免、章末钩子。优先读取：
+确认章节号、字数目标、核心事件、情绪目标、必须包含、必须避免、章末钩子。加载当前状态：
 
+```bash
+# 从 facts.db 读取上一章结束时的精确状态（等级/金币/角色/感情线/伏笔）
+python scripts/fact_db.py query . level-events --ch-start {N-5} --ch-end {N-1}
+python scripts/fact_db.py query . gold-events --ch-start {N-5} --ch-end {N-1}
+python scripts/fact_db.py query . char-states --ch-start {N-5} --ch-end {N-1}
+```
+
+同时对照以下文件确认一致性：
 - `outline/chapter_outline/ch_NNN.md` 或 `大纲/` 下对应章纲
 - `writer.json`
 - `tracking/current_state.md` 或 `追踪/当前状态.md`
@@ -59,19 +67,36 @@ if not os.path.exists(ch_outline) and state.get("stage") != "planning":
 
 ### Step 2：Architect
 
-合并 Composer + Architect：整理角色、设定、伏笔、时间锚点，并生成章节结构。
+合并 Composer + Architect：整理角色、设定、伏笔、时间锚点，并生成章节结构。以 facts.db 中的最新数值为基准（数据库是已写章节的精确快照，比追踪文件更可靠）。
 
 > 适用禁令：B04（避免在结构中使用元叙事标签）
 
 ### Step 3：Write + Reflect
 
-写正文到 `chapters/ch_{NNN}.md`。写完后提取角色位置、状态、资源、伏笔和章节摘要。
+写正文到 `chapters/ch_{NNN}.md`。写完后自动同步事实库：
+
+```bash
+python scripts/fact_db.py sync . chapters/ch_{NNN}.md       # 自动提取等级/金币/角色/感情线
+python scripts/fact_db.py mirror . chapters/ch_{NNN}.md      # 镜像正文到数据库（始终最新）
+python scripts/fact_db.py version . chapters/ch_{NNN}.md draft  # 保存初稿版本快照
+```
 
 > 适用禁令：B01（对话「」） / B02（禁止 ——） / B03（禁止「不是…而是…」） / B05（AI高频词） / B06（每段 ≤42 汉字）
 
 ### Step 4：Audit + Normalize
 
-执行 review solo 的核心检查，同时验证字数、段落、硬性禁令和 AI 痕迹。
+执行审查（文件已通过 Step 3 mirror 同步到数据库，审计脚本读取文件进行检测）：
+
+```bash
+python scripts/audit.py chapters/
+```
+
+审计通过后更新版本状态：
+
+```bash
+python scripts/fact_db.py mirror . chapters/ch_{NNN}.md      # 确保镜像最新（修复可能改变了文件）
+python scripts/fact_db.py version . chapters/ch_{NNN}.md reviewed
+```
 
 ```bash
 python scripts/audit.py chapters/
@@ -101,7 +126,25 @@ python scripts/audit.py chapters/
 | 8 | Auditor | solo 审查：15 维核心 + AI 痕迹 + 硬禁令 → blocking 则进 Step 9 |
 | 9 | Reviser | 定点修复 blocking；修后重跑 Step 8 |
 
-完成后：更新 `writer.json`，标记已回收伏笔。验证：`python scripts/fact_db.py status .` 确认 hooks 表中 recovered 计数正确。
+完成后：更新 `writer.json`，标记已回收伏笔。验证：`python scripts/fact_db.py status .`。
+
+### 写后自动审查（质量闸门，每章必跑）
+
+> 本项目**质量优先于速度**。写章完成后自动激发审查，不等待用户手动触发。
+
+```
+Step 4 审计通过后，按章节数自动升级审查深度：
+
+每章必跑:  quick(自检) + daily(8维)        ← write Step 4 即执行
+每5章:     + solo(15维)                    ← chapters_done % 5 == 0
+每10章:    + lean(27维)                    ← chapters_done % 10 == 0
+每卷/批量:  + full(43维,4Agent) + review-cycle ← 卷末或 >20章
+每100章:   + longform-quality-monitor       ← chapters_done % 100 == 0
+
+任一级别命中 blocking → 立即停止 → 修复 → 重跑该级 → 通过后继续
+```
+
+详见 `references/REVIEW_TRIGGERS.md`。
 
 ## 轻量模式（--fast）
 
@@ -188,10 +231,11 @@ python scripts/audit.py chapters/
 - AI高频词禁用：他知道/忽然/突然/似乎/仿佛/眼中闪过一丝/深吸一口气/心中一动
 - 每句≤42 汉字，句号处换行
 
-【当前状态】
-- 主角等级：{level} / 权限：L{perm} / 位置：{location}
-- 金币余额：{gold}
-- 待回收伏笔：{hooks_summary}
+【当前状态】（从 facts.db 查询获得，写前必须执行）
+- 主角等级：{level}（来源: fact_db.py query level-events 最新记录）
+- 金币余额：{gold}（来源: fact_db.py query gold-events 最新余额）
+- 待回收伏笔：{hooks_summary}（来源: fact_db.py query hooks）
+- 最近角色状态：{char_states}（来源: fact_db.py query char-states）
 - 上一章结尾：{prev_chapter_ending}
 
 【章纲摘要】

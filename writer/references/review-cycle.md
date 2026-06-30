@@ -143,14 +143,18 @@ S1 问题未全部清零前不进入 Step 4。
 - 关键章阅读策略：卷末 → 已有伏笔章 → 重大事件章 → 前后5章
 - 详细方法见 `hooks-scan.md`
 
-### 事实库写入（仅在 facts.db 可用时执行）
+### 事实库同步（仅在 facts.db 可用时执行）
+
+对审查范围内的章节，重新同步事实库（审查可能发现了写章时漏提取的事实），并保存审查后版本：
 
 ```bash
-echo '{"table":"level","record":{"ch":180,"new_level":45}}' | python scripts/fact_db.py insert .
-echo '{"table":"hook","record":{"content":"...","planted_ch":180}}' | python scripts/fact_db.py insert .
+# 重新提取事实 + 镜像最新正文 + 保存版本快照
+python scripts/fact_db.py sync . chapters/ch_{NNN}.md
+python scripts/fact_db.py mirror . chapters/ch_{NNN}.md
+python scripts/fact_db.py version . chapters/ch_{NNN}.md reviewed
 ```
 
-> 若 facts.db 不可用 → 该步骤跳过，在审查报告中注明。
+> 若 facts.db 不可用 → 该步骤跳过，在审查报告中注明。写章管线已自动执行 sync，此处为补充校验。
 
 ### 检查清单
 

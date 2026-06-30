@@ -49,7 +49,7 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 ├── .writer/
 │   ├── state.json               # 系统运行时状态
 │   ├── project_memory.json      # 写作模式记忆
-│   ├── facts.db                 # 结构化事实库（SQLite，可选）
+│   ├── facts.db                 # 结构化事实库（SQLite，写章管线自动维护）
 │   └── runtime/                 # 临时文件
 ├── analysis_lib/                # 对标书分析数据
 ├── reference/                   # 引用书参考视图
@@ -88,8 +88,9 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 | 追读力分析 | 追读力、钩子强度、爽点分析 | `scripts/analyze_hook.py` |
 | 节奏查询 | 升级节奏、金币趋势、感情线 | `scripts/analyze_rhythm.py` |
 | 长篇质量监控 | 声音漂移、风格指纹、情绪单调 | `references/longform-quality-monitor.md` |
-| 查询 | 查角色、查伏笔、等级查询、什么状态 | `scripts/fact_db.py query` |
+| 查询 | 查角色、查伏笔、等级查询、版本历史、什么状态 | `scripts/fact_db.py query`（8种查询含 versions） |
 | 设定一致性审计 | 设定审查、交叉审查 | `references/setting-consistency-audit.md` |
+| 总纲暗线检查 | 暗线审查、总纲对齐、大纲一致性 | `references/master-outline-audit.md` |
 | 更新角色状态 | 更新角色状态、角色追踪 | `references/track-character-state.md` |
 | 实体关系图谱 | 关系、图谱、谁和谁 | `scripts/report_graph.py` |
 | 项目全景报告 | 全景、概览、项目状态 | `scripts/report_panorama.py` |
@@ -99,9 +100,12 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 | 备份 | 备份、存档 | `git commit`（阶段性提交） |
 | 段落拆分 | 段落太长、拆分段落 | `python scripts/split_paragraphs.py --batch chapters/` |
 | 故障排除 | 报错、不工作、问题、怎么办 | `references/troubleshooting.md` |
+| 审查触发规则 | 什么时候审查、自动审查 | `references/REVIEW_TRIGGERS.md` |
 | 帮助 | 帮助、功能、命令 | 列出路由表 |
 
 路由流程：分析意图 → 匹配路由表 → 加载对应 reference → 无法匹配时列出 3-5 个最可能选项。写章请求但无项目目录时自动转入 project-init。
+
+**质量优先**：写章/润色/修复后自动激发审查（见 `REVIEW_TRIGGERS.md`），不等待用户手动触发。
 
 ---
 
@@ -383,7 +387,7 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 | `scripts/lib.py` | 共享工具模块 | INFRA |
 | `scripts/analyze_hook.py` | 追读力分析 | READONLY |
 | `scripts/analyze_rhythm.py` | 节奏状态查询 | READONLY |
-| `scripts/fact_db.py` | SQLite 事实库 | READONLY |
+| `scripts/fact_db.py` | SQLite 事实库 + 版本管理（init/sync/version/query/status） | SAFE_WRITE |
 | `scripts/report_panorama.py` | 项目全景报告 | READONLY |
 | `scripts/report_graph.py` | 实体关系图谱 | READONLY |
 | `scripts/export.py` | 多平台格式导出 | EXPORT_ONLY |

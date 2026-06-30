@@ -34,12 +34,25 @@ python scripts/polish.py --test
 python scripts/polish.py -s chapters/ -o chapters_polished/
 ```
 
-### 3. 替换原文（确认效果后）
+### 3. 替换原文并保存版本（确认效果后）
 
 ```bash
 # 手动确认后替换
 cp chapters_polished/*.md chapters/
+# 镜像正文 + 保存版本快照
+python scripts/fact_db.py mirror . chapters/ch_{NNN}.md
+python scripts/fact_db.py version . chapters/ch_{NNN}.md polished
 ```
+
+### 4. 润色后自动审查
+
+API 润色可能引入字数震荡、AI 腔、格式问题。替换完成后自动激发审查：
+
+```bash
+python scripts/audit.py chapters/          # 禁令+字数+段落扫描
+```
+
+若润色 ≥10 章，升级为 solo 审查（15维）。命中 blocking → 修复后重跑。
 
 ---
 

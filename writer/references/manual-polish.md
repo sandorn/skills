@@ -178,9 +178,10 @@
 
 ```
 对于每一章：
-  ① 读取正文内容 → ② 完整通读一遍
+  ① 从数据库读取正文（`fact_db.py query . content --ch-start N --ch-end N`）
+  → ② 完整通读一遍
   → ③ 标记微调点 → ④ 执行逐句调整
-  → ⑤ 自检清单 → ⑥ 写回文件
+  → ⑤ 自检清单 → ⑥ 写回文件 + 立即 mirror 到数据库
   → ⑦ 记录优化点 → ⑧ 更新进度文件
 ```
 
@@ -250,9 +251,23 @@
 
 每章润完后记录优化点类型和数量，在进度文件逐章行追加。
 
-### Step 4：交付
+润色完成后镜像正文并保存最终版本快照：
+```bash
+python scripts/fact_db.py mirror . chapters/ch_{NNN}.md     # 镜像最新正文
+python scripts/fact_db.py version . chapters/ch_{NNN}.md final
+```
 
-全部润色完成后，生成交付报告（见下方模板）。
+### Step 4：自动审查 + 交付
+
+润色完成后自动激发审查（润色可能引入新问题）：
+
+```bash
+# 最低审查：daily 8维
+python scripts/audit.py chapters/       # 禁令扫描
+# 若润色 ≥5章，升级为 solo 15维深度审查
+```
+
+审查通过后生成交付报告（见下方模板）。
 
 ---
 
