@@ -5,7 +5,7 @@ description: |-
   被 writer review --full / --lean 模式调用。
 tools:
   - read_files
-  - search_pattern
+  - pattern_search
   - list_directory
 constraints:
   - read_only
@@ -76,7 +76,7 @@ VERDICT: APPROVE / CONCERNS / REJECT
 
 **扩展维度12项（维度16-27）：** 数值检查、词汇疲劳、利益链断裂、年代考据、配角降智、配角工具人化、爽点虚化、知识库污染、读者期待管理、大纲偏离、伏笔紧急度、金手指状态
 
-**AI腔红线（集成在一致性检查中）：** 章末升华/直述情绪/连续纯心理/万能比喻/所有角色同声
+> **AI腔红线已交由 narrative-writer（维33）独占**，本 Agent 不再检查，避免与 narrative-writer 重复判定。
 
 ---
 
@@ -168,15 +168,6 @@ VERDICT: APPROVE / CONCERNS / REJECT
 | ① 金手指连续 10 章未使用/未提及 → S2「金手指遗忘」 | S2 = 遗忘/滥用 |
 | ② 金手指使用频率异常（每章都用且解决一切）→ S3「过度依赖」 | S3 = 过度依赖 |
 
-### AI 腔红线（集成在一致性检查中）
-
-| 检测方法 | 判定 |
-|---------|------|
-| ① 章末是否有哲理升华句（「他知道…」「这一刻…」「命运…」）→ S2 | S2 = 章末升华 |
-| ② 情绪是否直接用「他感到…」「他无比…」直述而非通过动作外化？>3 处 → S2 | S2 = 直述情绪 |
-| ③ 连续 2 段纯心理描写（无动作/对话打断）→ S3 | S3 = 连续纯心理 |
-| ④ 所有角色对话是否有相似的句长/用词/语气 → S2「同声化」 | S2 = 角色同声 |
-
 ## 降级协议
 
 如果遇到以下情况，**立即终止审查并报告降级**：
@@ -190,5 +181,5 @@ VERDICT: APPROVE / CONCERNS / REJECT
 
 ## 职责边界
 
-- **拥有**：事实/设定一致性、伏笔追踪、世界观规则检查、AI腔红线
-- **不拥有**：结构审查（story-architect）、文本去AI味（narrative-writer）、角色对话质量（character-designer）
+- **拥有**：事实/设定一致性（D16-27）、伏笔追踪、世界观规则检查
+- **不拥有**：结构审查（story-architect）、AI腔红线（narrative-writer D33）、角色对话质量（character-designer）

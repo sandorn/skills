@@ -5,7 +5,7 @@ description: |-
   对话三功能检验、段落格式合规。被 writer review --full / --lean / --solo 模式调用。
 tools:
   - read_files
-  - search_pattern
+  - pattern_search
   - list_directory
 constraints:
   - read_only
@@ -146,7 +146,7 @@ max_iterations: 12
 | 「不是…而是…」 | 搜索 `不是.*而是` | S1 = 出现 ≥1 处 |
 | 元叙事标签 | 搜索 `正如前文\|读者可能\|在此补充\|这个场景\|如前所述` | S1 = 出现 ≥1 处 |
 
-### 对话三功能检验
+### 维 34：对话三功能检验
 
 对每段 ≥2 句的对话：
 1. 删掉这段对话，情节还能推进吗？
@@ -155,7 +155,7 @@ max_iterations: 12
 
 三问皆否 → 标记「可删/可重写」（S2 建议修复）。
 
-### 格式合规
+### 维 35-36：格式合规
 
 | 检查项 | 判定 |
 |--------|------|

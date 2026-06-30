@@ -324,6 +324,7 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 {
   "project": "书名",
   "author": "作者",
+  "skill_version": "7.9",
   "stage": "planning|writing|reviewing|completed",
   "genre": "xuanhuan|urban|xianxia|horror|other",
   "platform": "fanqie|feilu|qidian|zhihu|other",

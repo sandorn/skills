@@ -18,10 +18,7 @@
 - 如需修改文件，使用专门的文本替换工具（而非覆写整个文件）
 - 读到的内容仅用于分析/参考，不直接回写
 
-**修复已污染文件**：
-```bash
-sed -i 's/^[0-9]*|//' 被污染文件.md
-```
+**修复已污染文件**：使用 `git checkout` 恢复干净版本，或通过 Python 脚本逐行处理（禁止 sed 批量替换）。
 
 ---
 
@@ -114,15 +111,10 @@ python scripts/split_paragraphs.py --batch chapters/ --max-len 60
 
 **自动修复**：
 ```bash
-# 扫描并修复所有转义引号
-grep -l '\\"' chapters/ch*.md | while read f; do
-    python3 -c "import sys;c=open(sys.argv[1]).read();open(sys.argv[1],'w').write(c.replace('\\\\\"','\"'))" "$f"
-done
+python scripts/audit.py chapters/ --fix-escaped
 ```
 
-**预防**：
-- `audit.py --fix-escaped` 内置转义引号检测+自动修复
-- `audit.py --fix-escaped` 写入后自动扫描并清除转义引号
+**预防**：全文统一用 `「」` 替代 `""`，从根源避免转义问题。
 - 质检流水线步骤7专门扫描此类残留
 - **全文统一用「」替代 `""`**，从根源避免转义问题
 
@@ -132,7 +124,7 @@ done
 
 以下操作在任何 AI 写作环境中都是安全的：
 
-- `sed -i 's/——/，/g'` — 批量清除破折号（安全，不涉及编码问题）
+- `python scripts/audit.py chapters/ --fix-escaped` — 统一修复破折号和转义引号（.bak 备份）
 - 代码执行环境中的 Python `open/write` — 完全可控
 - 文本替换工具的短文本精确匹配（不含引号）— 可靠
 - `python scripts/split_paragraphs.py --batch` — 段落拆分，独立工具

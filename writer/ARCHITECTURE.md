@@ -1,24 +1,26 @@
 # Writer Skill 架构全景图
 
-> v7.9 | 2026-06-30 — facts.db 全自动 + 审查替代升级
+> v7.9 final | 2026-06-30 — 5 轮审查完成，零污染，零断裂引用
 
 ---
 
 ## 一、规模
 
 ```
-writer/                        380 KB / 47 文件
-├── SKILL.md                446行  22KB  入口 + 路由 + 禁令 + 安全策略
-├── WORKFLOW.md                    8KB  完整答题流程
-├── ARCHITECTURE.md                 -   本文件
-├── REVIEW_TRIGGERS.md             3KB  审查触发体系
-├── RELEASE_REVIEW.md              4KB  发布评估
-├── CHANGELOG.md                   3KB  版本历史
-├── references/           29 文件 180KB  AI 执行指令
-├── agents/                4 文件  26KB  Full 审查子代理模板
-├── scripts/              10 文件 120KB  Python 工具（全部安全标注）
-├── templates/             1 文件   4KB  审查报告模板
-└── presets/               1 文件   2KB  文风预设
+writer/                        380 KB / 48 文件
+├── SKILL.md                456行  22KB  入口 + 路由 + 禁令速查 + 安全策略
+├── WORKFLOW.md              156行   7KB  完整答题流程
+├── ARCHITECTURE.md          172行   7KB  本文件
+├── REVIEW_TRIGGERS.md       104行   3KB  审查触发体系
+├── RELEASE_REVIEW.md               4KB  发布评估
+├── CHANGELOG.md                    3KB  版本历史
+├── .gitignore                       -   已配置
+├── references/           29+2 文件 185KB  AI 执行指令
+├── agents/                4 文件  26KB  Full 审查子代理（已去重+编号）
+├── scripts/              10 文件 120KB  Python 工具（安全标注+增强正则）
+├── templates/             1 文件   5KB  审查报告模板
+├── presets/               1 文件   2KB  文风预设
+└── project-skeleton/     11 文件   5KB  新项目模板（已修复 60→42）
 ```
 
 ---
@@ -155,18 +157,21 @@ P2 建议 (1): B10 卷间衔接
 
 | 指标 | 数值 |
 |------|------|
-| 总文件 | 47 |
-| Reference | 29 |
+| 总文件 | 48 |
+| Reference | 29+2 (00-index + REVIEW_TRIGGERS) |
 | 脚本 | 10 (R:4, SW:2, E:1, C:2, I:1) |
-| Agent | 4 (均含 S1停止+降级协议) |
+| Agent | 4 (去重:AI腔红线→narrative-writer独占, OOC→character-designer权威) |
 | 路由 | 31 |
-| 审查 | 10 (6自动 + 4人工) |
+| 审查 | 10 (6自动+替代升级, 4人工) |
 | 禁令 | 10 (P0:5, P1:4, P2:1) |
-| 数据库表 | 9 (全自动维护) |
+| 数据库表 | 9 (全自动读写闭环) |
 | 段落上限 | 42 汉字 |
 | 字数下限 | 2500 汉字 |
 | 子代理批次 | ≤5章(写) / ≤40章(审) |
+| writer.json | skill_version: "7.9" |
 | 引用断裂 | 0 |
 | 硬编码残留 | 0 |
 | 作者教材 | 0 |
 | 累计删除 | 12 文件 |
+| 审查轮次 | 5 轮 |
+| 实战验证 | 待进行 |

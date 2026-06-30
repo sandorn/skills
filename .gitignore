@@ -1,5 +1,14 @@
-# Writer skill — Python artifacts
+# Python artifacts
 __pycache__/
-.pytest_cache/
 *.pyc
 *.pyo
+.pytest_cache/
+
+# Writer runtime
+.writer/facts.db-journal
+.writer/runtime/
+.writer/backups/
+
+# OS
+.DS_Store
+Thumbs.db
