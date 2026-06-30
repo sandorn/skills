@@ -46,13 +46,12 @@ class TestCountChinese(unittest.TestCase):
         self.assertEqual(self._count(""), 0)
 
     def test_extended_chinese(self):
-        """split_paragraphs.py 的 regex [\\u4e00-\\u9fff] 覆盖基本汉字，
-        扩展 CJK-A 区 (㐀-䶿) 的字符不被此 regex 统计（设计如此）。"""
+        """split_paragraphs.py 的 regex 覆盖基本汉字 + 扩展 CJK-A 区，
+        与 polish.py/audit.py 统一使用同一范围。"""
         from split_paragraphs import count_chinese
-        # 基本汉字统计正确
         self.assertEqual(count_chinese("你好"), 2)
-        # 扩展区字符不在 \\u4e00-\\u9fff 范围内，统计为 0
-        # （polish.py 使用更广的 [一-鿿㐀-䶿] 才覆盖扩展区）
+        # 扩展A区字符 (㐀-䶿) 现在被统计
+        self.assertEqual(count_chinese("㐀"), 1)
 
     def test_novel_text_sample(self):
         text = "张远猛地推开房门，走廊里空无一人。"
@@ -169,13 +168,6 @@ class TestIsDialogueLine(unittest.TestCase):
 @unittest.skipUnless(HAS_REQUESTS, "需要 requests 库")
 class TestStylePresetLoading(unittest.TestCase):
     """文风预设加载"""
-
-    def test_build_default_prompt(self):
-        from polish import build_default_system_prompt
-        prompt = build_default_system_prompt()
-        self.assertIn("番茄小说", prompt)
-        self.assertIn("{min_wc}", prompt)
-        self.assertIn("{max_wc}", prompt)
 
     def test_load_preset_file(self):
         from polish import load_style_preset

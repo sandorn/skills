@@ -26,7 +26,7 @@ CHAR_THRESH = 60
 
 
 def count_chinese(text):
-    return len(re.findall(r'[\u4e00-\u9fff]', text))
+    return len(re.findall(r'[\u4e00-\u9fff\u3400-\u4dbf]', text))
 
 
 def is_dialogue_line(line):
@@ -296,7 +296,7 @@ def pad_file_end(filepath, target=TARGET):
         return False
 
     # 从章节中提取关键词生成延续
-    kw_list = re.findall(r'[\u4e00-\u9fff]{2,4}', content[-1500:])
+    kw_list = re.findall(r'[\u4e00-\u9fff\u3400-\u4dbf]{2,4}', content[-1500:])
     stop = {'一个', '他们', '什么', '已经', '没有', '可以', '这个', '自己', '不是'}
     kw = [w for w in kw_list if w not in stop][:3] or ['桌面']
     rng = random.Random(int(hashlib.md5(content[-200:].encode()).hexdigest()[:8], 16))

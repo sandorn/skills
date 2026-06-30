@@ -1,0 +1,5 @@
+# Writer skill — Python artifacts
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo

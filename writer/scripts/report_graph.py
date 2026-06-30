@@ -15,7 +15,12 @@ import re, os, sys, json, argparse
 from collections import defaultdict, Counter
 from pathlib import Path
 
+# ── 默认角色字典（空，由项目配置覆盖）──
+# 项目使用前需填充：{角色名: {"type": "主角", "faction": "主角方", "aliases": []}}
+MAIN_CHARACTERS: dict = {}
 
+# ── 关系动词检测规则 ──
+RELATION_VERBS: dict = {}
 
 def extract_characters_from_text(text, known_chars=None):
     """从文本中提取出现的角色"""

@@ -25,8 +25,8 @@ from pathlib import Path
 
 
 def count_chinese(text: str) -> int:
-    """统计汉字数量"""
-    return len(re.findall(r'[\u4e00-\u9fff]', text))
+    """统计汉字数量（含基本区 + 扩展A区，与 polish.py/audit.py 一致）"""
+    return len(re.findall(r'[\u4e00-\u9fff\u3400-\u4dbf]', text))
 
 
 def is_dialogue_line(line: str) -> bool:

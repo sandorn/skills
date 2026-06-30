@@ -64,49 +64,21 @@ def load_style_preset(preset_name: str, skill_dir: Path) -> dict:
     if not sop_file.exists():
         raise FileNotFoundError(f"文风文件不存在: {sop_file}")
 
-    # 使用内置的番茄文风提示词
-    return {"system_prompt": build_default_system_prompt(), "params": {}}
+    # 回退：从 presets 目录加载默认预设
+    fallback = skill_dir / "references" / "presets" / "fanqie-quick-anti.md"
+    if fallback.exists():
+        text = fallback.read_text(encoding="utf-8")
+        return {"system_prompt": text, "params": {}}
+
+    raise FileNotFoundError(
+        f"文风预设 '{preset_name}' 不存在，且默认预设也不在 {fallback}。"
+        f"请检查 references/presets/ 目录。"
+    )
 
 
-def build_default_system_prompt() -> str:
-    """构建默认番茄文风系统提示词"""
-    return """你是一位资深的番茄小说网文编辑，专门负责都市游戏锚点、单人隐秘机缘、草根逆袭题材的章节精修。
-
-请对以下小说章节进行润色改写，严格遵守以下规则：
-
-【文风节奏】
-- 短句密集、节奏轻快、无冗长文艺描写
-- 口语化高网感，松弛不刻意燃炸
-- 贴合番茄爆款轻松逆袭文风
-
-【内容侧重】
-- 强化独家秘密、独有特权、实测验证、细节爽点
-- 弱化多余场景铺垫
-- 聚焦男主独有系统优势、心理博弈、规则试探
-- 突出"全世界唯我独有"的核心爽点
-
-【人物塑造】
-- 男主心态冷静理智、沉稳隐忍、善于实测复盘
-- 不浮夸不中二
-- 主打低调发育、手握信息差、掌控全局的草根逆袭人设
-
-【情节处理】
-- 测试、验证、铺垫剧情不拖沓
-- 每段测试对应明确结论
-- 强化安全感、优势感、成长性
-- 收尾留期待、埋后续升级伏笔
-
-【细节优化】
-- 删除冗余抒情，保留画面基础场景
-- 重点放大系统隐蔽性、身体蜕变、规则唯一性等核心设定
-- 上下文衔接顺滑
-
-【输出要求】
-- 直接输出润色后的完整章节正文
-- 不要添加任何前言、后记、说明或评价
-- 保持原章节的标题和段落结构
-- 保持原文的 Markdown 格式
-- 润色后中文字数严格控制在 {min_wc}-{max_wc} 字之间"""
+# ── 文风提示词单一来源：presets/*.md ──
+# build_default_system_prompt() 已移除（v7.6.1）。
+# 系统提示词请直接编辑 references/presets/fanqie-quick-anti.md。
 
 
 # ============================================================================
@@ -549,8 +521,6 @@ def main():
     # --test: 快捷测试模式
     if args.test:
         args.chapter = "ch_001"
-        if not args.api_key:
-            args.api_key = "ark-b2d0ca10-77a4-4fbb-9f6a-fdfb811ce8f8-528aa"
 
     # --reset
     if args.reset:

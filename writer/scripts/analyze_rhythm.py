@@ -21,7 +21,7 @@ from datetime import datetime
 
 
 def count_chinese(text):
-    return len(re.findall(r'[\u4e00-\u9fff]', text))
+    return len(re.findall(r'[\u4e00-\u9fff\u3400-\u4dbf]', text))
 
 
 def open_fact_db(project_root):

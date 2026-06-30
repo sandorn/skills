@@ -47,7 +47,8 @@ TEMPLATE_FINGERPRINT_LEN = 200
 
 
 def count_chinese(text):
-    return len(re.findall(r'[一-鿿]', text))
+    """统计汉字数量（含基本区 + 扩展A区，与 polish.py/split_paragraphs.py 一致）"""
+    return len(re.findall(r'[一-鿿㐀-䶿]', text))
 
 
 def extract_body(text):
