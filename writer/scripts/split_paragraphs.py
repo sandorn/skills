@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """按句号/问号/感叹号拆分超长段落，确保每段≤60汉字。
 
-v2 改进：
-  - 对话行检测改为「『开头（适配项目规范）
-  - 纯数字/标点行跳过
-  - 拆分后保留原缩进
+v3 改进：
+  - 统一换行处理（修复 v2 writelines 混用 '\n' 和完整行的 bug）
+  - 写回前自动创建 .bak 备份
+  - 依赖 scripts/lib.py 统一工具函数
 
 用法：
     python split_paragraphs.py <file.md>                # 单文件
     python split_paragraphs.py --batch <dir>            # 批量处理目录下所有 .md
     python split_paragraphs.py --verify <file.md>       # 仅检测不修改
+    python split_paragraphs.py --batch <dir> --no-backup  # 跳过备份
 
 拆分规则：
     - 按 。！？ 断段
@@ -23,16 +24,7 @@ import sys
 import argparse
 from pathlib import Path
 
-
-def count_chinese(text: str) -> int:
-    """统计汉字数量（含基本区 + 扩展A区，与 polish.py/audit.py 一致）"""
-    return len(re.findall(r'[\u4e00-\u9fff\u3400-\u4dbf]', text))
-
-
-def is_dialogue_line(line: str) -> bool:
-    """判断是否为对话行（以「『开头）——项目标准引号"""
-    stripped = line.strip()
-    return stripped.startswith(('「', '『'))
+from lib import count_chinese, is_dialogue_line, safe_write
 
 
 def split_paragraph(line: str, max_chars: int = 60) -> list[str]:
@@ -67,7 +59,7 @@ def split_full_text(text: str, max_chars: int = 60) -> str:
     new_lines = []
     for line in lines:
         s = line.strip()
-        if not s or s.startswith('#') or s.startswith(('「', '『')):
+        if not s or s.startswith('#') or is_dialogue_line(s):
             new_lines.append(line)
             continue
         if count_chinese(s) <= max_chars:
@@ -81,39 +73,42 @@ def split_full_text(text: str, max_chars: int = 60) -> str:
     return '\n'.join(new_lines)
 
 
-def process_file(filepath: Path, verify_only: bool = False) -> dict:
+def process_file(filepath: Path, verify_only: bool = False,
+                 backup: bool = True) -> dict:
     """处理单个文件，返回统计信息"""
     with open(filepath, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
+        content = f.read()
 
+    lines = content.split('\n')
     new_lines = []
     long_count = 0
     new_segments = 0
+    modified = False
 
     for line in lines:
-        stripped = line.rstrip('\n')
+        stripped = line.rstrip('\r')
         if not stripped.strip():
-            new_lines.append('\n')
+            new_lines.append(stripped)
             continue
 
         if count_chinese(stripped) > 60 and not is_dialogue_line(stripped):
             long_count += 1
             segments = split_paragraph(stripped, 60)
             new_segments += len(segments) - 1
-            for seg in segments:
-                new_lines.append(seg + '\n')
+            new_lines.extend(segments)
+            modified = True
         else:
-            new_lines.append(line)
+            new_lines.append(stripped)
 
-    if not verify_only:
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.writelines(new_lines)
+    if modified and not verify_only:
+        new_content = '\n'.join(new_lines)
+        safe_write(str(filepath), new_content, backup=backup)
 
     return {
         'file': str(filepath),
         'long_paragraphs': long_count,
         'new_segments_added': new_segments,
-        'fixed': not verify_only and long_count > 0
+        'fixed': modified and not verify_only,
     }
 
 
@@ -121,14 +116,20 @@ def main():
     parser = argparse.ArgumentParser(
         description='按句号/问号/感叹号拆分超长段落，确保每段≤60汉字',
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__,
+        epilog='示例:\n'
+               '  python split_paragraphs.py ch_001.md\n'
+               '  python split_paragraphs.py --batch chapters/\n'
+               '  python split_paragraphs.py --verify ch_001.md\n'
+               '  python split_paragraphs.py --batch chapters/ --no-backup',
     )
     parser.add_argument('target', nargs='?', help='目标文件 (或配合 --batch)')
     parser.add_argument('--batch', metavar='DIR', help='批量处理目录下所有 .md')
     parser.add_argument('--verify', action='store_true', help='仅检测不修改')
+    parser.add_argument('--no-backup', action='store_true', help='跳过 .bak 备份')
     args = parser.parse_args()
 
     verify_only = args.verify
+    do_backup = not args.no_backup
 
     if args.batch:
         dir_path = Path(args.batch)
@@ -136,7 +137,7 @@ def main():
     elif args.target:
         files = [Path(args.target)]
     else:
-        print(__doc__)
+        parser.print_help()
         sys.exit(1)
 
     total_long = 0
@@ -147,15 +148,20 @@ def main():
         if not fp.exists():
             print(f"SKIP: {fp} (not found)")
             continue
-        result = process_file(fp, verify_only)
+        result = process_file(fp, verify_only, backup=do_backup)
         total_long += result['long_paragraphs']
         total_new += result['new_segments_added']
         if result['fixed']:
             total_fixed += 1
-        status = "FIXED" if result['fixed'] else (("DETECTED" if result['long_paragraphs'] > 0 else "OK"))
-        print(f"{status}: {result['file']} ({result['long_paragraphs']} long → +{result['new_segments_added']} lines)")
+        status = "FIXED" if result['fixed'] else (
+            "DETECTED" if result['long_paragraphs'] > 0 else "OK")
+        print(f"{status}: {result['file']} "
+              f"({result['long_paragraphs']} long → +{result['new_segments_added']} lines)")
 
-    print(f"\n总计: {total_long} 段超标, +{total_new} 行, {total_fixed} 文件{'（仅检测）' if verify_only else '（已修复）'}")
+    action = '（仅检测）' if verify_only else '（已修复）'
+    backup_note = ' | 已备份 .bak' if (total_fixed > 0 and do_backup) else ''
+    print(f"\n总计: {total_long} 段超标, +{total_new} 行, "
+          f"{total_fixed} 文件{action}{backup_note}")
 
 
 if __name__ == '__main__':

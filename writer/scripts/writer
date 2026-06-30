@@ -12,9 +12,10 @@
     python scripts/writer graph <项目根> [--main-only]            # 实体图谱
     python scripts/writer fact <项目根> <cmd> [...]               # 事实库操作
     python scripts/writer export <项目根> [--platform fanqie]     # 多平台导出
-    python scripts/writer backup                                  # 自动备份
+    python scripts/writer backup <项目根>                          # 自动备份
     python scripts/writer fix <chapters目录>                      # 一键修复(禁令+字数+段落)
     python scripts/writer check <chapters目录>                    # 一键检查(审计+5维+追读力)
+    python scripts/writer polish --source <dir> --output <dir>    # AI润色/文风转换
 
 脚本目录：所有子脚本位于本文件同级目录。
 """
@@ -38,9 +39,8 @@ COMMANDS = {
     'fact':        'fact_db.py',
     'export':      'export.py',
     'backup':      'backup.py',
+    'polish':      'polish.py',
 }
-
-FIX_ALIASES = {'fix': None, 'check': None}  # 复合命令
 
 
 def run_script(name, args):
@@ -52,40 +52,47 @@ def run_script(name, args):
     return result.returncode
 
 
-def cmd_fix(target):
+def cmd_fix(args):
     """一键修复：pad → split → audit"""
+    target = args[0] if args else None
+    if not target:
+        print("用法: python scripts/writer fix <chapters目录>")
+        return 1
+
     print("=" * 50)
     print("Writer Fix: 字数追加 → 段落拆分 → 审计终验")
     print("=" * 50)
 
-    # 1. Pad
     print("\n[1/3] 字数追加...")
-    rc = run_script('pad', ['--batch', target])
+    rc = run_script('pad', ['--batch', target] + args[1:])
     if rc != 0:
         print("⚠️  pad 返回非零")
 
-    # 2. Split
     print("\n[2/3] 段落拆分...")
-    rc = run_script('split', ['--batch', target])
+    rc = run_script('split', ['--batch', target] + args[1:])
     if rc != 0:
         print("⚠️  split 返回非零")
 
-    # 3. Audit
     print("\n[3/3] 审计终验...")
-    rc = run_script('audit', [target])
+    rc = run_script('audit', [target] + args[1:])
 
     print("\n" + "=" * 50)
     print("修复完成" if rc == 0 else f"审计未通过 (exit {rc})，请检查上述输出")
     return rc
 
 
-def cmd_check(target):
+def cmd_check(args):
     """一键检查：audit + 5dim + hook"""
+    target = args[0] if args else None
+    if not target:
+        print("用法: python scripts/writer check <chapters目录>")
+        return 1
+
     print("=" * 50)
     print("Writer Check: 审计 + 5维 + 追读力")
     print("=" * 50)
 
-    rc1 = run_script('audit', [target])
+    rc1 = run_script('audit', [target] + args[1:])
     print()
     rc2 = run_script('audit-5dim', [target])
     print()
@@ -97,7 +104,7 @@ def cmd_check(target):
     return total
 
 
-VERSION = "7.0"
+VERSION = "7.1"
 
 
 def cmd_doctor():
@@ -112,6 +119,12 @@ def cmd_doctor():
         if not script.exists():
             all_ok = False
         print(f"  {exists} {name:12s} → {script_file}")
+    # 检查 lib.py
+    lib_file = SCRIPT_DIR / 'lib.py'
+    lib_exists = "✅" if lib_file.exists() else "❌"
+    if not lib_file.exists():
+        all_ok = False
+    print(f"  {lib_exists} {'lib':12s} → lib.py (共享工具模块)")
     print("-" * 50)
     print(f"结果: {'全部通过' if all_ok else '存在问题 — 检查上述 ❌ 项'}")
     return 0 if all_ok else 1
@@ -133,16 +146,10 @@ def main():
         sys.exit(cmd_doctor())
 
     if cmd == 'fix':
-        if not args:
-            print("用法: python scripts/writer fix <chapters目录>")
-            sys.exit(1)
-        sys.exit(cmd_fix(args[0]))
+        sys.exit(cmd_fix(args))
 
     if cmd == 'check':
-        if not args:
-            print("用法: python scripts/writer check <chapters目录>")
-            sys.exit(1)
-        sys.exit(cmd_check(args[0]))
+        sys.exit(cmd_check(args))
 
     if cmd in COMMANDS:
         sys.exit(run_script(cmd, args))

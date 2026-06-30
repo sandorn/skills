@@ -161,3 +161,7 @@ mkdir -p {project}/setting {project}/outline/chapter_outline {project}/chapters 
 4. 从正文反推：主角、重要配角、世界观、力量/系统、伏笔、章节摘要
 5. 写入 `setting/`、`outline/`、`tracking/`
 6. 生成导入报告：已识别章节数、缺失设定、疑似断章、下一步建议
+
+---
+
+> **下一步**：[大纲规划](plan.md)（总纲→卷纲→章纲）

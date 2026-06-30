@@ -181,3 +181,7 @@ for f in recent:
 
 print(f"最新状态：等级={state['level']} 权限=L{state['perm']} 金币={state['gold']}")
 ```
+
+---
+
+> **下一步**：[写章](write.md) --batch N（对齐通过后批量写章）

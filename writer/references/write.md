@@ -55,21 +55,35 @@ if not os.path.exists(ch_outline) and state.get("stage") != "planning":
 - `writer.json`
 - `tracking/current_state.md` 或 `追踪/当前状态.md`
 
+> 适用禁令：B09（批次上限） / B10（如是新卷首章，卷间衔接检查）
+
 ### Step 2：Architect
 
 合并 Composer + Architect：整理角色、设定、伏笔、时间锚点，并生成章节结构。
+
+> 适用禁令：B04（避免在结构中使用元叙事标签）
 
 ### Step 3：Write + Reflect
 
 写正文到 `chapters/ch_{NNN}.md`。写完后提取角色位置、状态、资源、伏笔和章节摘要。
 
+> 适用禁令：B01（对话「」） / B02（禁止 ——） / B03（禁止「不是…而是…」） / B05（AI高频词） / B06（每段 ≤60 汉字）
+
 ### Step 4：Audit + Normalize
 
 执行 review solo 的核心检查，同时验证字数、段落、硬性禁令和 AI 痕迹。
 
+```bash
+python scripts/audit.py chapters/
+```
+
+> 适用禁令：B01-B07 全部 / AI 痕迹 6 维
+
 ### Step 5：Revise
 
 只修 blocking 问题、用户明确关注的问题和明显影响可发布的问题。修订后再跑一次关键禁令扫描。
+
+> 适用禁令：B07（字数 ≥2500，不足则 `pad_chapter.py`） / B08（禁止 echo >>）
 
 ## 完整模式（--full）：9 步 = 5 步 + 4 扩展
 
@@ -87,7 +101,7 @@ if not os.path.exists(ch_outline) and state.get("stage") != "planning":
 | 8 | Auditor | solo 审查：15 维核心 + AI 痕迹 + 硬禁令 → blocking 则进 Step 9 |
 | 9 | Reviser | 定点修复 blocking；修后重跑 Step 8 |
 
-完成后：更新 `writer.json`，标记已回收伏笔，确保摘要和状态已同步。
+完成后：更新 `writer.json`，标记已回收伏笔。验证：`python scripts/fact_db.py status .` 确认 hooks 表中 recovered 计数正确。
 
 ## 轻量模式（--fast）
 
@@ -287,3 +301,7 @@ if not os.path.exists(ch_outline) and state.get("stage") != "planning":
 - [ ] 追踪文件已更新
 - [ ] 章末有钩子
 - [ ] 无硬性禁令违规
+
+---
+
+> **下一步**：[日更审查](review.md) --daily（8维3分钟发布闸）；批量写章后跑 [审查循环](review-cycle.md)

@@ -1,6 +1,6 @@
 ---
 name: writer
-version: "7.6"
+version: "7.7"
 description: "网文写作全流程引擎：扫榜/拆文/大纲/写章/审查/质检/发布/文风转换。"
 category: writing
 tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
@@ -78,12 +78,13 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 | 审查/审计 | 审查、审稿、审计 | `references/review.md` |
 | 日更审查 | 日更审查、daily、发布前检查、日更质检 | `references/review.md`（daily 模式 — 8 维 3 分钟发布闸） |
 | 定向审查 | 定向审查、专项审查 | `references/targeted-audit.md` |
+| 逐章通读审查 | 逐章检查、不用脚本、一章一章过 | `references/review.md`（manual-pass 模式 — 零脚本/零子代理/逐章通读） |
 | 质检 | 质检、全线检查 | `references/quality.md` |
 | 去AI味 | 去AI味、太AI了 | `references/quality.md`（deslop 模式） |
 | 纯手动润色 | 纯手动润色、逐章逐段润色、手工打磨 | `references/manual-polish.md` |
 | 文风转换/批量润色 | 文风转换、转写、润色、批量润色、AI润色、豆包润色 | `references/style-transfer.md` → `scripts/polish.py` |
 | 文风规范 | 文风SOP、文风参数、禁令清单 | `references/style-sop.md` |
-| 全量优化 | 意象钩子清理、钩子强度提升 | `references/optimize.md` |
+| 全量优化 | 意象钩子清理、钩子强度提升、爽点优化 | `references/optimize.md`（手工优化指南 + 辅助脚本扫描） |
 | 快速可发布判定 | 能不能发、三问判定 | `references/publishable-check.md` |
 | 追读力分析 | 追读力、钩子强度、爽点分析 | `scripts/analyze_hook.py` |
 | 节奏状态查询 | 升级节奏、金币趋势、感情线进度 | `scripts/analyze_rhythm.py` |
@@ -204,8 +205,14 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
   ├── narrative-writer    → 文本质量（D28-36 + 禁令 + 格式）
   │     AI 痕迹 6 维 + 硬禁令 3 项 + 对话三功能检验 + 格式合规
   │
-  └── character-designer  → 角色与对话（按需启用）
+  └── character-designer  → 角色与对话（按需启用，触发条件见下）
         遮名测试 + OOC 深入 + 配角工具人检测 + 语言风格一致性
+
+**character-designer 启用条件**（满足任一即启用）：
+- 审查范围含 ≥3 个主要角色对话场景
+- 前次审查发现 ≥1 个 S2 级 OOC 问题
+- 用户明确要求检查角色/对话质量
+- 全书角色 >10 个且本次审查 ≥20 章
 ```
 
 **执行流程**：
@@ -213,11 +220,29 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 2. 并行审查：4 个子代理同时执行，只读不写，各自输出 S1-S4 分级报告
 3. 汇总合并：主会话收集 4 份报告 → 合并为统一审查报告 → 处理跨 Agent 冲突
 4. 冲突裁决：当两个 Agent 对同一维度给出不同判定时，取更严格的等级
-5. 降级兜底：如果子代理不可用或启动失败，自动降级为 lean/solo
+5. 降级兜底：子代理超时(>120s无响应) 或 启动失败(连续2次) → 自动降级为 lean/solo。部分降级规则：3/4 Agent 成功 → 缺失维度由主会话补做；≤2/4 Agent 成功 → 全部降级为 solo
 
 **子代理模板**：`agents/story-architect.md` / `consistency-checker.md` / `narrative-writer.md` / `character-designer.md`
 
 **报告模板**：`templates/batch-review-report.md`（含 Full 模式专用汇总格式 + 跨 Agent 冲突矩阵）
+
+### Full 模式启动摘要
+
+主会话进入 full 审查前，必须输出以下 10 行摘要——4 个 Agent 共享同一基线：
+
+```
+审查启动摘要
+  B01-B05(P0): 破折号/引号/不是而是/元叙事/AI词 — 任一命中 → S1阻塞
+  B06-B07(P1): 每段≤60字 / 每章≥2500字
+  审查维度: 43维 (story-architect: D1-15,37-43 | consistency: D16-27 | narrative: D28-36 | character: 按需)
+  First 5 必检: 设定冲突→OOC→章末钩子→时间线→战力崩坏 (story-architect)
+  First 3 必检: 数值检查→大纲偏离→伏笔紧急度 (consistency-checker)
+  禁令3项: B01/B02/B04 → S1停止 (narrative-writer)
+  S1停止: 任一代{过}{里}命中S1 → 该Agent立即停止并报告
+  冲突裁决: 两Agent同维度判定不同 → 取更严格等级
+  降级兜底: Agent不可用/超时 → 自动降级为lean/solo
+  输出: S1-S4分级报告 + VERDICT + 修复优先级排序
+```
 
 ---
 
@@ -245,17 +270,38 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 
 讨论设定元素时遵循：**先定义作用 → 再讨论平衡/代价/售价**。功能决定价值，不是反过来。
 
-### 硬性禁令
+### 硬性禁令速查（写章/审查/润色均适用）
 
-> **单一事实来源**：`references/hard-bans.md`（P0 阻塞 5 条 + P1 强制 4 条 + P2 建议 1 条，含项目规范覆盖机制）
+> **完整定义**：`references/hard-bans.md`（单一事实来源，含项目规范覆盖机制）
+
+**P0 阻塞（有一条即不可发布）**：
+
+| ID | 规则 | 检测 |
+|----|------|------|
+| B01 | 对话必须用 `「」`，禁止 `""` `''` | `audit.py` |
+| B02 | 正文不得出现 `——` 破折号 | `audit.py` |
+| B03 | 禁止「不是…而是…」及其变体 | `audit.py` |
+| B04 | 禁止元叙事标签（「正如前文所述」等） | `audit.py` |
+| B05 | AI 高频词零容忍（忽然/突然/他知道/似乎/仿佛/眼中闪过一丝/深吸一口气/心中一动） | `audit.py` |
+
+**P1 强制**：
+
+| ID | 规则 | 值 |
+|----|------|-----|
+| B06 | **每段 ≤60 汉字** | 对话/内心独白除外 |
+| B07 | **每章 ≥2500 汉字** | 仅计中文汉字 |
+| B08 | 字数追加必须用 `pad_chapter.py` | 禁止 `echo >>` |
+| B09 | 子代理批次上限 | ≤5章/批(写章) / ≤40章/批(审查) |
+
+**P2 建议**：B10 新卷前卷间衔接检查 → `references/deploy.md`
 
 ### 默认写章管线（5 步）
 
-1. Plan — 确认本章目标、情绪、钩子、禁区
-2. Architect — 编排上下文，生成章节结构
-3. Write + Reflect — 写正文，提取事实变更
-4. Audit + Normalize — 审查硬禁令、AI 痕迹、字数和一致性
-5. Revise — 只修 blocking 和用户关心的问题
+1. **Plan** — 确认本章目标、情绪、钩子、禁区
+2. **Architect** — 编排上下文，生成章节结构
+3. **Write + Reflect** — 写正文，提取事实变更（≥2500字/B06/B01/B05）
+4. **Audit + Normalize** — 审查 B01-B05 禁令 + AI 痕迹 + 字数段落
+5. **Revise** — 只修 blocking 和用户关心的问题
 
 `--full` 展开 9 步完整管线；`--fast` 缩减为 Plan → Write → Audit → Revise。
 
@@ -319,7 +365,7 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 |------|------|
 | `references/scan.md` | 跨平台扫榜 + 趋势分析 |
 | `references/analyze.md` | 爆款拆解 + 黄金三章 |
-| `references/optimize.md` | 全量优化（意象钩子清理+钩子强度提升） |
+| `references/optimize.md` | 全量优化（钩子+爽点手工优化指南，脚本辅助扫描） |
 | `references/targeted-audit.md` | 定向审查 |
 | `references/setting-consistency-audit.md` | 设定一致性跨文件审计（统一入口：设定内部→大纲→正文→卷间→修复） |
 | `references/post-review-fix.md` | 审查后修复管线（5步+4步+问题模式目录，合并原 3 文件） |
@@ -339,13 +385,14 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 | `references/encoding-fix-recipe.md` | Git 中文编码修复方案：诊断并确认后，用干净的旧版本重建（不可在乱码文件上修复，字节级损坏不可逆） |
 | `references/project-review-novel-gaming-manifest.md` | 《网游具现：我能看见卡池》项目审查完成记录与工具教训 |
 
-### 脚本（11 个）
+### 脚本（14 个）
 
 | 文件 | 功能 | 层级 |
 |------|------|------|
-| `scripts/audit.py` | 统一审计（单章/目录/范围，含 --fix-escaped） | 核心 |
-| `scripts/pad_chapter.py` | 安全字数追加（无模板，内建段落拆分） | 核心 |
-| `scripts/split_paragraphs.py` | 段落拆分（按句号，≤60汉字） | 核心 |
+| `scripts/lib.py` | **共享工具模块**（count_chinese/extract_body/safe_write 等） | 基础 |
+| `scripts/audit.py` | 统一审计（单章/目录/范围，含 --fix-escaped --no-backup） | 核心 |
+| `scripts/pad_chapter.py` | 安全字数追加（动态角色加载+内容哈希种子+.bak备份） | 核心 |
+| `scripts/split_paragraphs.py` | 段落拆分（按句号，≤60汉字，含 .bak 备份） | 核心 |
 | `scripts/analyze_hook.py` | 追读力分析（钩子强度/爽点/钩力衰减） | 核心 |
 | `scripts/fact_db.py` | SQLite 事实库（init/query/insert/status） | 核心 |
 | `scripts/report_panorama.py` | 项目全景报告（健康评分+建议） | 核心 |
@@ -354,6 +401,7 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 | `scripts/report_graph.py` | 实体关系图谱（Mermaid 输出） | 扩展 |
 | `scripts/export.py` | 多平台格式导出 | 扩展 |
 | `scripts/backup.py` | 每日自动备份（保留7天） | 扩展 |
+| `scripts/polish.py` | AI 润色/文风转换（模型无关API，断点续传+字数控制） | 扩展 |
 
 ### Agent 模板（4 个 — full 审查模式调用）
 
@@ -427,23 +475,26 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 
 > 详见 `references/corruption-fix-bu-shi.md`（污染修复参考）
 
----\n\n## 变更记录\n\n| 日期 | 关键变更 |\n|------|---------|\n| 2026-06-30 | **v7.6 文风系统**：新增 `references/style-sop.md`（可扩展文风SOP模块，6维接口+番茄预设）；新增 `references/style-transfer.md`（文风转换/批量AI润色管线）；新增 `scripts/polish.py`（模型无关通用润色脚本，支持断点续传+字数控制）；SKILL.md 路由表新增文风转换/转写/文风规范条目；修复 `audit.py` template_issues NameError；清理 `report_panorama.py` 死代码 run_script()+unused import；清理 `report_graph.py` 死代码 count_chinese()；`pad_chapter.py`/`audit_5dim.py` 增加项目适配警告；`00-index.md` 补全文风系统文件和缺失引用 |
-| 2026-06-29 | **v7.5 manual-polish 闸门加固**：manual-polish.md Step 3 新增「逐章闸门」（三问自检，任一否禁入下一章）；⑦ 报告格式强制维度表+改前→改后例句，列四类退化报告为禁止形式；陷阱四「润色降级为禁令修复」判例；hard-bans.md B03 扩展覆盖「不是…是…」短式变体 |
-| 2026-06-29 | **v7.4 逐章审查加固**：SKILL.md 逐章审查路由大幅扩展（明确禁止脚本/加速/跳过；新增「不用脚本」触发词和五条硬性禁令）；SKILL.md 新增「章节污染模式速查」节（①②③三种污染模式+修复方法）|\n| 2026-06-28 | **v7.3 审查+重构+污染**：新增 `references/corruption-fix-bu-shi.md`（「不→是」污染修复权威参考）；委派后校验节重构（外链参考文件 + 逐章审查路由 + 开篇节奏重构指引）；write-pitfalls.md 新增避坑 14-18（Windows路径/文风偏好/开篇重构/声音定调/批量替换污染）；SKILL.md 声音偏好节扩展（番茄小说向） |
-| 2026-06-28 | **v7.2 委派后污染校验**：新增「委派后校验」节；状态感知新增 `writing_rules.md` 自动加载 |
-| 2026-06-26 | **v7.0 通用化**：移除所有 Claude/Hermes 专用术语（delegate_task→sub-agent delegation, web_search→web/content search, image_generate→image generation tool, search_files→grep/pattern search, Moke/Hermes 移除）；agent YAML 泛化（tools→capabilities, model→advisory_model, maxTurns→max_iterations）；hermes-tool-pitfalls.md→tool-pitfalls.md（通用工具陷阱）；codebase-memory-mcp.md→project-knowledge-base.md（通用知识库指南）；SKILL.md 执行策略与子模块索引同步更新 |
-| 2026-06-23 | **v4.0 激进瘦身**：移除所有向后兼容；SKILL.md -62%（530→200行） |
-| 2026-06-23 | **v4.1 满分冲刺**：review.md 新增 daily 日更 8 维模式（3分钟发布闸）；子模块索引分层（核心12 + 扩展21 + 脚本核心6/扩展5）；执行策略新增 daily 审查 |
-| 2026-06-23 | **v4.2 执行层加固**：audit.py 重写（BANS 同步 hard-bans.md + 新增元叙事/引号/模板复制检测）；project-init.md 移除全部旧引用；write-pitfalls.md 抽离；fact_db.py/analyze_hook.py 文档修复 |
-| 2026-06-23 | **v4.3 深度净化**：pad_chapter.py 移除违禁词（对话池含「深吸一口气」→ S1 修复）；4 个 agent 模板增加 TL;DR；清除 6 个 reference 中的旧系统名残余；quality-delegate.md 与 batch-post-delegate-fix.md 明确分工；audit_5dim.py 增加项目适配说明 |
-| 2026-06-23 | **v4.4 收尾**：write.md 避坑指南彻底抽离至 write-pitfalls.md（sed 切除 ~150 行）；report_panorama.py 移除 project-state.json 回退；review-cycle.md 旧中文路径→新英文路径；SKILL.md 顶部增加「三场景快速上手」卡片；交叉引用完整性审计 |
-| 2026-06-23 | **v4.5 文件合并**：batch-post-delegate-fix + batch-fix-s2s3 + quality-delegate 三合一 → post-review-fix.md（修复决策树 + 5步管线 + 4步精准修复 + 问题模式目录）；quality.md 删除与 hard-bans 重复的禁令表；targeted-audit.md 旧路径→新路径；references 34→31 |
-| 2026-06-23 | **v4.6 README 同步**：README 完全重写（31 references + 审查模式梯度表 + 三场景快速上手 + 文件清单与 SKILL.md 一致）；移除旧数据流架构图；脚本示例路径统一 |
-| 2026-06-23 | **v4.7 模板+默认值**：batch-review-report.md 禁令表同步 hard-bans.md (P0/P1 分级)；report_graph.py 增加项目适配说明；project-init.md 增加智能默认（平台→番茄/字数→3000/章节→60-300）+ 单轮收集优先 |
-| 2026-06-23 | **v5.0 CLI**：创建 `scripts/writer` 统一入口（12 子命令 + fix 一键修复 + check 一键检查） |
-| 2026-06-23 | **v5.1 权重**：review.md 15 维加权评分（核心三角: 设定冲突30 + OOC25 + 钩子25 = 40%）；健康度计算公式 |
-| 2026-06-23 | **v5.2 管线合并**：write.md 9 步完整管线从 ~155 行压缩为 15 行表格（5 步 + 4 扩展）；删除重复描述 |
-| 2026-06-23 | **v5.3 部署分工**：deploy.md 添加指向 plan.md 的节拍表引用，明确分工（plan=设计，deploy=执行） |
-| 2026-06-23 | **v5.4 Agent 模板**：write.md delegate context 模板（6 个信息块：任务/禁令/状态/章纲/声音/自检） |
-| 2026-06-23 | **v5.5-v5.9 完善**：troubleshooting.md 故障排除指南（写章/审查/委派/修复四场景）；project-init 引用 writing_rules 模板 |
-| 2026-06-23 | **v6.0 发布**：版本号；12 轮迭代终态——210 行 SKILL.md · 32 references · 12 scripts(含 CLI) · 4 agents · 11 个模板 · 零旧引用 · 执行层与规则层完全同步 |
+---
+
+## 脚本共享基础设施
+
+v7.7 起，所有脚本共用 `scripts/lib.py` 作为**单一工具模块**，提供：
+
+| 函数 | 说明 |
+|------|------|
+| `count_chinese(text)` | 统一中文计数（唯一定义） |
+| `extract_body(text)` | 跳过标题行提取正文 |
+| `scan_chapter_files(dir, start, end)` | 章节文件扫描+范围过滤 |
+| `find_chapters_dir(root)` / `find_setting_dir(root)` / `find_tracking_dir(root)` | 目录检测 |
+| `load_writer_json(root)` / `load_character_names(root)` | 项目状态/角色加载 |
+| `is_dialogue_line(line)` | 对话行检测 |
+| `safe_write(path, content)` | 安全写入（自动 .bak） |
+
+新增脚本应在 `lib.py` 中复用上述函数，避免各自重新定义。
+
+---
+
+## 变更记录
+
+参见 [CHANGELOG.md](CHANGELOG.md)

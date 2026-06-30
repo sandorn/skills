@@ -159,3 +159,7 @@ update_state(project_root,
 - [ ] 每章有钩子（首尾各一）
 - [ ] emotion 不连续2章相同
 - [ ] writer.json 已更新至 writing stage
+
+---
+
+> **下一步**：批量写章前执行 [预写总线对齐检查](pre-write-alignment.md)；单章日更可直接 [写章](write.md)

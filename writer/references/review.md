@@ -310,6 +310,8 @@ with open(ch_path, 'r', encoding='utf-8') as f:
 
 ## full 模式
 
+> **执行流程**：full 模式遵循 5 步审查管线，详见 `references/review-cycle.md`（Step 0 体检 → Step 1 粗筛 → Step 2 深筛 → Step 3 终验 → Step 4 追踪+事实库 → Step 5 全景报告）。本文件定义各步骤使用的审查维度。
+
 当用于审查多章或全文时，优先使用子代理委派（sub-agent delegation）并行执行：
 
 每个子Agent 加载对应 `agents/` 目录下的指令模板：

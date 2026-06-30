@@ -1,40 +1,33 @@
 #!/usr/bin/env python3
-"""字数补齐脚本 v6：全文稀疏段智能扩充。
+"""字数补齐脚本 v7：全文稀疏段智能扩充。
 
-⚠️ 项目适配：第103行的 MAIN_CHARACTERS 模式包含示例项目角色名（刘秋、林芷琪等）。
-   使用前请修改为当前项目角色，或设为空列表跳过角色感知扩充。
-
-核心变化 v5→v6：
-  - v5 仅在章末追加（尾段延续），章首中段不动
-  - v6 扫描全文，定位「薄段」（短段落/稀疏描写），就地扩充
-  - 扩充内容：感官细节+动作延展+角色反应，不引入新剧情
-  - 保持 ①短句 ②白描 ③一句一段 ≤60汉字
+核心变化 v6→v7：
+  - 移除所有硬编码角色名/场景元素，改为从项目文件动态加载
+  - 随机种子基于章节内容哈希（每章不同且可复现）
+  - 写回前自动创建 .bak 备份
+  - 依赖 scripts/lib.py 统一工具函数
 
 用法：
     python3 pad_chapter.py <文件>                       # 单章（mode=full）
     python3 pad_chapter.py --batch <目录>                # 批量
     python3 pad_chapter.py <文件> --mode end             # 仅尾部追加（旧行为）
+    python3 pad_chapter.py --batch <目录> --no-backup    # 跳过备份
 """
 
-import re, os, sys, random, hashlib
+import re, os, sys, random, hashlib, argparse
 from pathlib import Path
 from collections import Counter
-from split_paragraphs import split_full_text  # 唯一段落拆分实现
+
+# 共享工具
+from lib import count_chinese, extract_body, safe_write, load_character_names, is_dialogue_line
+# 段落拆分
+from split_paragraphs import split_full_text
 
 TARGET = 2500
 CHAR_THRESH = 60
 
 
-def count_chinese(text):
-    return len(re.findall(r'[\u4e00-\u9fff\u3400-\u4dbf]', text))
-
-
-def is_dialogue_line(line):
-    s = line.strip()
-    return bool(s and (s.startswith(('「', '『', '"', "'"))))
-
-
-# ===== 扩充策略池（按内容类型） =====
+# ===== 扩充策略池（通用 — 无项目特定数据） =====
 
 SENSORY_DETAILS = {
     '视觉': ['灯光照在桌面上。影子拉长。', '窗帘在风里晃了一下。又停住。',
@@ -91,26 +84,52 @@ def classify_line(line):
         return 'skip'
     if is_dialogue_line(s):
         return 'dialogue'
-    # 纯动作/白描：10-80字
     cn = count_chinese(s)
     if cn <= 80:
         return 'thin' if cn < 35 else 'normal'
     return 'long'
 
 
-def get_chapter_context(lines):
-    """提取本章的背景元素，用于生成贴合的扩充"""
-    text = '\n'.join(lines)
-    # 主要角色
-    subjects = re.findall(
-        r'(刘秋|林芷琪|方远|季东海|赵天龙|周正阳|赵凯|韩主任|魏之明|'
-        r'老周|小段|老韩头|阿九|王磊|孙经理|丁三|林海涛)', text)
-    subject = Counter(subjects).most_common(1)[0][0] if subjects else '他'
+def get_chapter_context(lines, project_root=None):
+    """从章节文本和项目文件中提取背景元素。
 
-    # 场景元素
-    scene = re.findall(r'(桌面|窗户|门|走廊|椅子|沙发|屏幕|键盘|'
-                       r'茶杯|水杯|烟灰缸|台灯|路灯|窗外|屋里)', text)
-    scene = list(dict.fromkeys(scene))
+    角色名优先从项目设定文件加载，回退到从文本中检测高频人名。
+    """
+    text = '\n'.join(lines)
+
+    # 尝试从项目加载角色名
+    char_dict = {}
+    if project_root:
+        char_dict = load_character_names(project_root)
+
+    if char_dict:
+        # 统计文本中出现的角色频率
+        char_freq = Counter()
+        for name in char_dict:
+            count = len(re.findall(re.escape(name), text))
+            if count > 0:
+                char_freq[name] = count
+        subject = char_freq.most_common(1)[0][0] if char_freq else '他'
+    else:
+        # 回退：从文本中提取高频二字词作为候选主角
+        words = re.findall(r'[一-鿿]{2}', text)
+        freq = Counter(words)
+        # 过滤常见停用词
+        stops = {'一个', '他们', '什么', '已经', '没有', '可以', '这个', '自己', '不是',
+                 '时候', '知道', '觉得', '因为', '所以', '如果', '虽然', '但是', '不过'}
+        for w in stops:
+            freq.pop(w, None)
+        subject = freq.most_common(1)[0][0] if freq else '他'
+
+    # 场景元素：从文本中自动检测
+    scene_patterns = [r'桌面', r'窗户', r'门', r'走廊', r'椅子', r'沙发',
+                      r'屏幕', r'键盘', r'茶杯', r'水杯', r'台灯', r'路灯',
+                      r'窗外', r'屋里', r'墙壁', r'地板', r'天花板', r'床']
+    scene = []
+    for pat in scene_patterns:
+        if re.search(pat, text) and pat not in scene:
+            scene.append(pat)
+    scene = scene[:8]
 
     # 感官元素
     sensory = []
@@ -119,7 +138,7 @@ def get_chapter_context(lines):
         if pool:
             sensory.extend(pool[:2])
 
-    return subject, scene[:5], sensory
+    return subject, scene, sensory
 
 
 def expand_thin_line(line, subject, scene, sensory, used_patterns, rng):
@@ -127,13 +146,12 @@ def expand_thin_line(line, subject, scene, sensory, used_patterns, rng):
     s = line.strip()
     cn = count_chinese(s)
     if cn >= 35:
-        return [line], 0  # 不薄，不动
+        return [line], 0
 
     added_chars = 0
     new_lines = [line.rstrip('\n')]
     used = set(used_patterns)
 
-    # 策略1：如果行以句号结尾 → 追加一感官细节
     if s.endswith(('。', '！', '？')):
         if sensory and rng.random() < 0.6:
             detail = rng.choice(sensory)
@@ -143,7 +161,6 @@ def expand_thin_line(line, subject, scene, sensory, used_patterns, rng):
                 new_lines.append(detail)
                 added_chars += count_chinese(detail)
 
-    # 策略2：如果有动作 → 追加一个后续小动作
     action_verbs = ['站', '走', '坐', '拿', '放', '推', '拉', '开', '关',
                     '拿', '放', '看', '听', '说', '写', '翻', '点', '掏']
     if any(v in s for v in action_verbs) and rng.random() < 0.5:
@@ -154,7 +171,6 @@ def expand_thin_line(line, subject, scene, sensory, used_patterns, rng):
             new_lines.append(act)
             added_chars += count_chinese(act)
 
-    # 策略3：追加一个情绪暗示
     if rng.random() < 0.3:
         hint = rng.choice(EMOTION_HINTS)
         if hint not in used:
@@ -172,21 +188,17 @@ def expand_around_dialogue(line_no, lines, subject, scene, used_patterns, rng):
     inserted = []
     added = 0
 
-    # 检查这一行是否为对话
     if not is_dialogue_line(lines[line_no]):
         return [], 0
 
-    # 检查前一行是否为空或也是对话 → 是交替对话，不需要插
     if line_no > 0:
         prev = lines[line_no - 1].strip()
         if prev == '' or is_dialogue_line(lines[line_no - 1]):
             return [], 0
 
-    # 在对话前插一个角色反应
     reaction = rng.choice(DIALOGUE_REACTIONS)
     if reaction not in used_patterns:
         used_patterns.add(reaction)
-        indent = '' if not lines[line_no].startswith(' ') else ' '
         inserted.append('')
         inserted.append(reaction)
         inserted.append('')
@@ -196,15 +208,18 @@ def expand_around_dialogue(line_no, lines, subject, scene, used_patterns, rng):
     return inserted, added
 
 
-def expand_full_text(lines, bs, needed_chars):
+def expand_full_text(lines, bs, needed_chars, project_root=None):
     """全文扩充：定位薄段和对话段，就地扩充"""
     body_lines = lines[bs:]
-    rng = random.Random(42)
+    # 使用内容哈希作为随机种子，保证同章同结果且不同章不同
+    content_hash = hashlib.md5('\n'.join(body_lines).encode('utf-8')).hexdigest()
+    seed = int(content_hash[:8], 16)
+    rng = random.Random(seed)
     used_patterns = set()
 
-    subject, scene, sensory = get_chapter_context(body_lines)
+    subject, scene, sensory = get_chapter_context(body_lines, project_root)
 
-    new_lines = lines[:bs]  # 保留标题
+    new_lines = lines[:bs]
     total_added = 0
     i = 0
 
@@ -218,7 +233,6 @@ def expand_full_text(lines, bs, needed_chars):
             continue
 
         if line_type == 'thin':
-            # 扩充薄段
             expanded, added = expand_thin_line(
                 line, subject, scene, sensory, used_patterns, rng)
             new_lines.extend(expanded)
@@ -227,7 +241,6 @@ def expand_full_text(lines, bs, needed_chars):
             continue
 
         if line_type == 'dialogue':
-            # 对话前后插入反应
             inserted, added = expand_around_dialogue(
                 i, body_lines, subject, scene, used_patterns, rng)
             if inserted:
@@ -238,7 +251,6 @@ def expand_full_text(lines, bs, needed_chars):
             i += 1
             continue
 
-        # normal/long: 保留原样，偶尔追加感官点缀
         if line_type == 'normal' and total_added < needed_chars * 0.6 and rng.random() < 0.15:
             if sensory:
                 detail = rng.choice(sensory)
@@ -254,7 +266,7 @@ def expand_full_text(lines, bs, needed_chars):
         new_lines.append(line)
         i += 1
 
-    # 如果全文扩充仍不足，fallback 到章末追加少量内容
+    # 全文扩充仍不足时，fallback 到章末追加
     if total_added < needed_chars * 0.5:
         remaining = needed_chars - total_added
         extra = []
@@ -275,9 +287,6 @@ def expand_full_text(lines, bs, needed_chars):
     return '\n'.join(new_lines), total_added
 
 
-# split_paragraphs 已迁移至 split_paragraphs.py::split_full_text（单一实现）
-
-
 def pad_file_end(filepath, target=TARGET):
     """旧模式：仅在章末追加（保持向后兼容）"""
     with open(filepath, 'r', encoding='utf-8') as f:
@@ -295,15 +304,14 @@ def pad_file_end(filepath, target=TARGET):
     if cn >= target:
         return False
 
-    # 从章节中提取关键词生成延续
-    kw_list = re.findall(r'[\u4e00-\u9fff\u3400-\u4dbf]{2,4}', content[-1500:])
+    kw_list = re.findall(r'[一-鿿㐀-䶿]{2,4}', content[-1500:])
     stop = {'一个', '他们', '什么', '已经', '没有', '可以', '这个', '自己', '不是'}
     kw = [w for w in kw_list if w not in stop][:3] or ['桌面']
     rng = random.Random(int(hashlib.md5(content[-200:].encode()).hexdigest()[:8], 16))
     obj = rng.choice(kw)
 
-    extra = f'他看了一眼{obj}。\\n{obj}还是老样子。\\n他把视线移开。\\n'
-    padded = content.rstrip() + '\\n' + extra + '\\n'
+    extra = f'他看了一眼{obj}。\n{obj}还是老样子。\n他把视线移开。\n'
+    padded = content.rstrip() + '\n' + extra + '\n'
     padded = split_full_text(padded)
 
     with open(filepath, 'w', encoding='utf-8') as f:
@@ -311,7 +319,7 @@ def pad_file_end(filepath, target=TARGET):
     return True
 
 
-def pad_file_full(filepath, target=TARGET):
+def pad_file_full(filepath, target=TARGET, backup=True, project_root=None):
     """新模式：全文稀疏段扩充"""
     with open(filepath, 'r', encoding='utf-8') as f:
         content = f.read()
@@ -326,44 +334,54 @@ def pad_file_full(filepath, target=TARGET):
     cn = count_chinese(body)
 
     if cn >= target:
-        return False  # 达标
+        return False
 
     needed = target - cn + 40
-    padded, added = expand_full_text(ls, bs, needed)
+    padded, added = expand_full_text(ls, bs, needed, project_root)
 
     if added == 0:
         return False
 
-    # 段落拆分
     padded = split_full_text(padded)
 
-    with open(filepath, 'w', encoding='utf-8') as f:
-        f.write(padded)
-
+    safe_write(filepath, padded, backup=backup)
     return True
 
 
 def main():
-    if len(sys.argv) < 2:
-        print(__doc__)
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description='字数补齐脚本 v7 — 全文稀疏段智能扩充',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='示例:\n'
+               '  python3 pad_chapter.py ch_001.md\n'
+               '  python3 pad_chapter.py --batch chapters/\n'
+               '  python3 pad_chapter.py --batch chapters/ --no-backup\n'
+               '  python3 pad_chapter.py ch_001.md --mode end',
+    )
+    parser.add_argument('target', nargs='?', help='目标文件或目录 (与 --batch 互斥)')
+    parser.add_argument('--batch', metavar='DIR', help='批量处理目录下所有 .md')
+    parser.add_argument('--mode', choices=['full', 'end'], default='full',
+                        help='扩充模式: full(全文,默认) / end(仅尾部)')
+    parser.add_argument('--project-root', default=None,
+                        help='项目根目录 (用于加载角色名等配置)')
+    parser.add_argument('--no-backup', action='store_true',
+                        help='跳过 .bak 备份')
+    args = parser.parse_args()
 
-    mode = 'full'
-    if '--mode' in sys.argv:
-        idx = sys.argv.index('--mode')
-        if idx + 1 < len(sys.argv):
-            mode = sys.argv[idx + 1]
+    mode = args.mode
+    do_backup = not args.no_backup
+    project_root = args.project_root
 
-    batch = '--batch' in sys.argv
-    targets = [a for a in sys.argv[1:] if not a.startswith('--')]
-
-    if batch and len(targets) >= 1:
-        dir_path = Path(targets[-1])
+    if args.batch:
+        dir_path = Path(args.batch)
+        if not dir_path.is_dir():
+            print(f"错误：目录不存在 — {dir_path}")
+            sys.exit(2)
         files = sorted(dir_path.glob('*.md'))
-    elif not batch and len(targets) >= 1:
-        files = [Path(targets[0])]
+    elif args.target:
+        files = [Path(args.target)]
     else:
-        print(__doc__)
+        parser.print_help()
         sys.exit(1)
 
     fixed = 0
@@ -373,12 +391,13 @@ def main():
         if mode == 'end':
             ok = pad_file_end(str(fp))
         else:
-            ok = pad_file_full(str(fp))
+            ok = pad_file_full(str(fp), backup=do_backup, project_root=project_root)
         if ok:
             fixed += 1
 
     mode_label = '全文扩充' if mode == 'full' else '尾部追加'
-    print(f"pad_chapter v6 ({mode_label}): {fixed}/{len(files)}章补齐 (目标≥{TARGET}字)")
+    backup_label = ' (含.bak)' if do_backup else ''
+    print(f"pad_chapter v7 ({mode_label}){backup_label}: {fixed}/{len(files)}章补齐 (目标≥{TARGET}字)")
 
 
 if __name__ == '__main__':

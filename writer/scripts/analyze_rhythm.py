@@ -19,9 +19,7 @@ import re, os, sys, json, sqlite3, argparse
 from collections import defaultdict
 from datetime import datetime
 
-
-def count_chinese(text):
-    return len(re.findall(r'[\u4e00-\u9fff\u3400-\u4dbf]', text))
+from lib import count_chinese, find_chapters_dir
 
 
 def open_fact_db(project_root):
@@ -139,12 +137,7 @@ def analyze_hook_rhythm(project_root, ch_start=0, ch_end=9999):
 
     import subprocess
     try:
-        # 找正文目录
-        chapters_dir = None
-        for d in [os.path.join(project_root, '正文'), os.path.join(project_root, 'chapters')]:
-            if os.path.isdir(d):
-                chapters_dir = d
-                break
+        chapters_dir = find_chapters_dir(project_root)
         if not chapters_dir:
             return None
 

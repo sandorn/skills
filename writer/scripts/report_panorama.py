@@ -13,18 +13,11 @@ from collections import Counter
 from pathlib import Path
 from datetime import datetime
 
+from lib import (count_chinese, find_chapters_dir, find_setting_dir,
+                 find_tracking_dir, load_writer_json)
 
-def count_chinese(text):
-    return len(re.findall(r'[\u4e00-\u9fff\u3400-\u4dbf]', text))
 
-
-def load_writer_json(project_root):
-    """加载项目状态"""
-    path = os.path.join(project_root, 'writer.json')
-    if os.path.exists(path):
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return None
+# load_writer_json 已从 lib.py 导入
 
 
 def load_fact_db_status(project_root):
@@ -60,11 +53,7 @@ def load_fact_db_status(project_root):
 
 def scan_chapters(project_root):
     """扫描正文章节"""
-    chapters_dir = None
-    for d in [os.path.join(project_root, '正文'), os.path.join(project_root, 'chapters')]:
-        if os.path.isdir(d):
-            chapters_dir = d
-            break
+    chapters_dir = find_chapters_dir(project_root)
     if not chapters_dir:
         return None, []
 
@@ -130,34 +119,26 @@ def scan_chapters(project_root):
 def scan_setting(project_root):
     """扫描设定目录"""
     setting_counts = {}
-    for setting_dir in [
-        os.path.join(project_root, 'setting'),
-        os.path.join(project_root, '设定'),
-    ]:
-        if os.path.isdir(setting_dir):
-            for f in os.listdir(setting_dir):
-                if f.endswith('.md'):
-                    fp = os.path.join(setting_dir, f)
-                    with open(fp, 'r', encoding='utf-8') as fh:
-                        text = fh.read()
-                    setting_counts[f] = count_chinese(text)
-            break
+    setting_dir = find_setting_dir(project_root)
+    if setting_dir:
+        for f in os.listdir(setting_dir):
+            if f.endswith('.md'):
+                fp = os.path.join(setting_dir, f)
+                with open(fp, 'r', encoding='utf-8') as fh:
+                    text = fh.read()
+                setting_counts[f] = count_chinese(text)
     return setting_counts
 
 
 def scan_tracking(project_root):
     """扫描追踪文件"""
     tracking = {}
-    for tracking_dir in [
-        os.path.join(project_root, 'tracking'),
-        os.path.join(project_root, '追踪'),
-    ]:
-        if os.path.isdir(tracking_dir):
-            for f in os.listdir(tracking_dir):
-                if f.endswith('.md'):
-                    fp = os.path.join(tracking_dir, f)
-                    tracking[f] = os.path.getsize(fp)
-            break
+    tracking_dir = find_tracking_dir(project_root)
+    if tracking_dir:
+        for f in os.listdir(tracking_dir):
+            if f.endswith('.md'):
+                fp = os.path.join(tracking_dir, f)
+                tracking[f] = os.path.getsize(fp)
     return tracking
 
 

@@ -1,6 +1,7 @@
 # 审查循环：5 步完整管线（单一权威版本）
 
 > 本文件是 writer skill 审查流程的**唯一权威定义**。SKILL.md 通过引用本文档获取完整流程。
+> **审查维度定义**：`references/review.md`（43维 / 日更8维 / solo15维 / 模式标志 --daily --solo --lean --full）。
 
 大规模写章后（>20章），必须执行全面审查。日常审查可仅执行 Step 1-3 的定向子集。
 
@@ -67,8 +68,8 @@ Step 3: 终验      ──→ Step 4: 追踪+事实库 → Step 5: 全景报告
 ### 执行命令
 
 ```bash
-python3 scripts/audit.py 正文/                    # 批量扫描
-python3 scripts/audit_5dim.py 正文/               # 5维专项
+python scripts/audit.py chapters/                    # 批量扫描
+python scripts/audit_5dim.py chapters/               # 5维专项
 ```
 
 ### 注意事项
@@ -146,8 +147,8 @@ S1 问题未全部清零前不进入 Step 4。
 ### 事实库写入（仅在 facts.db 可用时执行）
 
 ```bash
-echo '{"table":"level","record":{"ch":180,"new_level":45}}' | python3 scripts/fact_db.py insert .
-echo '{"table":"hook","record":{"content":"...","planted_ch":180}}' | python3 scripts/fact_db.py insert .
+echo '{"table":"level","record":{"ch":180,"new_level":45}}' | python scripts/fact_db.py insert .
+echo '{"table":"hook","record":{"content":"...","planted_ch":180}}' | python scripts/fact_db.py insert .
 ```
 
 > 若 facts.db 不可用 → 该步骤跳过，在审查报告中注明。
@@ -165,7 +166,7 @@ echo '{"table":"hook","record":{"content":"...","planted_ch":180}}' | python3 sc
 ## Step 5：全景报告输出（`report_panorama.py`）
 
 ```bash
-python3 scripts/report_panorama.py . --output 审查报告-全景.md
+python scripts/report_panorama.py . --output 审查报告-全景.md
 ```
 
 报告包含：

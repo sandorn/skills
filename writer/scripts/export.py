@@ -25,13 +25,17 @@
 import re, os, sys, argparse
 from pathlib import Path
 
-
-def count_chinese(text):
-    return len(re.findall(r'[\u4e00-\u9fff\u3400-\u4dbf]', text))
+from lib import count_chinese, find_chapters_dir, scan_chapter_files
 
 
-def extract_chapter_info(text):
-    """从章节正文提取章号、标题、正文"""
+def parse_chapter(text: str) -> tuple[str, int, str]:
+    """解析章节文本，返回 (title_line, body_start_idx, body_text)。
+
+    返回:
+      title_line: H1 标题行内容（去掉 '# ' 前缀）
+      body_start_idx: 正文起始行号
+      body_text: 正文纯文本
+    """
     lines = text.split('\n')
     title_line = ''
     body_start = 0
@@ -40,131 +44,78 @@ def extract_chapter_info(text):
         s = line.strip()
         if s.startswith('# '):
             title_line = s[2:].strip()
-        if s == '' and i > 0 and lines[i-1].startswith('#'):
+        if s == '' and i > 0 and lines[i - 1].startswith('#'):
             body_start = i + 1
             break
-
-    # 从文件名猜测章号
-    ch_num = 0
 
     body = '\n'.join(lines[body_start:]).strip()
-    return ch_num, title_line, body
+    return title_line, body_start, body
 
 
-# ===========================
-# 番茄格式（纯文本）
-# ===========================
-def to_fanqie(text, ch_num):
-    """番茄：纯文本，去 Markdown，章节标题「第X章 标题」"""
+def _export_base(text: str, ch_num: int, title_template: str,
+                 strip_markdown: bool, strip_html: bool) -> str:
+    """通用导出逻辑：标题格式化 + 正文清洗 + 空行压缩。
+
+    参数:
+      text: 原始 .md 文本
+      ch_num: 章节号
+      title_template: 标题格式，如 '第{ch}章 {title}' 或 '{ch:03d}-{title}'
+      strip_markdown: 是否清除 **粗体** 和 *斜体*
+      strip_html: 是否清除 HTML 标签
+    """
+    title, body_start, body = parse_chapter(text)
     lines = text.split('\n')
+
     result = []
 
-    # 处理标题
-    title_line = ''
-    body_start = 0
-    for i, line in enumerate(lines):
-        s = line.strip()
-        if s.startswith('# '):
-            title_line = s[2:].strip()
-            # 去掉 chXXX 前缀
-            title_line = re.sub(r'^ch\d+\s*[—\-]\s*', '', title_line)
-            if not title_line.startswith('第'):
-                title_line = f'第{ch_num}章 {title_line}'
-            result.append(title_line)
-            result.append('')
-        if s == '' and i > 0 and lines[i-1].startswith('#'):
-            body_start = i + 1
-            break
+    # 格式化标题
+    clean_title = re.sub(r'^ch\d+\s*[—\-]\s*', '', title)
+    formatted_title = title_template.format(ch=ch_num, title=clean_title)
+    result.append(formatted_title)
+    result.append('')
 
+    # 处理正文
     for line in lines[body_start:]:
         stripped = line.rstrip()
-        # 清除 Markdown 格式
-        stripped = re.sub(r'\*\*(.*?)\*\*', r'\1', stripped)  # 粗体
-        stripped = re.sub(r'(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)', r'\1', stripped)  # 斜体
-        # 清除 HTML
-        stripped = re.sub(r'<[^>]+>', '', stripped)
-        # 清除分隔线
-        if re.match(r'^[-*=_]{3,}$', stripped.strip()):
-            stripped = ''
-        # 保留空行分段
-        result.append(stripped)
-
-    # 清理连续空行（最多2个）
-    result = clean_blank_lines(result)
-    return '\n'.join(result)
-
-
-# ===========================
-# 起点格式
-# ===========================
-def to_qidian(text, ch_num):
-    """起点：保留 # 标题格式，保留基本 Markdown，对话可用「」"""
-    lines = text.split('\n')
-    result = []
-
-    title_line = ''
-    body_start = 0
-    for i, line in enumerate(lines):
-        s = line.strip()
-        if s.startswith('# '):
-            title_line = s[2:].strip()
-            if not title_line.startswith('第'):
-                title_line = f'第{ch_num}章 {title_line}'
-            result.append(title_line)
+        if not stripped.strip():
             result.append('')
-        if s == '' and i > 0 and lines[i-1].startswith('#'):
-            body_start = i + 1
-            break
-
-    for line in lines[body_start:]:
-        stripped = line.rstrip()
-        # 起点支持基本 Markdown，只清 HTML
-        stripped = re.sub(r'<[^>]+>', '', stripped)
+            continue
+        if strip_markdown:
+            stripped = re.sub(r'\*\*(.*?)\*\*', r'\1', stripped)
+            stripped = re.sub(r'(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)', r'\1',
+                              stripped)
+        if strip_html:
+            stripped = re.sub(r'<[^>]+>', '', stripped)
+        # 分隔线
         if re.match(r'^[-*=_]{3,}$', stripped.strip()):
             continue
         result.append(stripped)
 
-    result = clean_blank_lines(result)
+    # 清理连续空行
+    result = _clean_blanks(result)
     return '\n'.join(result)
 
 
-# ===========================
-# 飞卢格式
-# ===========================
-def to_feilu(text, ch_num):
-    """飞卢：章节号短横标题，纯正文"""
-    lines = text.split('\n')
-    result = []
-
-    title_line = ''
-    body_start = 0
-    for i, line in enumerate(lines):
-        s = line.strip()
-        if s.startswith('# '):
-            title_line = s[2:].strip()
-            title_line = re.sub(r'^ch\d+\s*[—\-]\s*', '', title_line)
-            result.append(f'{ch_num:03d}-{title_line}')
-            result.append('')
-        if s == '' and i > 0 and lines[i-1].startswith('#'):
-            body_start = i + 1
-            break
-
-    for line in lines[body_start:]:
-        stripped = line.rstrip()
-        # 清除 Markdown
-        stripped = re.sub(r'\*\*(.*?)\*\*', r'\1', stripped)
-        stripped = re.sub(r'(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)', r'\1', stripped)
-        stripped = re.sub(r'<[^>]+>', '', stripped)
-        if re.match(r'^[-*=_]{3,}$', stripped.strip()):
-            continue
-        result.append(stripped)
-
-    result = clean_blank_lines(result)
-    return '\n'.join(result)
+def to_fanqie(text: str, ch_num: int) -> str:
+    """番茄格式：纯文本，去 Markdown + HTML。"""
+    return _export_base(text, ch_num, '第{ch}章 {title}',
+                        strip_markdown=True, strip_html=True)
 
 
-def clean_blank_lines(lines):
-    """清理连续空行，最多保留1个空行"""
+def to_qidian(text: str, ch_num: int) -> str:
+    """起点格式：保留 Markdown，去 HTML。"""
+    return _export_base(text, ch_num, '第{ch}章 {title}',
+                        strip_markdown=False, strip_html=True)
+
+
+def to_feilu(text: str, ch_num: int) -> str:
+    """飞卢格式：章节号-标题，去 Markdown + HTML。"""
+    return _export_base(text, ch_num, '{ch:03d}-{title}',
+                        strip_markdown=True, strip_html=True)
+
+
+def _clean_blanks(lines: list[str]) -> list[str]:
+    """清理连续空行，最多保留1个空行。"""
     result = []
     prev_blank = False
     for line in lines:
@@ -176,23 +127,17 @@ def clean_blank_lines(lines):
     return result
 
 
-def scan_chapters(project_root, ch_start=None, ch_end=None):
-    """扫描章节文件"""
-    chapters_dir = None
-    for d in [os.path.join(project_root, '正文'), os.path.join(project_root, 'chapters')]:
-        if os.path.isdir(d):
-            chapters_dir = d
-            break
+def export_all(project_root, platforms, output_dir, ch_start=None, ch_end=None):
+    """导出到所有指定平台格式"""
+    chapters_dir = find_chapters_dir(project_root)
     if not chapters_dir:
         print("错误：未找到正文目录")
         sys.exit(1)
 
-    files = sorted([f for f in os.listdir(chapters_dir) if f.endswith('.md')],
-                   key=lambda x: int(re.search(r'(\d+)', x).group(1)) if re.search(r'(\d+)', x) else 0)
-
-    if ch_start is not None:
-        files = [f for f in files if
-                 ch_start <= int(re.search(r'(\d+)', f).group(1)) <= (ch_end or ch_start + 999)]
+    files = scan_chapter_files(chapters_dir, ch_start, ch_end)
+    if not files:
+        print("错误：未找到章节文件")
+        sys.exit(1)
 
     chapters = []
     for f in files:
@@ -201,13 +146,6 @@ def scan_chapters(project_root, ch_start=None, ch_end=None):
             text = fh.read()
         ch_num = int(re.search(r'(\d+)', f).group(1))
         chapters.append((ch_num, text, f))
-
-    return chapters
-
-
-def export_all(project_root, platforms, output_dir, ch_start=None, ch_end=None):
-    """导出到所有指定平台格式"""
-    chapters = scan_chapters(project_root, ch_start, ch_end)
 
     platform_funcs = {
         'fanqie': ('fanqie', to_fanqie, '.txt'),
@@ -224,9 +162,7 @@ def export_all(project_root, platforms, output_dir, ch_start=None, ch_end=None):
         for ch_num, text, fname in chapters:
             try:
                 output = func(text, ch_num)
-                # 生成文件名
                 if plat == 'qidian':
-                    # 单文件名：从标题提取
                     first_line = output.split('\n')[0] if output else f'第{ch_num}章'
                     safe_name = re.sub(r'[\\/:*?"<>|]', '_', first_line)[:50]
                 elif plat == 'feilu':
@@ -241,12 +177,19 @@ def export_all(project_root, platforms, output_dir, ch_start=None, ch_end=None):
             except Exception as e:
                 print(f"  ⚠️  {fname}: 导出失败 - {e}")
 
-        print(f"{'📕 番茄' if plat == 'fanqie' else ('📗 起点' if plat == 'qidian' else '📘 飞卢')}: "
-              f"{out_path}/  ({exported}/{len(chapters)} 章)")
+        emoji = {'fanqie': '📕 番茄', 'qidian': '📗 起点', 'feilu': '📘 飞卢'}
+        print(f"{emoji.get(plat, plat)}: {out_path}/  ({exported}/{len(chapters)} 章)")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='多平台格式导出')
+    parser = argparse.ArgumentParser(
+        description='多平台格式导出 — 番茄/起点/飞卢',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='示例:\n'
+               '  python export.py .\n'
+               '  python export.py . --platform fanqie\n'
+               '  python export.py . --ch 1 60 --output-dir ./export',
+    )
     parser.add_argument('project_root', help='项目根目录')
     parser.add_argument('--platform', choices=['fanqie', 'qidian', 'feilu', 'all'],
                         default='all', help='目标平台')

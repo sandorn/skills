@@ -18,9 +18,7 @@ import re, os, sys, json, argparse
 from collections import Counter
 from pathlib import Path
 
-
-def count_chinese(text):
-    return len(re.findall(r'[\u4e00-\u9fff\u3400-\u4dbf]', text))
+from lib import count_chinese
 
 
 # ===========================
@@ -46,8 +44,7 @@ HOOK_PATTERNS = {
     ],
     '身份反转': [
         r'(?:你就是|你是|原来你是|没想到你是)(?:那个|那位)',
-        r'(?:他|她)竟然是(?:.*?)('
-        r'刘秋|林芷琪|季东海|赵天龙|周正阳|韩主任|魏之明|老周)',
+        r'(?:他|她)竟然是',
     ],
     '两难抉择': [
         r'(?:要么|要么就|只能选|只能|必须)(?:一个|一样|其一|做出选择)',

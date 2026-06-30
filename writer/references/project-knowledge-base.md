@@ -153,8 +153,8 @@ index-tool cli trace_path '{"project":"<project>","function_name":"main"}' 2>/de
 
 | 原本需求 | 降级命令 |
 |---------|---------|
-| 文件结构总览 | `python3 scripts/report_panorama.py` |
+| 文件结构总览 | `python scripts/report_panorama.py` |
 | 章节文件统计 | `ls chapters/ch_*.md \| wc -l` |
 | 设定文件状态 | `wc -l setting/*.md` |
-| 事实数据查询 | `python3 scripts/fact_db.py query` |
-| 项目健康评分 | `python3 scripts/report_panorama.py` |
+| 事实数据查询 | `python scripts/fact_db.py query` |
+| 项目健康评分 | `python scripts/report_panorama.py` |

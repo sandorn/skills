@@ -326,10 +326,13 @@ def run(args):
         max_corrections=args.max_wc_retries,
     )
 
-    # 将字数要求注入提示词
-    system_prompt = system_prompt.format(
-        min_wc=wc_ctrl.min_wc, max_wc=wc_ctrl.max_wc
-    )
+    # 将字数要求注入提示词（安全 format：缺失占位符时跳过）
+    try:
+        system_prompt = system_prompt.format(
+            min_wc=wc_ctrl.min_wc, max_wc=wc_ctrl.max_wc
+        )
+    except KeyError as e:
+        print(f"[WARN] 文风预设缺少占位符 {e}，跳过字数要求注入", file=sys.stderr)
 
     # ---- 目录校验 ----
     source_dir = Path(args.source).resolve()

@@ -17,8 +17,8 @@
 
 **扫描命令**：
 ```bash
-grep -rn '\*\*[^*]\+\*\*' 正文/   # 粗体
-grep -rn '(?<!\*)\*[^*\n]\+\*(?!\*)' 正文/   # 斜体
+# 粗体/斜体/引号统一由 audit.py 扫描
+python scripts/audit.py chapters/
 ```
 
 ### 2. `#` 标题
@@ -40,7 +40,7 @@ grep -rn '(?<!\*)\*[^*\n]\+\*(?!\*)' 正文/   # 斜体
 
 **扫描命令**：
 ```bash
-grep -rn '"' 正文/ | grep -v '^[[:space:]]*#'    # ASCII引号
+grep -rn '"' chapters/ | grep -v '^[[:space:]]*#'    # ASCII引号（可用 audit.py 替代）
 grep -rn $'\u201c\|\u201d' 正文/                  # 弯引号
 ```
 

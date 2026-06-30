@@ -6,11 +6,15 @@
     python audit.py <目录>                        # 批量（全部 .md）
     python audit.py <目录> 21 60                  # 批量（ch21-ch60）
     python audit.py <目录> --fix-escaped          # 同上 + 自动修复转义引号
+    python audit.py <目录> --fix-escaped --no-backup  # 跳过 .bak
     python audit.py --verify <目录>                # 仅检测不修改
 
 禁令与 hard-bans.md 保持同步（单一事实来源）。
 """
-import re, os, sys, argparse
+import re, os, sys, json, argparse
+
+from lib import (count_chinese, extract_body, scan_chapter_files,
+                 safe_write, is_dialogue_line)
 
 # === 禁令规则（与 references/hard-bans.md 同步） ===
 
@@ -42,30 +46,7 @@ CHARS_THRESHOLD = 2500
 PARA_THRESHOLD = 60
 
 # 模板复制检测相似度阈值
-TEMPLATE_SIMILARITY = 0.85
 TEMPLATE_FINGERPRINT_LEN = 200
-
-
-def count_chinese(text):
-    """统计汉字数量（含基本区 + 扩展A区，与 polish.py/split_paragraphs.py 一致）"""
-    return len(re.findall(r'[一-鿿㐀-䶿]', text))
-
-
-def extract_body(text):
-    """跳过标题行（# 或 ##），返回 (body_start_line, body_text)"""
-    lines = text.split('\n')
-    body_start = 0
-    for i, line in enumerate(lines):
-        s = line.strip()
-        if s.startswith('#') and i == 0:
-            body_start = i + 1
-            while body_start < len(lines) and lines[body_start].strip() == '':
-                body_start += 1
-            break
-        elif s == '' and i > 0 and lines[i - 1].startswith('#'):
-            body_start = i + 1
-            break
-    return body_start, '\n'.join(lines[body_start:])
 
 
 def scan_bans(body):
@@ -93,7 +74,7 @@ def scan_paragraphs(lines, body_start):
     long_lines = []
     for i, line in enumerate(lines[body_start:], start=body_start + 1):
         s = line.strip()
-        if not s:
+        if not s or is_dialogue_line(s):
             continue
         lcn = count_chinese(s)
         if lcn > PARA_THRESHOLD:
@@ -102,15 +83,20 @@ def scan_paragraphs(lines, body_start):
 
 
 def detect_template_copy(text, prev_texts):
-    """模板复制检测：章首+章末 200 字指纹匹配"""
+    """模板复制检测：章首+章末 200 字指纹匹配。
+
+    仅检测与相邻章节的全文完全相同的开头/结尾块，
+    不依赖特定项目的语义关键词。
+    """
     issues = []
     body_start, body = extract_body(text)
     clean_body = body.strip()
 
-    # 章首指纹
+    if len(clean_body) < TEMPLATE_FINGERPRINT_LEN:
+        return None
+
     opening = clean_body[:TEMPLATE_FINGERPRINT_LEN]
-    # 章末指纹
-    ending = clean_body[-TEMPLATE_FINGERPRINT_LEN:] if len(clean_body) >= TEMPLATE_FINGERPRINT_LEN else clean_body
+    ending = clean_body[-TEMPLATE_FINGERPRINT_LEN:]
 
     for pi, prev_text in enumerate(prev_texts[:3]):
         if not prev_text:
@@ -118,21 +104,15 @@ def detect_template_copy(text, prev_texts):
         _, prev_body = extract_body(prev_text)
         prev_clean = prev_body.strip()
 
+        if len(prev_clean) < TEMPLATE_FINGERPRINT_LEN:
+            continue
+
         if prev_clean[:TEMPLATE_FINGERPRINT_LEN] == opening:
             issues.append(f'章首模板复制：与近{pi+1}章相同')
             break
 
-        if len(prev_clean) >= TEMPLATE_FINGERPRINT_LEN:
-            if prev_clean[-TEMPLATE_FINGERPRINT_LEN:] == ending:
-                issues.append(f'⚠️ 章末模板复制：与近{pi+1}章相同 → S1阻塞')
-
-    # 章末语义模板检测
-    semantic_keywords = ['他靠在椅背上', '闭上眼睛', '窗外的风', '沙沙地响',
-                         '一步一步来', '今天的事做完了']
-    end_region = clean_body[-500:]
-    hit_count = sum(1 for kw in semantic_keywords if kw in end_region)
-    if hit_count >= 4:
-        issues.append(f'章末语义模板：命中{hit_count}/{len(semantic_keywords)}个关键词 → S2')
+        if prev_clean[-TEMPLATE_FINGERPRINT_LEN:] == ending:
+            issues.append(f'⚠️ 章末模板复制：与近{pi+1}章相同 → S1阻塞')
 
     return issues if issues else None
 
@@ -183,7 +163,8 @@ def audit_text(text, prev_texts=None, fix_escaped=False):
     return passed, issues, cn, fixed_text
 
 
-def audit_file(filepath, prev_texts=None, fix_escaped=False, dry_run=False):
+def audit_file(filepath, prev_texts=None, fix_escaped=False, dry_run=False,
+               backup=True):
     """审计单个文件"""
     with open(filepath, 'r', encoding='utf-8') as f:
         text = f.read()
@@ -191,8 +172,7 @@ def audit_file(filepath, prev_texts=None, fix_escaped=False, dry_run=False):
     passed, issues, cn, fixed_text = audit_text(text, prev_texts, fix_escaped)
 
     if fixed_text and not dry_run:
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(fixed_text)
+        safe_write(filepath, fixed_text, backup=backup)
 
     return passed, issues, cn, fixed_text is not None
 
@@ -201,19 +181,29 @@ def main():
     parser = argparse.ArgumentParser(
         description='统一审计脚本：单章/目录/范围 三模式',
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__,
+        epilog='示例:\n'
+               '  python audit.py ch_001.md\n'
+               '  python audit.py chapters/\n'
+               '  python audit.py chapters/ 1 60\n'
+               '  python audit.py chapters/ --fix-escaped\n'
+               '  python audit.py chapters/ --fix-escaped --no-backup',
     )
     parser.add_argument('target', help='目标文件或目录')
-    parser.add_argument('start', nargs='?', type=int, default=None, help='起始章节号')
-    parser.add_argument('end', nargs='?', type=int, default=None, help='结束章节号')
-    parser.add_argument('--verify', action='store_true', help='仅检测不修改')
-    parser.add_argument('--fix-escaped', action='store_true', help='自动修复转义引号')
+    parser.add_argument('start', nargs='?', type=int, default=None,
+                        help='起始章节号')
+    parser.add_argument('end', nargs='?', type=int, default=None,
+                        help='结束章节号')
+    parser.add_argument('--verify', action='store_true',
+                        help='仅检测不修改')
+    parser.add_argument('--fix-escaped', action='store_true',
+                        help='自动修复转义引号')
+    parser.add_argument('--no-backup', action='store_true',
+                        help='跳过 .bak 备份')
     parser.add_argument('--dump-bans', action='store_true',
                         help='输出当前禁令规则（供与 hard-bans.md 对比校验）')
     args = parser.parse_args()
 
     if args.dump_bans:
-        import json as _json
         ban_data = {
             "source": "audit.py BANS (应与 references/hard-bans.md 同步)",
             "p0_blocking": {k: v for k, v in BANS.items()},
@@ -221,20 +211,22 @@ def main():
                 "chars_min": CHARS_THRESHOLD,
                 "para_max": PARA_THRESHOLD,
             },
-            "template_similarity": TEMPLATE_SIMILARITY,
             "template_fingerprint_len": TEMPLATE_FINGERPRINT_LEN,
         }
-        print(_json.dumps(ban_data, ensure_ascii=False, indent=2))
+        print(json.dumps(ban_data, ensure_ascii=False, indent=2))
         sys.exit(0)
 
     target = args.target
     verify_only = args.verify
     fix_escaped = args.fix_escaped
+    do_backup = not args.no_backup
 
     # 单文件模式
     if os.path.isfile(target):
         if fix_escaped:
-            passed, issues, cn, fixed = audit_file(target, fix_escaped=fix_escaped, dry_run=verify_only)
+            passed, issues, cn, fixed = audit_file(
+                target, fix_escaped=fix_escaped,
+                dry_run=verify_only, backup=do_backup)
         else:
             with open(target, 'r', encoding='utf-8') as f:
                 text = f.read()
@@ -242,7 +234,8 @@ def main():
 
         name = os.path.basename(target)
         status = '✅' if passed else '❌'
-        print(f"{name}: {cn}字 {status}" + (' (已修复转义引号)' if fixed and not verify_only else ''))
+        print(f"{name}: {cn}字 {status}"
+              + (' (已修复转义引号)' if fix_escaped and not verify_only else ''))
         for iss in issues:
             print(f"  {iss}")
         sys.exit(0 if passed else 1)
@@ -252,16 +245,7 @@ def main():
         print(f"错误：{target} 不是文件也不是目录")
         sys.exit(2)
 
-    files = sorted([f for f in os.listdir(target) if f.endswith('.md')])
-
-    # 范围过滤
-    ch_start = args.start
-    ch_end = args.end
-
-    if ch_start is not None:
-        ch_end = ch_end or ch_start + 999
-        files = [f for f in files if
-                 ch_start <= int(''.join(c for c in f if c.isdigit()) or '0') <= ch_end]
+    files = scan_chapter_files(target, args.start, args.end)
 
     # 预加载最近章节用于模板复制检测
     prev_texts = []
@@ -277,7 +261,8 @@ def main():
 
     for i, f in enumerate(files):
         fp = os.path.join(target, f)
-        passed, issues, cn, fixed = audit_file(fp, prev_texts[:3], fix_escaped, verify_only)
+        passed, issues, cn, fixed = audit_file(
+            fp, prev_texts[:3], fix_escaped, verify_only, backup=do_backup)
         total_cn += cn
         if fixed:
             fixed_count += 1
@@ -293,9 +278,10 @@ def main():
     print('-' * 45)
     print(f'合计: {total}章 | {total_cn}字 | 通过: {ok}/{total}', end='')
     if fixed_count > 0:
-        print(f' | 修复转义引号: {fixed_count}章')
-    else:
-        print()
+        print(f' | 修复转义引号: {fixed_count}章', end='')
+    if not args.no_backup and fixed_count > 0:
+        print(' | 已备份 .bak', end='')
+    print()
     sys.exit(0 if bad == 0 else 1)
 
 

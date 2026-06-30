@@ -1,6 +1,8 @@
 # 审查后修复管线
 
-> 审查发现问题 → 本文件执行修复。合并了原 batch-post-delegate-fix + batch-fix-s2s3 + quality-delegate 三个文件。
+> **定位**：审查发现问题后的**判定 + 修复策略**。修复执行步骤见 `quality.md`（禁令/字数/段落修复的完整管线）。
+>
+> 本文件合并了原 batch-post-delegate-fix + batch-fix-s2s3 + quality-delegate 三个文件。
 
 ---
 
@@ -8,63 +10,39 @@
 
 ```
 审查报告产出
-  ├─ S1 阻塞（禁令/字数/段落） → 五步强制管线（不可跳过）
-  ├─ S2/S3 问题（设定/叙事/节奏） → 四步精准修复
+  ├─ S1 阻塞（禁令/字数/段落） → 执行 quality.md 五步强制管线（不可跳过）
+  ├─ S2/S3 问题（设定/叙事/节奏） → 四步精准修复（本文件）
   └─ 模式识别 → 对照问题目录快速定位类型
 ```
 
 ---
 
-## 一、S1 阻塞：五步强制管线
+## 一、S1 阻塞：执行 quality.md 管线
 
-### Step 1：禁令修复
+S1 级问题（禁令违规/字数不足/段落超标/模板复制）→ 走 `quality.md` 完整五步：
 
-```bash
-# 破折号清零
-for f in chapters/ch*.md; do sed -i 's/——/，/g' "$f"; done
+| quality.md 步骤 | 操作 | 对应脚本 |
+|-----------------|------|---------|
+| Step 1 | 禁令扫描+修复 | `python scripts/audit.py chapters/ --fix-escaped` |
+| Step 2 | 字数/段落修复 | `python scripts/pad_chapter.py --batch chapters/` |
+| Step 5 | 终验 | `python scripts/audit.py chapters/` |
 
-# AI句式扫描（输出行号 → 逐处 patch 修复）
-grep -n '他知道\|忽然\|突然\|不是.*而是\|眼中闪过一丝\|深吸一口气\|心中一动\|似乎\|仿佛' chapters/ch*.md
-```
+**不通过则回到 Step 1。** 修复完成后追加 Step 5 维交叉校验（见下方）。
 
-修复后重跑 grep 验证清零。
-
-### Step 2：字数追加
-
-**必须用 `pad_chapter.py`，禁止 `echo >>`**（见 `hard-bans.md` B08）。
-
-```bash
-python scripts/pad_chapter.py --batch chapters/
-```
-
-`pad_chapter.py` 自动完成：缺字章识别 → 全文稀疏段扩充 → 段落拆分（≤60字）。不需要再单独跑 Step 3。
-
-### Step 3：段落拆分（fallback）
-
-仅当未使用 `pad_chapter.py` 或仍有超标段时：
-
-```bash
-python scripts/split_paragraphs.py --batch chapters/
-```
-
-### Step 4：终验
-
-```bash
-python scripts/audit.py chapters/
-```
-
-输出逐章字数/违禁/段落超标。**不通过则回到 Step 1。**
-
-### Step 5：5维交叉校验
+### S1 完成后：5维交叉校验
 
 对全部章节的权限/等级/金额/属性/感情线逐章校验：
+
+```bash
+python scripts/audit_5dim.py chapters/
+```
+
+检查项：
 - 权限等级（L0-L6）与角色成长曲线一致
 - 等级不倒退
 - 金额在数值体系参考区间内
 - 属性同步值计算正确
 - 感情线占比变化有迹可循
-
-S1 阻塞 → 修复后进入下一批。
 
 ---
 
@@ -85,8 +63,8 @@ S1 阻塞 → 修复后进入下一批。
 
 ### Step 3：逐项替换（机械→创造）
 
-- **机械类（先做）**：纯文本替换 → `patch` replace_all；插入固定文本 → `patch` replace
-- **叙事类（后做）**：压缩/扩展段落 → 必要时使用文件写入工具；保证核心情节不受影响
+- **机械类（先做）**：纯文本替换，使用精确 old_string 匹配
+- **叙事类（后做）**：压缩/扩展段落，保证核心情节不受影响
 
 ### Step 4：交叉验证
 
@@ -127,7 +105,7 @@ S1 阻塞 → 修复后进入下一批。
 子Agent 常产出 1700-2300 字。统一用 `pad_chapter.py` 修复。
 
 ### 超长段落（>60汉字）
-主因：`echo >>` 追加不换行。预防：禁止 `echo >>`，统一用 `pad_chapter.py`。
+主因：追加不换行。预防：禁止手工追加，统一用 `pad_chapter.py`。
 
 ### 章末模板复制（S1 级）
 多章章末段落完全一致。检测：`audit.py` 模板复制检测。修复：逐章用独特白描重写。
@@ -144,7 +122,7 @@ S1 阻塞 → 修复后进入下一批。
 
 ### 章末追加最佳做法
 
-用 `patch` 替换章末最后一段（全文唯一，不会误匹配）：
+用 patch 替换章末最后一段（全文唯一，不会误匹配）：
 ```
 old_string = 章末最后一段原文
 new_string = 旧段落 + 空行 + 追加内容
