@@ -23,35 +23,37 @@
 
 ## 二、自动激发规则
 
-### 每章写完后 (write Step 4)
+> **审查层级嵌套**：quick ⊂ daily ⊂ solo ⊂ lean ⊂ full。采用**替代升级**——只运行当前适用的最高层级，不叠加。
+
+### 每章写后 (write Step 4)
 ```
-触发: quick(自检) + daily(8维)
+触发: daily(8维) — 包含 quick 自检
 条件: 无条件，每章必跑
-管线: write.md Step 4 Audit + Normalize
 ```
 
 ### 每5章
 ```
-触发: solo(15维)
+触发: solo(15维) — 替代 daily（包含 daily 全部 8 维）
 条件: chapters_done % 5 == 0
 ```
 
 ### 每10章
 ```
-触发: lean(27维)  
+触发: lean(27维) — 替代 solo
 条件: chapters_done % 10 == 0
 ```
 
 ### 每卷/批量>20章
 ```
-触发: full(43维, 4Agent) + review-cycle(5步)
+触发: full(43维, 4Agent) + review-cycle(5步) — 替代 lean
 条件: 写完一卷或批量写章 >20章
 ```
 
 ### 每100章
 ```
-触发: longform-quality-monitor
+触发: full + longform-quality-monitor — longform 独立于审查层级，叠加运行
 条件: chapters_done % 100 == 0
+原因: longform 检测的是跨章趋势（声音漂移/情绪单调/风格指纹），与 full 的横切面检查是正交维度
 ```
 
 ### 润色后 (manual-polish / style-transfer)
@@ -82,10 +84,10 @@
 
 | 审查 | 用户说什么 | 人工触发原因 |
 |------|----------|------------|
-| **manual-pass** | `逐章检查` `不用脚本` `一章一章过` | 零脚本/零子代理，主模型逐章通读，消耗极大 |
+| **manual-pass** | `逐章检查` `不用脚本` `一章一章过` | 主会话逐章通读，允许只读脚本，每会话≤5章，进度文件防中断 |
 | **targeted-audit** | `定向审查` `专项审查` | 用户指定审查维度，系统无法预判关注点 |
 | **setting-consistency-audit** | `设定审查` `交叉审查` | 跨文件对比需要用户确认修改意图 |
-| **master-outline-audit** | `暗线审查` `总纲对齐` `大纲一致性` | 大纲完成后一次性检查，无需重复 |
+| **master-outline-audit** | `暗线审查` `总纲对齐` `大纲一致性` `大纲有没有问题` `总纲和卷纲对得上吗` `暗线都落地了吗` `各卷大纲有没有矛盾` | 多卷大纲完成后一次性检查 |
 
 ---
 

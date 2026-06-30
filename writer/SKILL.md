@@ -90,7 +90,7 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 | 长篇质量监控 | 声音漂移、风格指纹、情绪单调 | `references/longform-quality-monitor.md` |
 | 查询 | 查角色、查伏笔、等级查询、版本历史、什么状态 | `scripts/fact_db.py query`（8种查询含 versions） |
 | 设定一致性审计 | 设定审查、交叉审查 | `references/setting-consistency-audit.md` |
-| 总纲暗线检查 | 暗线审查、总纲对齐、大纲一致性 | `references/master-outline-audit.md` |
+| 总纲暗线检查 | 暗线审查、总纲对齐、大纲一致性、大纲有没有问题、总纲和卷纲对得上吗、暗线都落地了吗 | `references/master-outline-audit.md` |
 | 更新角色状态 | 更新角色状态、角色追踪 | `references/track-character-state.md` |
 | 实体关系图谱 | 关系、图谱、谁和谁 | `scripts/report_graph.py` |
 | 项目全景报告 | 全景、概览、项目状态 | `scripts/report_panorama.py` |
@@ -412,7 +412,15 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 
 ### 逐章审查路由
 
-触发词「逐章检查/不用脚本」→ manual-pass 模式（零脚本/零子代理/逐章通读）。详见路由表。
+触发词「逐章检查/不用脚本」→ manual-pass 模式。
+
+**核心原则**：主会话逐章通读，零子代理，零批量替换。每章独立报告。
+**允许的脚本**：只读脚本（`fact_db.py query content` 读正文、`audit.py --verify` 验证），不修改文件。
+**禁止**：子代理委派、正则批量替换、跳过章节、加速节奏。
+**批次上限**：每会话 ≤5 章（超出则分批，批次间保存进度到 `tracking/manual-pass-progress.md`）。
+**读取方式**：从数据库读取正文（`fact_db.py query . content --ch-start N --ch-end N`），确保是最新版本。
+
+详见路由表。
 
 ### 章节污染模式速查
 

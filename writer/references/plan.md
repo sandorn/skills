@@ -163,3 +163,4 @@ update_state(project_root,
 ---
 
 > **下一步**：批量写章前执行 [预写总线对齐检查](pre-write-alignment.md)；单章日更可直接 [写章](write.md)
+> **多卷大纲完成后**：建议执行 [总纲暗线对齐检查](master-outline-audit.md) — 验证总纲暗线是否在各卷落地，触发词：`暗线都落地了吗` `总纲和卷纲对得上吗`

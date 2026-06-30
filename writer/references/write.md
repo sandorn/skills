@@ -131,15 +131,17 @@ python scripts/audit.py chapters/
 ### 写后自动审查（质量闸门，每章必跑）
 
 > 本项目**质量优先于速度**。写章完成后自动激发审查，不等待用户手动触发。
+>
+> **审查层级是嵌套的**（quick ⊂ daily ⊂ solo ⊂ lean ⊂ full），高层级包含低层级的全部检查。因此采用**替代升级**而非叠加——只运行当前适用的最高层级。
 
 ```
-Step 4 审计通过后，按章节数自动升级审查深度：
+写后按章节数自动升级审查深度（替代，非叠加）：
 
-每章必跑:  quick(自检) + daily(8维)        ← write Step 4 即执行
-每5章:     + solo(15维)                    ← chapters_done % 5 == 0
-每10章:    + lean(27维)                    ← chapters_done % 10 == 0
-每卷/批量:  + full(43维,4Agent) + review-cycle ← 卷末或 >20章
-每100章:   + longform-quality-monitor       ← chapters_done % 100 == 0
+每章:     daily(8维)                      ← 包含 quick 自检
+每5章:    solo(15维)                      ← 替代 daily（包含 daily 全部 8 维）
+每10章:   lean(27维)                      ← 替代 solo
+每卷/>20章: full(43维,4Agent)+review-cycle ← 替代 lean
+每100章:  full + longform-quality-monitor  ← longform 独立于审查层级，叠加运行
 
 任一级别命中 blocking → 立即停止 → 修复 → 重跑该级 → 通过后继续
 ```

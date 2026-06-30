@@ -1,125 +1,117 @@
 # Writer Skill 架构全景图
 
-> v7.9 | 2026-06-30 — facts.db 全自动版本管理
+> v7.9 | 2026-06-30 — facts.db 全自动 + 审查替代升级
 
 ---
 
 ## 一、规模
 
 ```
-writer/
-├── SKILL.md                443行  22KB  入口 + 路由 + 禁令速查 + 安全策略
-├── references/        29 文件 176KB  AI 执行指令（零作者教材）
-├── agents/             4 文件  26KB  Full 审查子代理模板
-├── scripts/           10 文件 120KB  Python 工具（全部标注安全级别）
-├── templates/          1 文件   4KB  审查报告模板
-└── presets/            1 文件   2KB  文风预设
+writer/                        380 KB / 47 文件
+├── SKILL.md                446行  22KB  入口 + 路由 + 禁令 + 安全策略
+├── WORKFLOW.md                    8KB  完整答题流程
+├── ARCHITECTURE.md                 -   本文件
+├── REVIEW_TRIGGERS.md             3KB  审查触发体系
+├── RELEASE_REVIEW.md              4KB  发布评估
+├── CHANGELOG.md                   3KB  版本历史
+├── references/           29 文件 180KB  AI 执行指令
+├── agents/                4 文件  26KB  Full 审查子代理模板
+├── scripts/              10 文件 120KB  Python 工具（全部安全标注）
+├── templates/             1 文件   4KB  审查报告模板
+└── presets/               1 文件   2KB  文风预设
 ```
 
 ---
 
-## 二、Reference 文件 (29个)
+## 二、管线全景
 
 ```
-★ 核心管线 (11)
-  hard-bans.md             6KB  禁令 P0-P2 (单一事实来源)
-  review.md               15KB  43维审查 + 6模式
-  review-cycle.md          7KB  5步审查管线
-  write.md                11KB  写作管线 (5步/9步/4步 + batch + short)
-  write-pitfalls.md        9KB  批量写作避坑
-  quality.md              10KB  质检工单 (5步)
-  plan.md                  4KB  大纲规划
-  project-init.md          5KB  项目初始化 + import
-  pre-write-alignment.md   7KB  批量写前总线对齐
-  pre-write-checklist.md   3KB  写前30秒检查
-  manual-polish.md        18KB  纯手动润色 (AI执行指令，已净化作者教材)
-
-● 审查与审计 (5)
-  targeted-audit.md       12KB  定向审查
-  post-review-fix.md       4KB  审查后修复 (判定+策略)
-  hooks-scan.md            4KB  伏笔全卷扫描
-  longform-quality-monitor.md 4KB  >100章质量趋势
-  master-outline-audit.md  4KB  总纲暗线对齐
-
-○ 一致性 (2)
-  setting-consistency-audit.md 9KB  设定跨文件审计
-  track-character-state.md     3KB  角色状态追踪
-
-◆ 文风 (2)
-  style-sop.md             6KB  文风SOP (6维接口)
-  style-transfer.md        3KB  文风转换管线 → polish.py
-
-▲ 工作流 (5)
-  scan.md                  3KB  跨平台扫榜
-  analyze.md               4KB  爆款拆解
-  deploy.md                3KB  多卷部署 + 卷间衔接
-  fanqie-submission.md     3KB  番茄投稿检查
-  cover.md                 3KB  封面生成
-
-▽ 工具 (4)
-  tool-pitfalls.md         5KB  通用工具陷阱
-  tool-pitfalls-windows.md 7KB  Windows特有陷阱
-  troubleshooting.md       1KB  故障排除
-  encoding-fix-recipe.md   3KB  Git编码修复 (紧急)
-```
-
----
-
-## 三、Agent 模板 (4个)
-
-```
-story-architect      D1-15,37-43 | First 5必检 | S1停止 | 降级协议
-consistency-checker  D16-27 + AI腔红线 | First 3必检 | S1停止 | 降级协议
-narrative-writer     D28-36 + 禁令3项 + 格式 | S1停止 | 降级协议
-character-designer   角色+对话 | 按需(4条件) | S1停止 | 降级协议
-
-冲突裁决: 两Agent同维度判定不同 → 取更严格等级
-降级兜底: >120s超时/连续2次失败 → lean/solo
-         3/4成功→补做缺失维度 | ≤2/4成功→全部降级
-```
-
----
-
-## 四、脚本 (10个)
-
-```
-READONLY (4) — 只读分析
-  analyze_hook        追读力分析 (钩子/爽点)
-  analyze_rhythm      节奏查询 (等级/金币/感情线) → 数据来自 fact_db
-  report_panorama     项目全景报告
-  report_graph        实体关系图谱 (Mermaid)
-
-SAFE_WRITE (2) — 修改但仅操作独立数据文件
-  fact_db             SQLite事实库+版本管理 (8表, sync/version/query, 写章自动调用)
-  split_paragraphs    段落拆分 (按句号, ≤42汉字, .bak备份)
-
-EXPORT_ONLY (1) — 独立输出目录
-  export              多平台导出 (番茄/起点/飞卢)
-
-CAUTION (2) — 需确认
-  audit               统一审计 (默认--verify只读, --fix-escaped仅修转义)
-  polish              AI润色 (API, 独立输出目录, 断点续传)
-
-INFRA (1)
-  lib                 共享工具 (count_chinese, safe_write, ...)
-```
-
----
-
-## 五、管线全景
-
-```
-扫榜→拆文→开书→大纲→写前检查→写章→审查→质检
+扫榜→拆文→开书→大纲→写前检查→写章→审查→质检→发布
                         │           │      │
                   batch:对齐    daily:8维  quality:5步
                   single:自检   solo:15维  post-fix:判定
+                               lean:27维
                                full:43维(4Agent)
 
-写章自动记录:  Step3→fact_db sync(提取事实)+version(draft)
-              Step4→fact_db version(reviewed)
-质检通过:      Step5→fact_db version(polished)
+审查替代升级:  daily(每章) → solo(每5章) → lean(每10章) → full(每卷)
+              ↑ 嵌套包含，只运行最高级，不叠加
+              longform(每100章) 与 full 叠加 — 正交维度
 
-润色: style-transfer(API批量) | manual-polish(零脚本逐章)
+写章自动记录:  Step1→fact_db query(读状态) → Step3→sync+mirror+version
+              Step4→mirror+version + 自动审查
+质检/润色/修复: 完成后→mirror+version + 自动审查
+
+数据库:  9表, 写章自动维护, 全管线读写闭环
+```
+
+---
+
+## 三、审查体系 (10项)
+
+```
+自动触发 (替代升级，零冗余):
+  ch1-4:   daily(8维)               每章 3min
+  ch5-9:   solo(15维)               每5章 5min  ← 替代 daily
+  ch10-19: lean(27维)               每10章 10min ← 替代 solo
+  ch20+:   full(43维,4Agent)        每卷 30min   ← 替代 lean
+  ch100:   full + longform-quality  叠加(正交)   ← longform 独立
+
+人工触发 (4项):
+  manual-pass            逐章检查/不用脚本
+  targeted-audit         定向审查/专项审查
+  setting-consistency    设定审查/交叉审查
+  master-outline         暗线审查/总纲对齐/大纲一致性/大纲有没有问题
+```
+
+---
+
+## 四、数据库 (9表, 全自动)
+
+```
+chapter_content    ← 始终最新正文全文 (mirror 命令维护)
+chapters           ← 元数据 (标题/字数/状态/哈希)
+chapter_versions   ← 历史快照 (draft→reviewed→polished→final)
+level_events       ← 等级变化 (sync 自动提取)
+gold_events        ← 金币变动 (sync 自动提取)
+character_states   ← 角色出场 (sync 自动检测)
+relationship_milestones ← 感情线 (sync 自动提取)
+hooks              ← 伏笔池
+writing_sessions   ← 写作会话
+
+写入点: project-init(init) → write.Step3(sync+mirror+version)
+        → write.Step4(mirror+version) → quality.Step5(mirror+version)
+        → manual-polish(mirror+version) → style-transfer(mirror+version)
+        → post-review-fix(mirror+version) → deploy(mirror)
+
+读取点: write.Step1(query level/gold/char) → review(query content)
+        → manual-polish(query content) → analyze_rhythm(query tables)
+        → report_panorama(query stats) → report_graph(query relations)
+```
+
+---
+
+## 五、脚本 (10个)
+
+```
+READONLY (4) — 只读分析
+  analyze_hook        追读力 (钩子/爽点)
+  analyze_rhythm      节奏 (等级/金币/感情线) ← fact_db
+  report_panorama     全景报告 ← fact_db
+  report_graph        关系图谱 ← fact_db
+
+SAFE_WRITE (2) — 仅操作独立数据文件
+  fact_db             事实库+版本管理 (9表, sync/mirror/version/query)
+  split_paragraphs    段落拆分 (.bak备份)
+
+EXPORT_ONLY (1)
+  export              多平台导出
+
+CAUTION (2)
+  audit               统一审计 (默认--verify只读)
+  polish              AI润色 (独立输出目录)
+
+INFRA (1)
+  lib                 共享工具
 ```
 
 ---
@@ -127,40 +119,34 @@ INFRA (1)
 ## 六、禁令速查
 
 ```
-P0 阻塞 (有一条即不可发布):
-  B01 对话「」  B02 禁止——  B03 不是…而是…
-  B04 元叙事    B05 AI高频词(8词)
-
-P1 强制:
-  B06 ≤42字/段  B07 ≥2500字/章
-  B08 禁止脚本注入文本  B09 子代理≤5章/批
-
-P2 建议:
-  B10 卷间衔接检查
+P0 阻塞 (5): B01对话「」 B02禁止—— B03不是…而是… B04元叙事 B05 AI高频词
+P1 强制 (4): B06 ≤42字/段 B07 ≥2500字/章 B08 禁止脚本注入 B09 ≤5章/批
+P2 建议 (1): B10 卷间衔接
 ```
 
 ---
 
-## 七、路由表 (29条)
+## 七、路由表 (31条)
 
 ```
-扫榜/排行榜          → scan           开书/初始化      → project-init
-拆书/黄金三章        → analyze        导入/迁移        → project-init(import)
-大纲/卷纲/章纲       → plan           写章/续写/日更    → write
-批量写/连续写        → write(batch)   短篇            → write(short)
-审查/审计            → review(6模式)  全面审查         → review-cycle(5步)
-定向/专项审查        → targeted-audit 逐章/不用脚本    → review(manual)
-质检/全线            → quality        去AI味           → quality(deslop)
-纯手动润色/手工打磨  → manual-polish  文风转换/润色     → style-transfer
-文风SOP/禁令         → style-sop      钩子/爽点分析    → analyze_hook
-修复/有问题          → post-review-fix 开新卷/下一卷    → deploy
-追读力/钩子强度      → analyze_hook    升级节奏/金币     → analyze_rhythm
-声音漂移/情绪单调    → longform-quality 查询/查角色     → fact_db query
-设定审查/交叉        → setting-consistency  角色追踪    → track-character-state
-关系/图谱            → report_graph    全景/概览       → report_panorama
-番茄投稿            → fanqie-submission 导出           → export
-封面                → cover           备份            → git commit
-段落拆分            → split_paragraphs 故障/报错       → troubleshooting
+扫榜/排行榜          → scan              开书/初始化      → project-init
+拆书/黄金三章        → analyze           导入/迁移        → project-init(import)
+大纲/卷纲/章纲       → plan              写章/续写/日更    → write
+批量写/连续写        → write(batch)      短篇            → write(short)
+审查/审计            → review(6模式)     全面审查         → review-cycle(5步)
+定向/专项审查        → targeted-audit    逐章/不用脚本    → review(manual)
+质检/全线            → quality           去AI味           → quality(deslop)
+纯手动润色/手工打磨  → manual-polish     文风转换/润色     → style-transfer
+文风SOP/禁令         → style-sop         钩子/爽点分析    → analyze_hook
+修复/有问题          → post-review-fix   开新卷/下一卷    → deploy
+追读力/钩子强度      → analyze_hook      升级节奏/金币     → analyze_rhythm
+声音漂移/情绪单调    → longform-quality  查询/查角色      → fact_db query
+设定审查/交叉        → setting-consistency 角色追踪       → track-character-state
+暗线审查/总纲对齐    → master-outline    关系/图谱        → report_graph
+全景/概览            → report_panorama   番茄投稿        → fanqie-submission
+导出                → export            封面            → cover
+备份                → git commit        段落拆分        → split_paragraphs
+审查触发规则        → REVIEW_TRIGGERS    故障/报错       → troubleshooting
 ```
 
 ---
@@ -169,31 +155,18 @@ P2 建议:
 
 | 指标 | 数值 |
 |------|------|
-| 总文件 | 46 |
+| 总文件 | 47 |
 | Reference | 29 |
 | 脚本 | 10 (R:4, SW:2, E:1, C:2, I:1) |
-| 路由 | 29 |
-| 审查维度 | 43 (4 Agent) |
+| Agent | 4 (均含 S1停止+降级协议) |
+| 路由 | 31 |
+| 审查 | 10 (6自动 + 4人工) |
 | 禁令 | 10 (P0:5, P1:4, P2:1) |
+| 数据库表 | 9 (全自动维护) |
 | 段落上限 | 42 汉字 |
 | 字数下限 | 2500 汉字 |
 | 子代理批次 | ≤5章(写) / ≤40章(审) |
 | 引用断裂 | 0 |
+| 硬编码残留 | 0 |
 | 作者教材 | 0 |
 | 累计删除 | 12 文件 |
-
----
-
-## 九、减法历程
-
-```
-v7.6 → v7.8 final:
-  删除脚本: pad_chapter, audit_5dim, backup
-  删除参考: optimize, opening-craft, project-knowledge-base,
-            corruption-fix-bu-shi, publishable-check, memory,
-            fix-template-cleanup, setting-audit-gaming-manifest,
-            project-review-novel-gaming-manifest
-  净化: manual-polish 砍 41% 作者教材
-  修复: 所有 pad_chapter 残留引用清零
-  路由: 34→29 (合并6对重叠, 补6缺口, 删4死路由)
-```
