@@ -1,6 +1,7 @@
 # Windows 环境工具陷阱
 
-在 Windows 环境下使用 Hermes Agent 进行网文写作时的特有工具陷阱。
+> **适用范围**：Windows 平台特有的工具陷阱（write_file 换行丢失、PowerShell 引号冲突、编码问题）。**不适用**：Linux/macOS 环境——这些问题不会出现。
+> **加载时机**：仅在 Windows 环境下遇到工具异常时查阅。**平台特定参考，非通用文档**。
 
 ---
 

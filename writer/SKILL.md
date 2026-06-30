@@ -374,7 +374,6 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 | `references/master-outline-audit.md` | 总纲暗线对齐检查 |
 | `references/opening-craft.md` | 重生文开篇技巧 |
 | `references/fanqie-submission.md` | 番茄投稿格式兼容检查 |
-| `references/fix-template-cleanup.md` | 模板复制+乱码清除工作流 |
 | `references/project-knowledge-base.md` | 项目知识库工具集成指南 |
 | `references/cover.md` | 封面生成 |
 | `references/track-character-state.md` | 角色状态追踪更新 |
@@ -382,8 +381,7 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 | `references/troubleshooting.md` | 常见故障排除（写章/审查/委派/修复四场景） |
 | `references/tool-pitfalls.md` | 通用工具陷阱参考 |
 | `references/tool-pitfalls-windows.md` | Windows 特有工具陷阱（write_file 换行丢失、PowerShell 引号冲突） |
-| `references/encoding-fix-recipe.md` | Git 中文编码修复方案：诊断并确认后，用干净的旧版本重建（不可在乱码文件上修复，字节级损坏不可逆） |
-| `references/project-review-novel-gaming-manifest.md` | 《网游具现：我能看见卡池》项目审查完成记录与工具教训 |
+| `references/encoding-fix-recipe.md` | Git 中文编码修复方案（字节级损坏不可逆，必须从干净旧版本重建） |
 
 ### 脚本（14 个）
 
@@ -407,91 +405,24 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 
 | 文件 | 功能 |
 |------|------|
-| `agents/story-architect.md` | 故事结构审查（维度 1-15 + 执行卡） |
-| `agents/consistency-checker.md` | 事实一致性审查（维度 16-27 + 执行卡） |
-| `agents/narrative-writer.md` | 文本质量审查（AI痕迹+禁令+格式） |
-| `agents/character-designer.md` | 角色与对话审查（执行卡） |
+| `agents/story-architect.md` | 结构审查 D1-15,37-43 + 执行卡 |
+| `agents/consistency-checker.md` | 事实一致性 D16-27 + AI腔红线 + 执行卡 |
+| `agents/narrative-writer.md` | 文本质量 D28-36 + 禁令3项 + 格式合规 |
+| `agents/character-designer.md` | 角色与对话（按需启用，含执行卡） |
 
 ---
 
-### 委派后校验（批量写章后必做）
+### 委派后校验
 
-委派子代理批量写章返回后，主会话必须执行：
+批量写章返回后必须：① `audit.py` 禁令扫描 ② 字数 ≥2500 ③ 污染扫描（→ `corruption-fix-bu-shi.md`）④ 修复后复扫。
 
-1. **文件落盘验证**：`Get-ChildItem chapters/ch_*.md | Measure-Object` 确认数量
-2. **污染扫描**：「不→是」是最高频污染模式，详见 `references/corruption-fix-bu-shi.md`
-3. **禁令审计**：运行 `scripts/audit.py` 或等价的 Python 审计脚本
-4. **字数校验**：每章 ≥2500 汉字
-5. **修复后复扫**：修复后重新运行污染扫描确认清零
+### 逐章审查路由
 
-### 逐章审查路由（手动全书质检）
-
-触发词：「逐章检查」「检查一章报告一章」「不用子代理一章一章过」「不用脚本」
-
-执行方式：主会话逐章通读，**不使用子代理，不使用任何自动化脚本**。用户说「不用脚本」意味着：
-- ❌ 禁止批量 Python 审计脚本扫描
-- ❌ 禁止用正则提取后只报数
-- ❌ 禁止「加速」「快速过」「批量扫描」
-- ✅ 每章 `Get-Content` 完整读取，人眼通读
-- ✅ 读完一章报一章，格式固定：语调评价 + 问题列表 + 修复操作
-
-每章读完后报告：
-- 语调一致性（是否匹配 `setting/writing_rules.md` 定义的声音）
-- 污染残留（手动扫描「不→是」「是是」模式，逐句核对语义）
-- 逻辑裂缝（承上断裂、语义颠倒、情节矛盾）
-- 修复后回写
-
-节奏：默认从头开始，用户指定起始章则从该章开始。审查完成后更新追踪文件。**禁止以任何理由跳过章节或加速节奏。** 用户明确说「你为啥要加速，你有啥着急的活」就是对跳过行为的纠正。
+触发词「逐章检查/不用脚本」→ manual-pass 模式（零脚本/零子代理/逐章通读）。详见路由表。
 
 ### 章节污染模式速查
 
-子代理批量写章后最常见的三种污染（逐章审查时重点扫描）：
-
-**① 「不→是」污染**：本章应有否定词「不」被替换为「是」。
-- 示例：「是疼」应为「不疼」；「是知道」应为「不知道」；「摄像头是正常的」被写为「摄像头不正常的」
-- 修复：逐上下文替换为正确的否定形式
-- 重灾区：ch2-10（早期委托批次）、所有委托返回的章节
-
-**② 「是是」残留**：「是不是」疑问句被误伤为「是是」。
-- 示例：「老周是不是有个Excel表格」→ 被污染为「老周是是有个Excel表格」
-- 修复：疑问语境中的「是是」→「是不是」
-- 注意：需区分真实「是是」污染和句号断开的独立「是」字
-
-**③ 批量替换脚本二次污染**：修复脚本使用全局 `text.replace('不是', '是')` 或类似逻辑，导致「不是怕」→「是怕」→最终被错误地转为「不不怕」。
-- 示例：「不是怕」→ 修复脚本误转为「是怕」→ 二次修复误转为「不不怕」
-- 修复：先定位原始语义，再逐处手工替换
-- 教训：**永远不要对含「不」字的文本使用全局替换脚本**，必须逐上下文判断
-
-### 开篇节奏重构
-
-触发词：「节奏太慢」「开篇不够快」「希望把X章内容压缩到Y章」
-
-策略：以核心钩子章节为新 ch1，前情通过回忆/联想穿插。流程：
-1. 确定新 ch1 的锚点事件（如首次具现弹窗）
-2. 将被压缩的前情拆分为碎片化回忆
-3. 在每个决策/情绪节点自然嵌入回忆
-4. 重写新 ch1-2，旧章整体后移编号
-5. 同步修复所有大纲、卷纲、总纲中的章节编号
-
-> 详见 `references/corruption-fix-bu-shi.md`（污染修复参考）
-
----
-
-## 脚本共享基础设施
-
-v7.7 起，所有脚本共用 `scripts/lib.py` 作为**单一工具模块**，提供：
-
-| 函数 | 说明 |
-|------|------|
-| `count_chinese(text)` | 统一中文计数（唯一定义） |
-| `extract_body(text)` | 跳过标题行提取正文 |
-| `scan_chapter_files(dir, start, end)` | 章节文件扫描+范围过滤 |
-| `find_chapters_dir(root)` / `find_setting_dir(root)` / `find_tracking_dir(root)` | 目录检测 |
-| `load_writer_json(root)` / `load_character_names(root)` | 项目状态/角色加载 |
-| `is_dialogue_line(line)` | 对话行检测 |
-| `safe_write(path, content)` | 安全写入（自动 .bak） |
-
-新增脚本应在 `lib.py` 中复用上述函数，避免各自重新定义。
+①「不→是」污染 ②「是是」残留 ③ 批量替换二次污染。修复原则：**禁止对含「不」字文本使用全局替换**，逐上下文判断。详见 `references/corruption-fix-bu-shi.md`。
 
 ---
 
