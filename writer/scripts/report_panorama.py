@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SAFETY: READONLY — 只读统计+报告生成，不修改任何源文件。安全。
 """项目全景报告 — 结构化项目概览 + 统计数据 + 质量指标。
 
 用法：
@@ -201,7 +202,7 @@ def generate_report(project_root, stats, chapters, setting, tracking, state, fac
         lines.append(f'| 平均每章 | {stats["avg_cjk"]:.0f} 汉字 |')
         lines.append(f'| 字数不足(<2500) | {stats["below_threshold"]} 章 ({(stats["below_threshold"]/stats["total_chapters"]*100) if stats["total_chapters"] else 0:.0f}%) |')
         lines.append(f'| 禁令命中 | {stats["total_bans"]} 处 |')
-        lines.append(f'| 超长段落(>60字) | {stats["total_long_paras"]} 行 |')
+        lines.append(f'| 超长段落(>42 汉字) | {stats["total_long_paras"]} 行 |')
         lines.append('')
         if stats.get('ban_issues'):
             lines.append('**禁令分布：**')

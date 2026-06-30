@@ -104,7 +104,7 @@ python scripts/audit_5dim.py chapters/
 ### 字数不足
 子Agent 常产出 1700-2300 字。统一用 `pad_chapter.py` 修复。
 
-### 超长段落（>60汉字）
+### 超长段落（>42 汉字）
 主因：追加不换行。预防：禁止手工追加，统一用 `pad_chapter.py`。
 
 ### 章末模板复制（S1 级）

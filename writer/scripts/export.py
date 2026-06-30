@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SAFETY: EXPORT_ONLY — 写入独立输出目录，绝不修改源章节。安全。
 """多平台格式导出 — 番茄/起点/飞卢 三种格式。
 
 用法：

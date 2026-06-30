@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SAFETY: INFRA — 共享工具模块。safe_write() 提供统一的 .bak 备份写入。
 """Writer Skill 共享工具模块 — 所有脚本的单一依赖源。
 
 提取各脚本中重复定义的函数：

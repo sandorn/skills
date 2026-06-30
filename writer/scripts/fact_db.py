@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SAFETY: READONLY — 只操作 facts.db，不修改章节文件。安全。
 """SQLite 事实库 — 网文项目的事实存储层。
 
 设计原则：

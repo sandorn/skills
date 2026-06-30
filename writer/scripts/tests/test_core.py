@@ -64,24 +64,24 @@ class TestSplitParagraphs(unittest.TestCase):
     def test_short_line_unchanged(self):
         from split_paragraphs import split_paragraph
         line = "短句。"
-        result = split_paragraph(line, 60)
+        result = split_paragraph(line, 42)
         self.assertEqual(result, [line])
 
     def test_long_line_split(self):
         from split_paragraphs import split_paragraph, count_chinese
-        # 构造一个超过60字的行
-        line = "测试。" * 35  # 每个"测试。"2个汉字 × 35 = 70汉字
-        result = split_paragraph(line, 60)
-        # 每个分段应 ≤60个汉字
+        # 构造一个超过42字的行
+        line = "测试。" * 25  # 每个"测试。"2个汉字 × 25 = 50汉字
+        result = split_paragraph(line, 42)
+        # 每个分段应 ≤42个汉字
         for seg in result:
-            self.assertLessEqual(count_chinese(seg), 60)
+            self.assertLessEqual(count_chinese(seg), 42)
         # 分段数应 > 1
         self.assertGreater(len(result), 1)
 
     def test_dialogue_line_skipped(self):
         from split_paragraphs import split_paragraph
         line = "「你到底想干什么？」"
-        result = split_paragraph(line, 60)
+        result = split_paragraph(line, 42)
         self.assertEqual(result, [line])
 
     def test_mixed_content_preserved(self):
@@ -95,17 +95,17 @@ class TestSplitParagraphs(unittest.TestCase):
 
 「知道了。」
 """
-        result = split_full_text(text, 60)
+        result = split_full_text(text, 42)
         from split_paragraphs import count_chinese
         # 验证标题行保留
         self.assertIn("# 第一章", result)
         # 验证对话行保留
         self.assertIn("「你好。」", result)
-        # 验证每行不超过60汉字
+        # 验证每行不超过42汉字
         for line in result.split('\n'):
             stripped = line.strip()
             if stripped and not stripped.startswith('#') and not stripped.startswith('「'):
-                self.assertLessEqual(count_chinese(stripped), 60)
+                self.assertLessEqual(count_chinese(stripped), 42)
 
 
 @unittest.skipUnless(HAS_REQUESTS, "需要 requests 库")

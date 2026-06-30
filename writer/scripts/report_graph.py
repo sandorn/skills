@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SAFETY: READONLY — 只读分析+图谱生成，不修改任何源文件。安全。
 """实体关系图谱生成 — 从正文+追踪文件提取角色关系 → 输出Mermaid格式。
 
 用法：

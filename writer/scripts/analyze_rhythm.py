@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SAFETY: READONLY — 只读分析，不修改任何文件。安全。
 """节奏状态查询 — 等级/金币/感情线/钩力趋势 聚合分析。
 
 从 facts.db + 最近 hook_strength 输出 + tracking 文件中提取数据，

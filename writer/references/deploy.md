@@ -50,7 +50,7 @@
 python scripts/audit.py chapters/ --fix-escaped
 
 # 阶段2: 字数不足修复（内建段落拆分）
-python scripts/pad_chapter.py --batch chapters/
+python scripts/split_paragraphs.py --batch chapters/
 
 # 阶段3: 复查
 python scripts/audit.py chapters/

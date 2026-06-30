@@ -69,37 +69,35 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 | 开新书/初始化 | 开书、新书、初始化、创建项目 | `references/project-init.md` |
 | 导入旧稿 | 导入小说、迁移 | `references/project-init.md`（import 模式） |
 | 大纲/规划 | 大纲、卷纲、章纲、规划 | `references/plan.md` |
-| 写前对齐检查 | 写前检查、总线对齐 | `references/pre-write-alignment.md` |
-| 写前自检 | 写前30秒、下笔前检查 | `references/pre-write-checklist.md` |
+| 写前检查 | 写前检查（批量→对齐 / 单章→自检） | `references/pre-write-alignment.md` 或 `references/pre-write-checklist.md` |
 | 写章节 | 写第N章、续写、日更 | `references/write.md` |
-| 批量写章 | 批量写、写N章、连续写 | `references/write.md`（batch 模式，写前必做预写对齐） |
+| 批量写章 | 批量写、写N章、连续写 | `references/write.md`（batch 模式） |
 | 短篇 | 短篇、写个故事 | `references/write.md`（short 模式） |
-| 全面审查 | 全面审查、全量审查、深度审查 | 5 步管线 → `references/review-cycle.md` |
-| 审查/审计 | 审查、审稿、审计 | `references/review.md` |
-| 日更审查 | 日更审查、daily、发布前检查、日更质检 | `references/review.md`（daily 模式 — 8 维 3 分钟发布闸） |
+| 审查 | 审查、审稿、审计（>20章→全面审查管线） | `references/review.md`（含 daily/solo/lean/full/manual 6模式） |
+| 全面审查 | 全面审查、全量审查、深度审查 | `references/review-cycle.md`（5 步管线） |
 | 定向审查 | 定向审查、专项审查 | `references/targeted-audit.md` |
-| 逐章通读审查 | 逐章检查、不用脚本、一章一章过 | `references/review.md`（manual-pass 模式 — 零脚本/零子代理/逐章通读） |
+| 逐章通读 | 逐章检查、不用脚本、一章一章过 | `references/review.md`（manual-pass） |
 | 质检 | 质检、全线检查 | `references/quality.md` |
 | 去AI味 | 去AI味、太AI了 | `references/quality.md`（deslop 模式） |
 | 纯手动润色 | 纯手动润色、逐章逐段润色、手工打磨 | `references/manual-polish.md` |
-| 文风转换/批量润色 | 文风转换、转写、润色、批量润色、AI润色、豆包润色 | `references/style-transfer.md` → `scripts/polish.py` |
+| 文风转换/批量润色 | 文风转换、转写、润色、批量润色 | `references/style-transfer.md` → `scripts/polish.py` |
 | 文风规范 | 文风SOP、文风参数、禁令清单 | `references/style-sop.md` |
-| 全量优化 | 意象钩子清理、钩子强度提升、爽点优化 | `references/optimize.md`（手工优化指南 + 辅助脚本扫描） |
-| 快速可发布判定 | 能不能发、三问判定 | `references/publishable-check.md` |
+| 钩子/爽点分析 | 钩子强度、爽点分析 | `scripts/analyze_hook.py`（出报告）→ 手工修改参照 `references/manual-polish.md` |
+| 修复 | 修一下、修复、帮我修、有问题 | `references/post-review-fix.md`（问题定位）→ `references/quality.md`（执行修复） |
+| 开新卷 | 开新卷、第二卷、下一卷 | `references/deploy.md`（卷间衔接+批量部署） |
 | 追读力分析 | 追读力、钩子强度、爽点分析 | `scripts/analyze_hook.py` |
-| 节奏状态查询 | 升级节奏、金币趋势、感情线进度 | `scripts/analyze_rhythm.py` |
+| 节奏查询 | 升级节奏、金币趋势、感情线 | `scripts/analyze_rhythm.py` |
 | 长篇质量监控 | 声音漂移、风格指纹、情绪单调 | `references/longform-quality-monitor.md` |
-| 事实库查询 | 事实库、等级查询、伏笔查询 | `scripts/fact_db.py query` |
-| 查询设定 | 查角色、查伏笔、什么状态 | `references/memory.md`（query） |
+| 查询 | 查角色、查伏笔、等级查询、什么状态 | `scripts/fact_db.py query` |
 | 设定一致性审计 | 设定审查、交叉审查 | `references/setting-consistency-audit.md` |
 | 更新角色状态 | 更新角色状态、角色追踪 | `references/track-character-state.md` |
-| 学习/记录 | 记住这个写法、记一下 | `references/memory.md`（learn） |
 | 实体关系图谱 | 关系、图谱、谁和谁 | `scripts/report_graph.py` |
 | 项目全景报告 | 全景、概览、项目状态 | `scripts/report_panorama.py` |
 | 番茄投稿检查 | 番茄投稿、格式兼容 | `references/fanqie-submission.md` |
 | 多平台导出 | 导出、起点格式、番茄格式 | `scripts/export.py` |
 | 封面 | 封面、生成封面 | `references/cover.md` |
-| 自动备份 | 备份、存档 | cronjob daily 03:00 |
+| 备份 | 备份、存档 | `git commit`（阶段性提交） |
+| 段落拆分 | 段落太长、拆分段落 | `python scripts/split_paragraphs.py --batch chapters/` |
 | 故障排除 | 报错、不工作、问题、怎么办 | `references/troubleshooting.md` |
 | 帮助 | 帮助、功能、命令 | 列出路由表 |
 
@@ -233,7 +231,7 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 ```
 审查启动摘要
   B01-B05(P0): 破折号/引号/不是而是/元叙事/AI词 — 任一命中 → S1阻塞
-  B06-B07(P1): 每段≤60字 / 每章≥2500字
+  B06-B07(P1): 每段≤42 字 / 每章≥2500字
   审查维度: 43维 (story-architect: D1-15,37-43 | consistency: D16-27 | narrative: D28-36 | character: 按需)
   First 5 必检: 设定冲突→OOC→章末钩子→时间线→战力崩坏 (story-architect)
   First 3 必检: 数值检查→大纲偏离→伏笔紧急度 (consistency-checker)
@@ -288,9 +286,9 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 
 | ID | 规则 | 值 |
 |----|------|-----|
-| B06 | **每段 ≤60 汉字** | 对话/内心独白除外 |
+| B06 | **每段 ≤42 汉字** | 对话/内心独白除外 |
 | B07 | **每章 ≥2500 汉字** | 仅计中文汉字 |
-| B08 | 字数追加必须用 `pad_chapter.py` | 禁止 `echo >>` |
+| B08 | 字数追加禁止脚本注入，不足章由作者/主模型手工扩充 | 禁止脚本向正文注入预制文本 |
 | B09 | 子代理批次上限 | ≤5章/批(写章) / ≤40章/批(审查) |
 
 **P2 建议**：B10 新卷前卷间衔接检查 → `references/deploy.md`
@@ -355,9 +353,7 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 | `references/project-init.md` | 项目初始化（含 import 模式） |
 | `references/pre-write-alignment.md` | 批量写前总线对齐检查 |
 | `references/pre-write-checklist.md` | 写前 30 秒检查清单 |
-| `references/publishable-check.md` | 章节快速可发布性三问判定 |
 | `references/manual-polish.md` | 纯手动逐章逐段润色（三零原则） |
-| `references/memory.md` | 记忆/查询/学习 |
 
 ### 扩展（按需加载）
 
@@ -365,16 +361,13 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 |------|------|
 | `references/scan.md` | 跨平台扫榜 + 趋势分析 |
 | `references/analyze.md` | 爆款拆解 + 黄金三章 |
-| `references/optimize.md` | 全量优化（钩子+爽点手工优化指南，脚本辅助扫描） |
 | `references/targeted-audit.md` | 定向审查 |
 | `references/setting-consistency-audit.md` | 设定一致性跨文件审计（统一入口：设定内部→大纲→正文→卷间→修复） |
 | `references/post-review-fix.md` | 审查后修复管线（5步+4步+问题模式目录，合并原 3 文件） |
 | `references/deploy.md` | 多卷部署流水线 + 卷间衔接检查 |
 | `references/hooks-scan.md` | 伏笔全卷扫描方法 |
 | `references/master-outline-audit.md` | 总纲暗线对齐检查 |
-| `references/opening-craft.md` | 重生文开篇技巧 |
 | `references/fanqie-submission.md` | 番茄投稿格式兼容检查 |
-| `references/project-knowledge-base.md` | 项目知识库工具集成指南 |
 | `references/cover.md` | 封面生成 |
 | `references/track-character-state.md` | 角色状态追踪更新 |
 | `references/longform-quality-monitor.md` | 长篇质量趋势监控（声音漂移/情绪/风格指纹） |
@@ -383,23 +376,20 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 | `references/tool-pitfalls-windows.md` | Windows 特有工具陷阱（write_file 换行丢失、PowerShell 引号冲突） |
 | `references/encoding-fix-recipe.md` | Git 中文编码修复方案（字节级损坏不可逆，必须从干净旧版本重建） |
 
-### 脚本（14 个）
+### 脚本（14 个）— 安全级别见各脚本头部
 
-| 文件 | 功能 | 层级 |
+| 文件 | 功能 | 安全 |
 |------|------|------|
-| `scripts/lib.py` | **共享工具模块**（count_chinese/extract_body/safe_write 等） | 基础 |
-| `scripts/audit.py` | 统一审计（单章/目录/范围，含 --fix-escaped --no-backup） | 核心 |
-| `scripts/pad_chapter.py` | 安全字数追加（动态角色加载+内容哈希种子+.bak备份） | 核心 |
-| `scripts/split_paragraphs.py` | 段落拆分（按句号，≤60汉字，含 .bak 备份） | 核心 |
-| `scripts/analyze_hook.py` | 追读力分析（钩子强度/爽点/钩力衰减） | 核心 |
-| `scripts/fact_db.py` | SQLite 事实库（init/query/insert/status） | 核心 |
-| `scripts/report_panorama.py` | 项目全景报告（健康评分+建议） | 核心 |
-| `scripts/audit_5dim.py` | 5维专项审查 | 扩展 |
-| `scripts/analyze_rhythm.py` | 节奏状态查询 | 扩展 |
-| `scripts/report_graph.py` | 实体关系图谱（Mermaid 输出） | 扩展 |
-| `scripts/export.py` | 多平台格式导出 | 扩展 |
-| `scripts/backup.py` | 每日自动备份（保留7天） | 扩展 |
-| `scripts/polish.py` | AI 润色/文风转换（模型无关API，断点续传+字数控制） | 扩展 |
+| `scripts/lib.py` | 共享工具模块 | INFRA |
+| `scripts/analyze_hook.py` | 追读力分析 | READONLY |
+| `scripts/analyze_rhythm.py` | 节奏状态查询 | READONLY |
+| `scripts/fact_db.py` | SQLite 事实库 | READONLY |
+| `scripts/report_panorama.py` | 项目全景报告 | READONLY |
+| `scripts/report_graph.py` | 实体关系图谱 | READONLY |
+| `scripts/export.py` | 多平台格式导出 | EXPORT_ONLY |
+| `scripts/split_paragraphs.py` | 段落拆分（.bak备份，不涉及文本替换） | SAFE_WRITE |
+| `scripts/audit.py` | 统一审计（默认 --verify 只读） | CAUTION |
+| `scripts/polish.py` | AI 润色（输出到独立目录） | CAUTION |
 
 ### Agent 模板（4 个 — full 审查模式调用）
 
@@ -414,7 +404,7 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 
 ### 委派后校验
 
-批量写章返回后必须：① `audit.py` 禁令扫描 ② 字数 ≥2500 ③ 污染扫描（→ `corruption-fix-bu-shi.md`）④ 修复后复扫。
+批量写章返回后必须：① `audit.py` 禁令扫描 ② 字数 >=2500 ③ 污染扫描（「不->是」「是是」模式，逐句核对语义）④ 修复后复扫。
 
 ### 逐章审查路由
 
@@ -422,7 +412,30 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 
 ### 章节污染模式速查
 
-①「不→是」污染 ②「是是」残留 ③ 批量替换二次污染。修复原则：**禁止对含「不」字文本使用全局替换**，逐上下文判断。详见 `references/corruption-fix-bu-shi.md`。
+①「不→是」污染 ②「是是」残留 ③ 批量替换二次污染。修复原则：**禁止对含「不」字文本使用全局替换**，逐上下文判断。
+
+---
+
+## 脚本安全策略
+
+### 安全分级
+
+每个脚本头部标注了安全级别，运行前必读：
+
+| 级别 | 含义 | 行为 |
+|------|------|------|
+| **READONLY** | 只读分析 | 绝不修改文件，随时安全 |
+| **EXPORT_ONLY** | 写入独立输出目录 | 不修改源章节 |
+| **SAFE_WRITE** | 修改文件，自动 .bak | 可回滚 |
+| **CAUTION** | 修改源文件或调用外部 API | 运行前确认 |
+
+### 铁律
+
+1. **禁止对正文执行正则批量替换** — 这是「不→是」「是是」污染的根源。检测用正则，修复必须逐句判断。
+2. **写章管线外的脚本默认只报告不修改** — `audit.py` 默认 `--verify`；需要修复时显式传 `--fix-escaped`。
+3. **字数不足时标记该章手工扩充** — 禁止任何脚本向正文注入文本。
+4. **段落拆分只能用 `split_paragraphs.py`** — 按句号断段，≤42 汉字，自动 .bak。
+5. **修改文件的脚本必须在输出中报告修改内容** — 静默修改视为 bug。
 
 ---
 

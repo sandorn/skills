@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""按句号/问号/感叹号拆分超长段落，确保每段≤60汉字。
+# SAFETY: SAFE_WRITE — 仅拆分超长段落，自动创建 .bak 备份。⚠️ 不涉及文本替换。
+"""按句号/问号/感叹号拆分超长段落，确保每段≤42 汉字。
 
 v3 改进：
   - 统一换行处理（修复 v2 writelines 混用 '\n' 和完整行的 bug）
@@ -15,7 +16,7 @@ v3 改进：
 拆分规则：
     - 按 。！？ 断段
     - 对话行（以「『开头）跳过不拆
-    - 拆分后每段≤60汉字
+    - 拆分后每段≤42 汉字
     - 保留原有换行结构，仅拆分超标行
 """
 
@@ -27,8 +28,8 @@ from pathlib import Path
 from lib import count_chinese, is_dialogue_line, safe_write
 
 
-def split_paragraph(line: str, max_chars: int = 60) -> list[str]:
-    """按句号/问号/感叹号拆分一个段落，确保每段≤60汉字"""
+def split_paragraph(line: str, max_chars: int = 42) -> list[str]:
+    """按句号/问号/感叹号拆分一个段落，确保每段≤42 汉字"""
     if count_chinese(line) <= max_chars or is_dialogue_line(line):
         return [line]
 
@@ -52,7 +53,7 @@ def split_paragraph(line: str, max_chars: int = 60) -> list[str]:
     return result if result else [line]
 
 
-def split_full_text(text: str, max_chars: int = 60) -> str:
+def split_full_text(text: str, max_chars: int = 42) -> str:
     """处理全文：按行拆分超标段落，保留标题/对话行和缩进。
     供 pad_chapter.py 等脚本复用。"""
     lines = text.split('\n')
@@ -114,7 +115,7 @@ def process_file(filepath: Path, verify_only: bool = False,
 
 def main():
     parser = argparse.ArgumentParser(
-        description='按句号/问号/感叹号拆分超长段落，确保每段≤60汉字',
+        description='按句号/问号/感叹号拆分超长段落，确保每段≤42 汉字',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='示例:\n'
                '  python split_paragraphs.py ch_001.md\n'

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SAFETY: CAUTION — 默认 --verify 只读；--fix-escaped 仅修复转义引号（不涉及文本替换），自动 .bak。⚠️ 禁止批量文本替换。
 """统一审计脚本：单章/目录/范围 三模式。
 
 用法：
@@ -43,7 +44,7 @@ QUOTE_CHECKS = {
 
 # P1: 字数/段落阈值
 CHARS_THRESHOLD = 2500
-PARA_THRESHOLD = 60
+PARA_THRESHOLD = 42
 
 # 模板复制检测相似度阈值
 TEMPLATE_FINGERPRINT_LEN = 200

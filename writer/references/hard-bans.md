@@ -16,7 +16,7 @@
   bans_p1:
     - id: B06, name: 段落超长, max: 60, severity: forced
     - id: B07, name: 字数不足, min: 2500, severity: forced
-    - id: B08, name: 字数追加方式, must_use: pad_chapter.py, severity: forced
+    - id: B08, name: 字数追加禁止脚本注入, severity: forced
     - id: B09, name: 子代理批次上限, max: 5, severity: forced
   bans_p2:
     - id: B10, name: 卷间衔接检查, severity: advisory
@@ -114,19 +114,21 @@
 
 ### B06 — 段落按句号断段
 
-- 每段 ≤60 汉字（对话和内心独白除外）
+- 每段 ≤42 汉字（对话和内心独白除外）
 - 段落间保留一个空行
 - 段落拆分必须用 `split_paragraphs.py`，禁止手工拼接
 
 ### B07 — 每章 ≥2500 汉字
 
 - 统计口径：仅计中文汉字（Unicode `一-鿿` 范围），不含标点/空格/换行
-- 字数不足时，必须用 `pad_chapter.py` 追加，**禁止 `echo >>`**（会导致超长段落 + 模板复制）
+- 字数不足时：标记该章，由作者或主模型手工扩充（展开场景描写/感官细节/角色反应）
+- **禁止**：`echo >>`、脚本注入预制文本、正则批量替换扩充——这些会导致模板复制和文本污染
 
-### B08 — 字数追加必须使用 pad_chapter.py
+### B08 — 字数追加禁止脚本注入
 
-- 禁止 `echo >>`、禁止手工批处理追加
-- `pad_chapter.py --batch 正文/` 一步完成追加 + 段落拆分 + 跨章去重
+- 禁止任何脚本向正文注入预制文本
+- 禁止对正文执行正则批量替换（「不→是」「是是」污染的根源）
+- 字数不足的唯一合法修复方式：人工/主模型逐章阅读后手工扩充
 
 ### B09 — 子代理委派批次上限
 

@@ -58,7 +58,7 @@ Step 3: 终验      ──→ Step 4: 追踪+事实库 → Step 5: 全景报告
 ✅ 元叙事标签
 ✅ 字数 (≥2500中文汉字)
 ✅ 标题格式
-✅ 句号断段 (≤60汉字/段)
+✅ 句号断段 (≤42 汉字/段)
 ✅ 硬性禁令 (眼中闪过一丝/深吸一口气/心中一动 — 见 hard-bans.md)
 ✅ 模板复制检测（章首+章末双端，相邻3章200字指纹匹配）
 ✅ ASCII引号/弯引号扫描
@@ -68,8 +68,7 @@ Step 3: 终验      ──→ Step 4: 追踪+事实库 → Step 5: 全景报告
 ### 执行命令
 
 ```bash
-python scripts/audit.py chapters/                    # 批量扫描
-python scripts/audit_5dim.py chapters/               # 5维专项
+python scripts/audit.py chapters/                    # 批量扫描（含5维交叉校验）
 ```
 
 ### 注意事项
