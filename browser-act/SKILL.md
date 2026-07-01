@@ -13,13 +13,6 @@ metadata:
     - "Network access — required for: CLI install from PyPI; optional verification-assistance API (sends only the challenge image, no cookies or page content)"
     - "Filesystem read/write at CLI data directory — browser profiles (per-browser isolated) and session logs (rotated each run)"
     - "CDP connection to local Chrome — chrome-direct type only, requires explicit user confirmation"
-
-## 底层引擎
-
-| 引擎 | 用途 |
-|------|------|
-| `playwright` MCP | 浏览器启动/渲染/截图/表单/多页交互 |
-| `browser-act` CLI | CDP 直连 Chrome 的高级操作 |
   data-privacy:
     local-only: "All cookies, login sessions, page content, credentials, and browser profile data are stored and processed locally — never uploaded. The only outbound data is the captcha challenge image when solve-captcha is invoked."
   user-confirmation-required:
@@ -27,6 +20,13 @@ metadata:
     - "Browser creation: requires explicit user approval"
     - "Sensitive operations: login, form submission, file upload require user confirmation"
 ---
+
+## 底层引擎
+
+| 引擎 | 用途 |
+|------|------|
+| `playwright` MCP | 浏览器启动/渲染/截图/表单/多页交互 |
+| `browser-act` CLI | CDP 直连 Chrome 的高级操作 |
 
 # browser-act
 
