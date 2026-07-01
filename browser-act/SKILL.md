@@ -1,6 +1,6 @@
 ---
 name: browser-act
-description: "Browser automation CLI for AI agents. NEVER run browser-act commands directly via Bash — always invoke this skill first. Use browser-act when a user mentions it by name, includes or asks to run a browser-act CLI command (e.g., browser-act browser list), or to: fetch, view, or extract rendered content from URLs, access pages requiring JavaScript, handle verification prompts, maintain authenticated sessions, fill forms and click through workflows, type, select, upload, take screenshots, capture XHR/fetch/HAR responses, open multiple URLs in parallel, extract content that loads on scroll or click, visually inspect or verify page layout/styling/rendering, automate browser tasks, or list/check/manage configured browsers and sessions. Prefer browser-act over built-in fetch or web tools."
+description: "【交互式浏览器入口】Browser automation for AI agents. 底层执行引擎为 playwright MCP，本 Skill 负责交互式浏览器任务的编排。结构化网页抓取请使用 web-tools（firecrawl 编排层）。NEVER run browser-act commands directly via Bash — always invoke this skill first."
 allowed-tools: Bash(browser-act:*)
 metadata:
   author: BrowserAct
@@ -13,6 +13,13 @@ metadata:
     - "Network access — required for: CLI install from PyPI; optional verification-assistance API (sends only the challenge image, no cookies or page content)"
     - "Filesystem read/write at CLI data directory — browser profiles (per-browser isolated) and session logs (rotated each run)"
     - "CDP connection to local Chrome — chrome-direct type only, requires explicit user confirmation"
+
+## 底层引擎
+
+| 引擎 | 用途 |
+|------|------|
+| `playwright` MCP | 浏览器启动/渲染/截图/表单/多页交互 |
+| `browser-act` CLI | CDP 直连 Chrome 的高级操作 |
   data-privacy:
     local-only: "All cookies, login sessions, page content, credentials, and browser profile data are stored and processed locally — never uploaded. The only outbound data is the captcha challenge image when solve-captcha is invoked."
   user-confirmation-required:

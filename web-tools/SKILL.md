@@ -1,13 +1,25 @@
 ---
 name: web-tools
-description: "网页抓取与浏览器自动化：Scrapling 反爬引擎 + Apify Actor 部署。"
-tags: [web, scraping, anti-bot, crawler, apify]
+description: "【firecrawl 编排层】结构化网页抓取与内容提取。底层执行引擎为 firecrawl MCP，本 Skill 负责策略编排、批量任务调度、反爬决策。不再直接执行抓取。交互式浏览器操作请使用 browser-act。"
+tags: [web, scraping, firecrawl, orchestration]
 category: web
 ---
 
-# Web Tools — 网页抓取与自动化
+# Web Tools — firecrawl 编排层
 
-集成三大能力，精简为一个入口。
+本 Skill 是 firecrawl MCP 的编排入口，负责：
+- 批量抓取任务调度与并发控制
+- 反爬策略选择（不再使用 Scrapling/Apify，统一走 firecrawl）
+- 结构化内容提取与格式化输出
+- 交互式浏览器操作 → 请使用 `browser-act` Skill（底层 playwright MCP）
+
+## 底层引擎
+
+| 引擎 | 用途 |
+|------|------|
+| `firecrawl` MCP | 结构化网页抓取、AI 友好内容提取 |
+| ~~Scrapling~~ | 已停用 |
+| ~~Apify~~ | 已停用 |
 
 ## 能力矩阵
 

@@ -1,6 +1,14 @@
 ---
 name: officecli
-description: Create, analyze, proofread, and modify Office documents (.docx, .xlsx, .pptx) using the officecli CLI tool. Use when the user wants to create, inspect, check formatting, find issues, add charts, or modify Office documents.
+description: 【统一 Office 入口】Create, analyze, proofread, and modify Office documents (.docx, .xlsx, .pptx). This is the SOLE entry point for all Office formats — the separate docx/xlsx/pptx skills have been retired.
+
+## 底层引擎
+
+| 引擎 | 用途 |
+|------|------|
+| `officecli` MCP | Office 原生格式创建/编辑/检查（docx/xlsx/pptx） |
+| `pandoc` MCP | 跨格式文档转换（Markdown/HTML/LaTeX ↔ Office） |
+
 ---
 
 # officecli
