@@ -48,11 +48,11 @@
 ```bash
 # 阶段1: 禁令扫描+引号修复
 python scripts/audit.py chapters/ --fix-escaped
-python scripts/fact_db.py mirror . chapters/ch_{NNN}.md  # 修复后同步数据库
+# 修复后验证章节文件完整性
 
 # 阶段2: 段落拆分
 python scripts/split_paragraphs.py --batch chapters/
-python scripts/fact_db.py mirror . chapters/ch_{NNN}.md  # 拆分后同步
+# 拆分后验证章节文件完整性
 
 # 阶段3: 复查
 python scripts/audit.py chapters/

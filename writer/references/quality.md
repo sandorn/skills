@@ -26,7 +26,7 @@
 
 | 修复维度 | 修复规则 |
 |------|---------|
-| 破折号/引号 | `python scripts/audit.py <dir> --fix-escaped`；修复后立即 `fact_db.py mirror` 同步数据库 |
+| 破折号/引号 | `python scripts/audit.py <dir> --fix-escaped`；修复后立即验证章节文件完整性 |
 | 「不是…而是…」句式 | 删除否定部分，仅保留正面陈述 |
 | 元叙事标签 | 直接删除 |
 | 分析术语 | 改写为具体动作和描写 |
@@ -38,9 +38,9 @@
 扫描字数不足和段落超标的章节，用专用脚本修复：
 
 ```bash
-# 段落拆分 + 同步数据库
+# 段落拆分（拆分后章节文件即真实来源）
 python scripts/split_paragraphs.py --batch chapters/
-python scripts/fact_db.py mirror . chapters/ch_{NNN}.md  # 拆分后镜像最新正文
+# 无需镜像 — 章节文件本身就是真实来源
 ```
 
 字数不足时：`audit.py` 标记不足章 → 作者/主模型手工扩充 → 段落拆分 → mirror 数据库。
@@ -121,10 +121,10 @@ python scripts/audit.py chapters/
 
 输出逐章字数/违禁/段落超标状态。如果全部 PASS（字数≥2500 + 禁令清零 + 段落≤42），质检完成。
 
-质检通过后镜像正文并保存版本快照：
+质检通过后更新版本状态：
 ```bash
-python scripts/fact_db.py mirror . chapters/ch_{NNN}.md     # 镜像最新正文
-python scripts/fact_db.py version . chapters/ch_{NNN}.md polished
+# 更新 writer.json 版本记录（polished）
+# 章节文件即真实来源，无需独立镜像
 ```
 
 ---

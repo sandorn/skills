@@ -39,11 +39,11 @@ writer/                        380 KB / 48 文件
               ↑ 嵌套包含，只运行最高级，不叠加
               longform(每100章) 与 full 叠加 — 正交维度
 
-写章自动记录:  Step1→fact_db query(读状态) → Step3→sync+mirror+version
-              Step4→mirror+version + 自动审查
-质检/润色/修复: 完成后→mirror+version + 自动审查
+写章自动记录:  Step1→memory-novel read_graph(读状态) → Step3→MCP add_observations
+              Step4→writer.json version update + 自动审查
+质检/润色/修复: 完成后→writer.json version update + 自动审查
 
-数据库:  9表, 写章自动维护, 全管线读写闭环
+知识图谱: memory-novel MCP, 4实体/5关系, 写章自动维护, 全管线读写闭环
 ```
 
 ---
@@ -67,28 +67,30 @@ writer/                        380 KB / 48 文件
 
 ---
 
-## 四、数据库 (9表, 全自动)
+## 四、知识图谱 (memory-novel MCP, 4实体/5关系)
 
-```
-chapter_content    ← 始终最新正文全文 (mirror 命令维护)
-chapters           ← 元数据 (标题/字数/状态/哈希)
-chapter_versions   ← 历史快照 (draft→reviewed→polished→final)
-level_events       ← 等级变化 (sync 自动提取)
-gold_events        ← 金币变动 (sync 自动提取)
-character_states   ← 角色出场 (sync 自动检测)
-relationship_milestones ← 感情线 (sync 自动提取)
-hooks              ← 伏笔池
-writing_sessions   ← 写作会话
+memory-novel MCP (`@pepk/mcp-memory-sqlite`) 替代了原来的 SQLite fact_db。
+它是运行 `npx @pepk/mcp-memory-sqlite` 的 stdio MCP 服务器。
 
-写入点: project-init(init) → write.Step3(sync+mirror+version)
-        → write.Step4(mirror+version) → quality.Step5(mirror+version)
-        → manual-polish(mirror+version) → style-transfer(mirror+version)
-        → post-review-fix(mirror+version) → deploy(mirror)
+### 数据模型
+4 实体类型: Character / Chapter / Hook / Project
+5 关系类型: loves / friends_with / hostile_to / family_of / mentors / appears_in / planted_in
 
-读取点: write.Step1(query level/gold/char) → review(query content)
-        → manual-polish(query content) → analyze_rhythm(query tables)
-        → report_panorama(query stats) → report_graph(query relations)
-```
+实体存储 observations（每章状态快照），关系编码角色连接。
+详见 `references/memory-novel-schema.md`
+
+### 存储
+SQLite 文件位于 `{project}/novel_memory_db/`（由 MEMORY_DB_DIR 环境变量设置）。
+
+### 生命周期
+- 自动创建：npx 在首次 write 时自动创建
+- 写入点：write.Step3（Claude 通过 MCP 添加 observations）
+- 读取点：write.Step1（Claude 通过 MCP 读取 graph/搜索节点）
+- 章节正文直接来自文件系统（chapters/ch_NNN.md）
+
+### 版本控制
+4 阶段版本（draft → reviewed → polished → final）移至 writer.json。
+`scripts/fact_db.py` 已删除，功能完全由 memory-novel MCP 替代。
 
 ---
 
@@ -97,12 +99,11 @@ writing_sessions   ← 写作会话
 ```
 READONLY (4) — 只读分析
   analyze_hook        追读力 (钩子/爽点)
-  analyze_rhythm      节奏 (等级/金币/感情线) ← fact_db
-  report_panorama     全景报告 ← fact_db
-  report_graph        关系图谱 ← fact_db
+  analyze_rhythm      节奏 (等级/金币/感情线) ← 章节文件
+  report_panorama     全景报告 ← 章节文件 + tracking/
+  report_graph        关系图谱 ← 章节文件 + tracking/
 
-SAFE_WRITE (2) — 仅操作独立数据文件
-  fact_db             事实库+版本管理 (9表, sync/mirror/version/query)
+SAFE_WRITE (1) — 仅操作独立数据文件
   split_paragraphs    段落拆分 (.bak备份)
 
 EXPORT_ONLY (1)
@@ -142,7 +143,7 @@ P2 建议 (1): B10 卷间衔接
 文风SOP/禁令         → style-sop         钩子/爽点分析    → analyze_hook
 修复/有问题          → post-review-fix   开新卷/下一卷    → deploy
 追读力/钩子强度      → analyze_hook      升级节奏/金币     → analyze_rhythm
-声音漂移/情绪单调    → longform-quality  查询/查角色      → fact_db query
+声音漂移/情绪单调    → longform-quality  查询/查角色      → search_nodes MCP
 设定审查/交叉        → setting-consistency 角色追踪       → track-character-state
 暗线审查/总纲对齐    → master-outline    关系/图谱        → report_graph
 全景/概览            → report_panorama   番茄投稿        → fanqie-submission

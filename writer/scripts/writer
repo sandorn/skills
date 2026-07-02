@@ -36,7 +36,6 @@ COMMANDS = {
     'rhythm':      'analyze_rhythm.py',
     'panorama':    'report_panorama.py',
     'graph':       'report_graph.py',
-    'fact':        'fact_db.py',
     'export':      'export.py',
     'backup':      'backup.py',
     'polish':      'polish.py',

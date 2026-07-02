@@ -8,7 +8,7 @@
 |------|---------|
 | `quality.md` | audit.py, split_paragraphs.py |
 | `review.md` | agents/ (4 templates) |
-| `review-cycle.md` | audit.py, fact_db.py, report_panorama.py |
+| `review-cycle.md` | audit.py, memory-novel MCP, report_panorama.py |
 | `post-review-fix.md` | audit.py, split_paragraphs.py |
 | `style-transfer.md` | polish.py, style-sop.md |
 | `deploy.md` | audit.py, split_paragraphs.py |
@@ -28,7 +28,7 @@
 - `audit_5dim.py` → 功能已集成到 audit.py
 - `backup.py` → 改用 git commit
 - `publishable-check.md` → 被 review daily 吸收
-- `memory.md` → 被 fact_db.py query 吸收
+- `memory.md` → 被 memory-novel MCP 吸收
 - `opening-craft.md` → 不可达，删除
 - `project-knowledge-base.md` → 不可达，删除
 - `corruption-fix-bu-shi.md` → 核心教训已写入硬禁令 B08

@@ -49,7 +49,7 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 ├── .writer/
 │   ├── state.json               # 系统运行时状态
 │   ├── project_memory.json      # 写作模式记忆
-│   ├── facts.db                 # 结构化事实库（SQLite，写章管线自动维护）
+│   ├── memory-novel.db/          # 知识图谱（MCP auto，4实体/5关系）
 │   └── runtime/                 # 临时文件
 ├── analysis_lib/                # 对标书分析数据
 ├── reference/                   # 引用书参考视图
@@ -88,7 +88,7 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 | 追读力分析 | 追读力、钩子强度、爽点分析 | `scripts/analyze_hook.py` |
 | 节奏查询 | 升级节奏、金币趋势、感情线 | `scripts/analyze_rhythm.py` |
 | 长篇质量监控 | 声音漂移、风格指纹、情绪单调 | `references/longform-quality-monitor.md` |
-| 查询 | 查角色、查伏笔、等级查询、版本历史、什么状态 | `scripts/fact_db.py query`（8种查询含 versions） |
+| 查询 | 查角色、查伏笔、等级查询、什么状态 | `search_nodes / open_nodes` MCP（语义搜索知识图谱） |
 | 设定一致性审计 | 设定审查、交叉审查 | `references/setting-consistency-audit.md` |
 | 总纲暗线检查 | 暗线审查、总纲对齐、大纲一致性、大纲有没有问题、总纲和卷纲对得上吗、暗线都落地了吗 | `references/master-outline-audit.md` |
 | 更新角色状态 | 更新角色状态、角色追踪 | `references/track-character-state.md` |
@@ -164,13 +164,13 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 
 大规模写章后（>20 章）必须执行全面审查。
 
-> **完整流程**：`references/review-cycle.md`（5 步管线权威定义，含 facts.db 降级路径）
+> **完整流程**：`references/review-cycle.md`（5 步管线权威定义，含 MCP 降级路径）
 > **审查维度 + Triage**：`references/review.md`（43 维 + First 5 优先检查）
 > **修复管线**：`references/post-review-fix.md`
 
 | Step | 名称 | 核心动作 |
 |------|------|---------|
-| 0 | 项目体检 | 目录完整性 + RAG + facts.db 降级声明 |
+| 0 | 项目体检 | 目录完整性 + memory-novel MCP 可用性声明 |
 | 1 | 粗筛 | 禁令扫描 + 字数 + 段落 + 5维提取 |
 | 2 | 深筛 | 43维审计(Triage优先) + 交叉校验 + 追读力 |
 | 3 | 终验 | 节奏趋势 + 事实库增量校验 + 阻塞清零 |
@@ -350,7 +350,7 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 |------|------|
 | `references/hard-bans.md` | 硬性禁令单一事实来源（P0-P2 分级） |
 | `references/review.md` | 审查维度 + Triage（43维 / 日更8维 / solo15维） |
-| `references/review-cycle.md` | 5 步审查管线权威定义（含 facts.db 降级） |
+| `references/review-cycle.md` | 5 步审查管线权威定义（含 MCP 降级） |
 | `references/write.md` | 写作管线（单章/批量/短篇，含 sub-agent delegation 自检） |
 | `references/write-pitfalls.md` | 批量写作避坑指南（19 项实战教训） |
 | `references/quality.md` | 质检工单（禁令+去AI味+段落修复+RAG+事实库） |
@@ -376,6 +376,8 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 | `references/cover.md` | 封面生成 |
 | `references/track-character-state.md` | 角色状态追踪更新 |
 | `references/longform-quality-monitor.md` | 长篇质量趋势监控（声音漂移/情绪/风格指纹） |
+| `references/memory-governance.md` | 双记忆 MCP 治理规则（隔离 memory-offical / memory-novel，禁止交叉读写） |
+| `references/memory-novel-schema.md` | memory-novel 知识图谱 Schema（实体/关系/观察模型 + 管线用法） |
 | `references/troubleshooting.md` | 常见故障排除（写章/审查/委派/修复四场景） |
 | `references/tool-pitfalls.md` | 通用工具陷阱参考 |
 | `references/tool-pitfalls-windows.md` | Windows 特有工具陷阱（write_file 换行丢失、PowerShell 引号冲突） |
@@ -388,7 +390,6 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 | `scripts/lib.py` | 共享工具模块 | INFRA |
 | `scripts/analyze_hook.py` | 追读力分析 | READONLY |
 | `scripts/analyze_rhythm.py` | 节奏状态查询 | READONLY |
-| `scripts/fact_db.py` | SQLite 事实库 + 版本管理（init/sync/version/query/status） | SAFE_WRITE |
 | `scripts/report_panorama.py` | 项目全景报告 | READONLY |
 | `scripts/report_graph.py` | 实体关系图谱 | READONLY |
 | `scripts/export.py` | 多平台格式导出 | EXPORT_ONLY |
@@ -416,10 +417,10 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 触发词「逐章检查/不用脚本」→ manual-pass 模式。
 
 **核心原则**：主会话逐章通读，零子代理，零批量替换。每章独立报告。
-**允许的脚本**：只读脚本（`fact_db.py query content` 读正文、`audit.py --verify` 验证），不修改文件。
+**允许的脚本**：只读脚本（`audit.py --verify` 验证），不修改文件。
 **禁止**：子代理委派、正则批量替换、跳过章节、加速节奏。
 **批次上限**：每会话 ≤5 章（超出则分批，批次间保存进度到 `tracking/manual-pass-progress.md`）。
-**读取方式**：从数据库读取正文（`fact_db.py query . content --ch-start N --ch-end N`），确保是最新版本。
+**读取方式**：直接从文件系统读取正文（`chapters/ch_{NNN}.md`）。
 
 详见路由表。
 

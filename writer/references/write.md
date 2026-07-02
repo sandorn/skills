@@ -52,10 +52,11 @@ if not os.path.exists(ch_outline) and state.get("stage") != "planning":
 确认章节号、字数目标、核心事件、情绪目标、必须包含、必须避免、章末钩子。加载当前状态：
 
 ```bash
-# 从 facts.db 读取上一章结束时的精确状态（等级/金币/角色/感情线/伏笔）
-python scripts/fact_db.py query . level-events --ch-start {N-5} --ch-end {N-1}
-python scripts/fact_db.py query . gold-events --ch-start {N-5} --ch-end {N-1}
-python scripts/fact_db.py query . char-states --ch-start {N-5} --ch-end {N-1}
+# 从 memory-novel MCP 读取上一章结束时的精确状态
+# search_nodes("主角") → 获取主角最新等级/金币/位置
+# search_nodes(entityType="Character") → 获取所有角色最近状态
+# search_nodes(entityType="Hook") → 获取待回收伏笔
+# read_graph → 获取完整关系图
 ```
 
 同时对照以下文件确认一致性：
@@ -67,18 +68,21 @@ python scripts/fact_db.py query . char-states --ch-start {N-5} --ch-end {N-1}
 
 ### Step 2：Architect
 
-合并 Composer + Architect：整理角色、设定、伏笔、时间锚点，并生成章节结构。以 facts.db 中的最新数值为基准（数据库是已写章节的精确快照，比追踪文件更可靠）。
+合并 Composer + Architect：整理角色、设定、伏笔、时间锚点，并生成章节结构。以 memory-novel MCP 中的最新数值为基准（知识图谱是已写章节的精确快照，比追踪文件更可靠）。
 
 > 适用禁令：B04（避免在结构中使用元叙事标签）
 
 ### Step 3：Write + Reflect
 
-写正文到 `chapters/ch_{NNN}.md`。写完后自动同步事实库：
+写正文到 `chapters/ch_{NNN}.md`。写完后自动同步知识图谱：
 
 ```bash
-python scripts/fact_db.py sync . chapters/ch_{NNN}.md       # 自动提取等级/金币/角色/感情线
-python scripts/fact_db.py mirror . chapters/ch_{NNN}.md      # 镜像正文到数据库（始终最新）
-python scripts/fact_db.py version . chapters/ch_{NNN}.md draft  # 保存初稿版本快照
+# 1. 读取刚写完的章节 → 分析等级/金币/角色/关系/伏笔变更
+# 2. 通过 memory-novel MCP 写入：
+#    create_entities([...])      — 新角色/新伏笔实体
+#    add_observations([...])     — 等级/金币/状态观察
+#    create_relations([...])     — 关系/伏笔关联
+# 3. 更新 writer.json 版本记录（draft 快照）
 ```
 
 > 适用禁令：B01（对话「」） / B02（禁止 ——） / B03（禁止「不是…而是…」） / B05（AI高频词） / B06（每段 ≤42 汉字）
@@ -94,8 +98,9 @@ python scripts/audit.py chapters/
 审计通过后更新版本状态：
 
 ```bash
-python scripts/fact_db.py mirror . chapters/ch_{NNN}.md      # 确保镜像最新（修复可能改变了文件）
-python scripts/fact_db.py version . chapters/ch_{NNN}.md reviewed
+# 1. 读取修复后的章节
+# 2. 通过 memory-novel MCP 更新 observations（如有新发现的事实）
+# 3. 更新 writer.json 版本记录（reviewed）
 ```
 
 ```bash
@@ -126,7 +131,7 @@ python scripts/audit.py chapters/
 | 8 | Auditor | solo 审查：15 维核心 + AI 痕迹 + 硬禁令 → blocking 则进 Step 9 |
 | 9 | Reviser | 定点修复 blocking；修后重跑 Step 8 |
 
-完成后：更新 `writer.json`，标记已回收伏笔。验证：`python scripts/fact_db.py status .`。
+完成后：更新 `writer.json`，标记已回收伏笔。验证：memory-novel MCP `read_graph` 完整性。
 
 ### 写后自动审查（质量闸门，每章必跑）
 
@@ -233,11 +238,11 @@ python scripts/audit.py chapters/
 - AI高频词禁用：他知道/忽然/突然/似乎/仿佛/眼中闪过一丝/深吸一口气/心中一动
 - 每句≤42 汉字，句号处换行
 
-【当前状态】（从 facts.db 查询获得，写前必须执行）
-- 主角等级：{level}（来源: fact_db.py query level-events 最新记录）
-- 金币余额：{gold}（来源: fact_db.py query gold-events 最新余额）
-- 待回收伏笔：{hooks_summary}（来源: fact_db.py query hooks）
-- 最近角色状态：{char_states}（来源: fact_db.py query char-states）
+【当前状态】（从 memory-novel MCP + tracking/ 文件获得，写前必须执行）
+- 主角等级：{level}（来源: search_nodes("主角") 最新 observation）
+- 金币余额：{gold}（来源: search_nodes("主角") + tracking/resource_ledger.md）
+- 待回收伏笔：{hooks_summary}（来源: search_nodes(entityType="Hook")）
+- 最近角色状态：{char_states}（来源: search_nodes(entityType="Character")）
 - 上一章结尾：{prev_chapter_ending}
 
 【章纲摘要】

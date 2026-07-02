@@ -30,8 +30,7 @@ S1 级问题（禁令违规/字数不足/段落超标/模板复制）→ 走 `qu
 **不通过则回到 Step 1。** 修复完成后追加 5 维交叉校验（见下方）并保存版本：
 
 ```bash
-python scripts/fact_db.py mirror . chapters/ch_{NNN}.md
-python scripts/fact_db.py version . chapters/ch_{NNN}.md reviewed
+# 更新 writer.json 版本记录（reviewed）
 # 修复后自动重跑审查，验证修复未引入新问题
 python scripts/audit.py chapters/
 ```

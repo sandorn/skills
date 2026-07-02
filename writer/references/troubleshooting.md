@@ -16,7 +16,7 @@
 | 症状 | 原因 | 解决 |
 |------|------|------|
 | audit.py 报 "不是文件也不是目录" | 路径不存在 | 检查 `chapters/` 目录是否存在 |
-| fact_db.py query 返回空 | facts.db 未初始化 | `python scripts/fact_db.py init .` |
+| memory-novel MCP search_nodes 返回空 | knowledge graph 未初始化 | MCP 将在首次写章时自动创建知识图谱 |
 | 段落超标 | 手工追加内容未拆分 | `python scripts/split_paragraphs.py --batch chapters/` |
 | 字数不足反复出现 | 章末场景单薄 | 手工扩充 1-2 段感官细节/配角反应 |
 
@@ -42,4 +42,4 @@
 |------|------|------|
 | sync 未提取到等级 | 正则未匹配到 | 检查章节是否含匹配的等级表述（如 `升到5级` `突破10级`） |
 | mirror 跳过（unchanged） | 正文未变化 | 正常行为——hash 相同则跳过 |
-| facts.db 文件损坏 | 写入中断 | 删除 `.writer/facts.db` → `fact_db.py init .` → 重新 sync |
+| memory-novel DB 文件损坏 | 写入中断 | 删除 `./novel_memory_db/` 目录 → 重新写章时 MCP 自动重建 |

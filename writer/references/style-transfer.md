@@ -39,9 +39,7 @@ python scripts/polish.py -s chapters/ -o chapters_polished/
 ```bash
 # 手动确认后替换
 cp chapters_polished/*.md chapters/
-# 镜像正文 + 保存版本快照
-python scripts/fact_db.py mirror . chapters/ch_{NNN}.md
-python scripts/fact_db.py version . chapters/ch_{NNN}.md polished
+# 更新 writer.json 版本记录（polished）
 ```
 
 ### 4. 润色后自动审查

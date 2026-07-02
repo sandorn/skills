@@ -3,7 +3,7 @@
 > 项目：{project_name} | 范围：ch{START}-ch{END}
 > 审查模式：{daily/solo/lean/full} | 维度：{8/15/27/43}
 > 分级：**S1阻塞** / S2建议 / S3提示 / S4风险
-> facts.db 状态：{✅可用 / ⚠️降级}
+> memory-novel MCP 状态：{✅可用 / ⚠️降级}
 
 ---
 

@@ -32,7 +32,7 @@
 
 日更写完后、发布前，执行 8 维精简审查。命中 blocking 则修复后重跑，全部通过即可发布。
 
-> **读取方式**：从数据库读取正文（`fact_db.py query . content --ch-start N --ch-end N`），不使用文件读取。数据库中的 `chapter_content` 表始终存储最新版本。
+> **读取方式**：直接从文件系统读取正文（`chapters/ch_{NNN}.md`）。该文件始终是最近写入的版本。
 
 **8 维清单**（按执行顺序）：
 
@@ -341,7 +341,7 @@ with open(ch_path, 'r', encoding='utf-8') as f:
 
 | 允许 | 禁止 |
 |------|------|
-| `fact_db.py query content` 从数据库读正文 | 子代理委派 |
+| `cat chapters/ch_*.md` 从文件读正文 | 子代理委派 |
 | `audit.py --verify` 验证修复结果（只读） | 正则批量替换 |
 | 主会话逐章通读 + 独立报告 | 跳过章节 / 加速节奏 |
 | 进度文件保存到 `tracking/manual-pass-progress.md` | 用脚本扫描结果替代通读 |
@@ -354,10 +354,10 @@ with open(ch_path, 'r', encoding='utf-8') as f:
 
 ```
 对于每章:
-  ① fact_db.py query . content --ch-start N --ch-end N （从数据库读最新正文）
+  ① 从文件系统读取正文 `cat chapters/ch_NNN.md`
   ② 完整通读一遍
   ③ 报告: 语调评价 + 问题列表 + 修复操作
-  ④ 写回文件 → fact_db.py mirror → fact_db.py version reviewed
+  ④ 写回文件 → 更新 writer.json 版本状态
   ⑤ 更新 tracking/manual-pass-progress.md
 ```
 

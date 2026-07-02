@@ -114,9 +114,11 @@ mkdir -p {project}/setting {project}/outline/chapter_outline {project}/chapters 
 }
 ```
 
-初始化事实库：
-```bash
-python scripts/fact_db.py init .
+知识图谱就绪：
+```
+memory-novel MCP 在首次调用时自动创建知识图谱（npx @pepk/mcp-memory-sqlite）。
+无需手动 init。数据库文件位于 ./novel_memory_db/。
+初始实体：从 setting/characters.md 提取角色 → create_entities
 ```
 
 ---

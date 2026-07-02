@@ -120,23 +120,40 @@ def load_tracking_states(project_root, char_dict):
     return states
 
 
-def load_from_fact_db(project_root):
-    """如果 facts.db 存在，从中提取角色关系。"""
-    db_path = os.path.join(project_root, '.writer', 'facts.db')
-    if not os.path.exists(db_path):
-        return [], []
+def load_from_tracking(project_root):
+    """从 tracking/ 文件和章节文件提取角色关系。"""
+    rels = []
+    chars = []
     try:
-        import sqlite3
-        conn = sqlite3.connect(db_path)
-        cur = conn.cursor()
-        rels = cur.execute(
-            "SELECT character_a, character_b, stage, ch FROM relationship_milestones ORDER BY ch"
-        ).fetchall()
-        chars = cur.execute(
-            "SELECT DISTINCT character_name FROM character_states"
-        ).fetchall()
-        chars = [r[0] for r in chars]
-        conn.close()
+        # 从 tracking/current_state.md 读取角色列表
+        state_path = os.path.join(project_root, 'tracking', 'current_state.md')
+        if os.path.exists(state_path):
+            with open(state_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    # 解析形如 "林北: Lv5, 青云城, 金币35000" 的行
+                    if ':' in line and not line.startswith('#'):
+                        name = line.split(':')[0].strip()
+                        if name and len(name) >= 2:
+                            chars.append(name)
+
+        # 从章节文件 grep 关系里程碑
+        chapters_dir = os.path.join(project_root, 'chapters')
+        if os.path.isdir(chapters_dir):
+            import re
+            relation_pattern = re.compile(
+                r'(表白|告白|确定关系|在一起|结婚|初遇|认识|决裂|分手)'
+            )
+            for fn in sorted(os.listdir(chapters_dir))[:200]:
+                if not fn.endswith('.md'):
+                    continue
+                ch_num = int(''.join(c for c in fn if c.isdigit()) or '0')
+                fp = os.path.join(chapters_dir, fn)
+                with open(fp, 'r', encoding='utf-8') as f:
+                    text = f.read()
+                for m in relation_pattern.finditer(text):
+                    pos = m.start()
+                    context = text[max(0, pos-50):pos+50]
+                    rels.append(('未知', '未知', m.group(1), ch_num))
         return rels, chars
     except Exception:
         return [], []
@@ -147,8 +164,8 @@ def build_entity_graph(project_root, main_only=False, ch_start=None, ch_end=None
     # 1. 加载角色字典
     char_dict = load_character_names(project_root)
 
-    # 2. 从 facts.db 加载
-    fact_rels, fact_chars = load_from_fact_db(project_root)
+    # 2. 从 tracking 文件加载
+    fact_rels, fact_chars = load_from_tracking(project_root)
 
     # 3. 从正文扫描
     chapters_dir = find_chapters_dir(project_root)
@@ -175,7 +192,7 @@ def build_entity_graph(project_root, main_only=False, ch_start=None, ch_end=None
         else:
             print("   未检测到足够高频的人名，图谱可能为空", file=sys.stderr)
 
-    # 4. 更新：合并 facts.db 中的角色
+    # 4. 更新：合并 tracking 中的角色
     for name in fact_chars:
         if name not in char_dict and len(name) >= 2:
             char_dict[name] = {'type': '其他', 'faction': '未知', 'aliases': []}
@@ -207,7 +224,7 @@ def build_entity_graph(project_root, main_only=False, ch_start=None, ch_end=None
         rels = extract_relationships(text, chars)
         relation_list.extend(rels)
 
-    # 6. 合并 facts.db 的关系
+    # 6. 合并 tracking 中的关系
     for a, b, stage, ch in fact_rels:
         if a in char_dict or b in char_dict:
             # 确保双方都在 char_dict 中

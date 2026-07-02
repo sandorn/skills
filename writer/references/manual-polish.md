@@ -8,7 +8,7 @@
 
 ### 三零原则
 
-1. **零修改脚本**：不调用任何会修改文件的脚本。只读脚本允许（`fact_db.py query` 读正文、`audit.py --verify` 验证）
+1. **零修改脚本**：不调用任何会修改文件的脚本。只读脚本允许（`audit.py --verify` 验证）
 2. **零子代理**：完全不使用子代理委派（sub-agent delegation），不 spawn 任何子 Agent
 3. **零批量替换**：不使用 sed/awk/正则批量替换，每处改动逐句阅读后手动判断
 
@@ -178,7 +178,7 @@
 
 ```
 对于每一章：
-  ① 从数据库读取正文（`fact_db.py query . content --ch-start N --ch-end N`）
+  ① 从文件系统读取正文（`cat chapters/ch_{NNN}.md`）
   → ② 完整通读一遍
   → ③ 标记微调点 → ④ 执行逐句调整
   → ⑤ 自检清单 → ⑥ 写回文件 + 立即 mirror 到数据库
@@ -251,10 +251,10 @@
 
 每章润完后记录优化点类型和数量，在进度文件逐章行追加。
 
-润色完成后镜像正文并保存最终版本快照：
+润色完成后更新版本状态：
 ```bash
-python scripts/fact_db.py mirror . chapters/ch_{NNN}.md     # 镜像最新正文
-python scripts/fact_db.py version . chapters/ch_{NNN}.md final
+# 更新 writer.json 版本记录（final）
+# 章节文件即真实来源
 ```
 
 ### Step 4：自动审查 + 交付

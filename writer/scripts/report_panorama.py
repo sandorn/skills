@@ -21,32 +21,61 @@ from lib import (count_chinese, find_chapters_dir, find_setting_dir,
 # load_writer_json 已从 lib.py 导入
 
 
-def load_fact_db_status(project_root):
-    """从 facts.db 获取统计"""
-    db_path = os.path.join(project_root, '.writer', 'facts.db')
-    if not os.path.exists(db_path):
-        return None
+def load_project_stats(project_root):
+    """从文件系统获取项目统计（章节数/等级/金币/角色/伏笔）"""
+    stats = {}
     try:
-        import sqlite3
-        conn = sqlite3.connect(db_path)
-        cur = conn.cursor()
-        stats = {}
-        for table in ['chapters', 'level_events', 'gold_events', 'hooks',
-                       'character_states', 'relationship_milestones', 'writing_sessions']:
-            count = cur.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
-            stats[table] = count
-        # 最新等级
-        latest_level = cur.execute(
-            "SELECT ch, new_level FROM level_events ORDER BY ch DESC LIMIT 1"
-        ).fetchone()
-        if latest_level:
-            stats['latest_level'] = f"ch{latest_level[0]}: {latest_level[1]}级"
-        # 伏笔状态
-        pending_hooks = cur.execute(
-            "SELECT count(*) FROM hooks WHERE status='planted'"
-        ).fetchone()[0]
-        stats['pending_hooks'] = pending_hooks
-        conn.close()
+        chapters_dir = os.path.join(project_root, 'chapters')
+        tracking_dir = os.path.join(project_root, 'tracking')
+
+        # 章节统计
+        if os.path.isdir(chapters_dir):
+            ch_files = [f for f in os.listdir(chapters_dir) if f.endswith('.md')]
+            stats['chapters'] = len(ch_files)
+
+            # 等级/金币事件：扫描最近5章
+            import re
+            level_pat = re.compile(r'升(?:到|至|为|了)\s*(\d+)\s*级|突破(?:到|至|了)?\s*(\d+)\s*级|达到(?:了)?\s*(\d+)\s*级')
+            gold_pat = re.compile(r'(?:赚了|挣了|进账|收益|纯利|净赚)\s*(\d[\d,万百千亿]*)')
+            hook_pat = re.compile(r'(?:伏笔|悬念|暗线)')
+
+            level_count, gold_count, hook_count = 0, 0, 0
+            latest_level = None
+            for fn in sorted(ch_files, reverse=True)[:5]:
+                fp = os.path.join(chapters_dir, fn)
+                ch_num = int(''.join(c for c in fn if c.isdigit()) or '0')
+                with open(fp, 'r', encoding='utf-8') as f:
+                    text = f.read()
+                for m in level_pat.finditer(text):
+                    lv = int(m.group(1) or m.group(2) or m.group(3) or 0)
+                    if lv > 0:
+                        level_count += 1
+                        if latest_level is None:
+                            latest_level = f"ch{ch_num}: {lv}级"
+                gold_count += len(gold_pat.findall(text))
+                hook_count += len(hook_pat.findall(text))
+
+            stats['level_events'] = level_count
+            stats['gold_events'] = gold_count
+            stats['hooks'] = hook_count
+            if latest_level:
+                stats['latest_level'] = latest_level
+            stats['pending_hooks'] = hook_count
+        else:
+            stats['chapters'] = 0
+
+        # 角色统计：从 setting/characters.md 读取
+        chars_path = os.path.join(project_root, 'setting', 'characters.md')
+        char_count = 0
+        if os.path.exists(chars_path):
+            with open(chars_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if line.startswith('## ') or line.startswith('### '):
+                        char_count += 1
+        stats['character_states'] = max(char_count - 1, 0)  # 减去标题
+
+        stats['relationship_milestones'] = 0  # 从文件统计困难，留空
+        stats['writing_sessions'] = 0
         return stats
     except Exception as e:
         return {'error': str(e)}
@@ -264,7 +293,7 @@ def generate_report(project_root, stats, chapters, setting, tracking, state, fac
         if 'pending_hooks' in fact_stats:
             lines.append(f'待回收伏笔: {fact_stats["pending_hooks"]} 条')
     else:
-        lines.append('> facts.db 未初始化 — 运行: `python scripts/fact_db.py init .`')
+        lines.append('> 知识图谱未初始化 — MCP 将在首次写章时自动创建')
     lines.append('')
 
     # ===== MCP 代码库状态 =====
@@ -322,8 +351,8 @@ def generate_report(project_root, stats, chapters, setting, tracking, state, fac
     suggestions = []
     if stats and stats['total_chapters'] > 10 and len(setting) < 3:
         suggestions.append('- 章节多但设定少，建议补充设定文件')
-    if not os.path.exists(os.path.join(project_root, '.writer', 'facts.db')):
-        suggestions.append('- 事实库未初始化: `python scripts/fact_db.py init .`')
+    if not os.path.exists(os.path.join(project_root, 'novel_memory_db')):
+        suggestions.append('- 知识图谱未初始化: MCP 将在首次写章时自动创建')
     if stats and stats['below_threshold'] > stats['total_chapters'] * 0.1:
         suggestions.append(f'- 字数不足率偏高 ({stats["below_threshold"]}/{stats["total_chapters"]})，建议 safe_pad 批量追加')
     if stats and stats['total_bans'] > 0:
@@ -361,7 +390,7 @@ def main():
     stats, chapters = scan_chapters(project_root)
     setting = scan_setting(project_root)
     tracking = scan_tracking(project_root)
-    fact_stats = load_fact_db_status(project_root)
+    fact_stats = load_project_stats(project_root)
 
     # 生成报告
     report = generate_report(project_root, stats, chapters, setting,

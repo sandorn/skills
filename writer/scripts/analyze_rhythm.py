@@ -2,7 +2,7 @@
 # SAFETY: READONLY — 只读分析，不修改任何文件。安全。
 """节奏状态查询 — 等级/金币/感情线/钩力趋势 聚合分析。
 
-从 facts.db + 最近 hook_strength 输出 + tracking 文件中提取数据，
+从章节文件 + 最近 hook_strength 输出 + tracking 文件中提取数据，
 回答「最近N章的节奏怎么样」「升级间隔是否合理」「感情线推进频率」等问题。
 
 用法：
@@ -16,51 +16,110 @@
 输出格式：Markdown 报告，含每个维度的趋势表和评估。
 """
 
-import re, os, sys, json, sqlite3, argparse
+import re, os, sys, json, argparse
 from collections import defaultdict
 from datetime import datetime
 
 from lib import count_chinese, find_chapters_dir
 
 
-def open_fact_db(project_root):
-    """连接 facts.db"""
-    db_path = os.path.join(project_root, '.writer', 'facts.db')
-    if not os.path.exists(db_path):
+def extract_rhythm_data(project_root, ch_start=0, ch_end=9999):
+    """从章节文件提取节奏数据（替代原 SQLite 查询）"""
+    import re
+    chapters_dir = os.path.join(project_root, 'chapters')
+    if not os.path.isdir(chapters_dir):
         return None
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    return conn
+
+    level_pat = re.compile(
+        r'升(?:到|至|为|了)\s*(\d+)\s*级|突破(?:到|至|了)?\s*(\d+)\s*级|'
+        r'达到(?:了)?\s*(\d+)\s*级|晋级\s*(\d+)\s*级|进阶\s*(\d+)\s*级|'
+        r'跨入\s*(\d+)\s*级|提升(?:到|至|为)\s*(\d+)\s*级|连升\s*(\d+)\s*级|'
+        r'Lv\.?\s*(\d+)|等级[：:]\s*(\d+)'
+    )
+    gold_pat = re.compile(
+        r'(?:赚了|挣了|进账|收益|利润|纯利|净赚|到手)\s*(\d[\d,万百千亿]*)'
+        r'|(?:花了|支出|消费|付款|付了|转账)\s*(\d[\d,万百千亿]*)'
+        r'|(?:余额|剩余|还有)\s*(\d[\d,万百千亿]*)'
+        r'|(\d+)\s*(?:万|百万|千万|亿)?\s*(?:元|块|金币)'
+    )
+    relation_pat = re.compile(
+        r'(表白|告白|确定关系|在一起|成为情侣|结婚|婚礼|求婚|'
+        r'初遇|第一次见面|认识|成为朋友|交朋友|结拜|同居|分手|决裂|绝交)'
+    )
+
+    level_events, gold_events, love_events = [], [], []
+    prev_level = None
+    prev_balance = 0
+
+    for fn in sorted(os.listdir(chapters_dir)):
+        if not fn.endswith('.md'):
+            continue
+        ch_num = int(''.join(c for c in fn if c.isdigit()) or '0')
+        if ch_num < ch_start or ch_num > ch_end:
+            continue
+        fp = os.path.join(chapters_dir, fn)
+        with open(fp, 'r', encoding='utf-8') as f:
+            text = f.read()
+
+        for m in level_pat.finditer(text):
+            lv = int(m.group(1) or m.group(2) or m.group(3) or m.group(4) or
+                     m.group(5) or m.group(6) or m.group(7) or m.group(8) or
+                     m.group(9) or m.group(10) or 0)
+            if lv > 0:
+                level_events.append({
+                    'ch': ch_num, 'old_level': prev_level, 'new_level': lv,
+                    'reason': m.group(0)[:40],
+                })
+                prev_level = lv
+
+        for m in gold_pat.finditer(text):
+            raw = m.group(0).replace(',', '').replace('万', '0000').replace('百万', '000000').replace('千万', '0000000').replace('亿', '00000000').replace('百', '00').replace('千', '000')
+            try:
+                amt = int(re.sub(r'[^\d]', '', raw))
+            except ValueError:
+                continue
+            if any(kw in m.group(0) for kw in ('花了', '支出', '消费', '付款', '付了', '转账')):
+                amt = -amt
+            prev_balance += amt
+            gold_events.append({
+                'ch': ch_num, 'change_amount': amt, 'balance': prev_balance,
+                'reason': m.group(0)[:40],
+            })
+
+        for m in relation_pat.finditer(text):
+            love_events.append({
+                'ch': ch_num, 'event': m.group(0)[:40],
+                'stage': m.group(1),
+            })
+
+    return {
+        'level_events': level_events,
+        'gold_events': gold_events,
+        'love_events': love_events,
+    }
 
 
 # ===========================
 # 等级节奏
 # ===========================
-def analyze_level_rhythm(conn, ch_start=0, ch_end=9999):
+def analyze_level_rhythm(data, ch_start=0, ch_end=9999):
     """等级提升频率分析"""
-    rows = conn.execute("""
-        SELECT ch, old_level, new_level, reason
-        FROM level_events
-        WHERE ch BETWEEN ? AND ?
-        ORDER BY ch
-    """, (ch_start, ch_end)).fetchall()
+    rows = [r for r in data['level_events']
+            if ch_start <= r['ch'] <= ch_end]
 
     if not rows:
         return None
 
     results = []
-    prev_level = None
     for r in rows:
-        if prev_level is not None and r['new_level']:
-            interval = r['ch'] - results[-1]['ch'] if results else 0
-            results.append({
-                'ch': r['ch'],
-                'old': r['old_level'],
-                'new': r['new_level'],
-                'reason': r['reason'] or '',
-                'interval': interval,
-            })
-        prev_level = r['new_level'] or prev_level
+        interval = r['ch'] - results[-1]['ch'] if results else 0
+        results.append({
+            'ch': r['ch'],
+            'old': r['old_level'],
+            'new': r['new_level'],
+            'reason': r.get('reason', ''),
+            'interval': interval,
+        })
 
     total_interval = results[-1]['ch'] - results[0]['ch'] if len(results) >= 2 else 0
     avg_interval = total_interval / (len(results) - 1) if len(results) >= 2 else 0
@@ -79,14 +138,10 @@ def analyze_level_rhythm(conn, ch_start=0, ch_end=9999):
 # ===========================
 # 金币节奏
 # ===========================
-def analyze_gold_rhythm(conn, ch_start=0, ch_end=9999):
+def analyze_gold_rhythm(data, ch_start=0, ch_end=9999):
     """金币流动分析"""
-    rows = conn.execute("""
-        SELECT ch, change_amount, balance, reason
-        FROM gold_events
-        WHERE ch BETWEEN ? AND ?
-        ORDER BY ch
-    """, (ch_start, ch_end)).fetchall()
+    rows = [r for r in data['gold_events']
+            if ch_start <= r['ch'] <= ch_end]
 
     if not rows:
         return None
@@ -102,8 +157,8 @@ def analyze_gold_rhythm(conn, ch_start=0, ch_end=9999):
         events.append({
             'ch': r['ch'],
             'delta': amt,
-            'balance': r['balance'],
-            'reason': r['reason'] or '',
+            'balance': r.get('balance'),
+            'reason': r.get('reason', ''),
         })
         if amt > 0:
             total_income += amt
@@ -156,14 +211,10 @@ def analyze_hook_rhythm(project_root, ch_start=0, ch_end=9999):
 # ===========================
 # 感情线节奏
 # ===========================
-def analyze_love_rhythm(conn, ch_start=0, ch_end=9999):
+def analyze_love_rhythm(data, ch_start=0, ch_end=9999):
     """感情线推进频率分析"""
-    rows = conn.execute("""
-        SELECT ch, character_a, character_b, event, stage
-        FROM relationship_milestones
-        WHERE ch BETWEEN ? AND ?
-        ORDER BY ch
-    """, (ch_start, ch_end)).fetchall()
+    rows = [r for r in data.get('love_events', [])
+            if ch_start <= r['ch'] <= ch_end]
 
     if not rows:
         return None
@@ -216,7 +267,7 @@ def _recommend_love(current_stage, event_count, total_chs):
 # ===========================
 def generate_report(project_root, ch_start, ch_end, dims):
     """生成节奏报告"""
-    conn = open_fact_db(project_root)
+    data = extract_rhythm_data(project_root, ch_start, ch_end)
 
     lines = []
     lines.append(f'# 节奏状态报告')
@@ -224,8 +275,8 @@ def generate_report(project_root, ch_start, ch_end, dims):
     lines.append(f'> 范围: ch{ch_start}-{ch_end if ch_end != 9999 else "latest"}')
     lines.append('')
 
-    if not conn:
-        lines.append('> ⚠️ facts.db 未初始化。运行 `python scripts/fact_db.py init .` 后重新查询')
+    if not data or not data['level_events']:
+        lines.append('> ⚠️ 未找到章节数据。请检查 chapters/ 目录是否有 .md 文件')
         lines.append('')
         skip_db = True
     else:
@@ -235,7 +286,7 @@ def generate_report(project_root, ch_start, ch_end, dims):
     if not skip_db and (not dims or 'level' in dims):
         lines.append('## 📈 等级节奏')
         lines.append('')
-        lr = analyze_level_rhythm(conn, ch_start, ch_end)
+        lr = analyze_level_rhythm(data, ch_start, ch_end)
         if lr:
             lines.append(f'| 章 | 等级变化 | 间隔 | 原因 |')
             lines.append(f'|---|---------|------|------|')
@@ -257,7 +308,7 @@ def generate_report(project_root, ch_start, ch_end, dims):
     if not skip_db and (not dims or 'gold' in dims):
         lines.append('## 💰 金币节奏')
         lines.append('')
-        gr = analyze_gold_rhythm(conn, ch_start, ch_end)
+        gr = analyze_gold_rhythm(data, ch_start, ch_end)
         if gr:
             lines.append(f'| 章 | 变动 | 余额 | 原因 |')
             lines.append(f'|---|------|------|------|')
@@ -290,7 +341,7 @@ def generate_report(project_root, ch_start, ch_end, dims):
     if not skip_db and (not dims or 'love' in dims):
         lines.append('## 💕 感情线')
         lines.append('')
-        lr = analyze_love_rhythm(conn, ch_start, ch_end)
+        lr = analyze_love_rhythm(data, ch_start, ch_end)
         if lr:
             lines.append(f'| 章 | 阶段 | 事件 |')
             lines.append(f'|---|------|------|')
@@ -312,7 +363,7 @@ def generate_report(project_root, ch_start, ch_end, dims):
     lines.append('## 📊 综合评估')
     lines.append('')
     if not skip_db:
-        conn.close()
+        pass  # 数据从 extract_rhythm_data() 获取，无需关闭连接
 
     return '\n'.join(lines)
 

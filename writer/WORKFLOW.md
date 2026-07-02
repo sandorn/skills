@@ -27,7 +27,7 @@
 用户:「帮我开一本都市重生文，主角回到2001年开网吧」
 ```
 > 路由: `project-init.md`
-> 自动: 创建目录 → 生成 writer.json → 复制设定模板 → **fact_db.py init**（初始化数据库）
+> 自动: 创建目录 → 生成 writer.json → 复制设定模板 → memory-novel 自动就绪
 
 ---
 
@@ -58,9 +58,9 @@
 用户:「写下一章」
 ```
 > 路由: `write.md`（5步管线）
-> **Step 1**: 从 fact_db 读取上一章状态（等级/金币/角色/伏笔）
-> **Step 3**: 写正文 → **自动 sync**（提取事实）→ **自动 mirror**（镜像正文）→ **自动 version draft**（保存快照）
-> **Step 4**: 审计 → **自动 mirror**（修复后同步）→ **自动 version reviewed** → **自动 daily 审查**
+> **Step 1**: 从 memory-novel MCP 读取上一章状态（等级/金币/角色/伏笔）
+> **Step 3**: 写正文 → **自动 MCP add_observations**（添加事实）→ **writer.json 版本记录**
+> **Step 4**: 审计 → **writer.json 版本更新** → **自动 daily 审查**
 
 ### 批量
 ```
@@ -131,10 +131,10 @@
 ```
 用户:「开第二卷」          → deploy.md（卷间衔接7维检查）
 用户:「全景报告」          → report_panorama.py
-用户:「查一下主角等级」    → fact_db.py query（从数据库秒回）
+用户:「查一下主角等级」    → search_nodes MCP（语义搜索秒回）
 用户:「追读力怎么样」      → analyze_hook.py
-用户:「升级是不是太慢了」  → analyze_rhythm.py（从 fact_db 读趋势）
-用户:「角色关系图谱」      → report_graph.py（从 fact_db 读关系）
+用户:「升级是不是太慢了」  → analyze_rhythm.py（从章节文件 + MCP 读趋势）
+用户:「角色关系图谱」      → report_graph.py（从章节文件 + MCP 读关系）
 用户:「有没有声音漂移」    → longform-quality-monitor.md（>100章时）
 用户:「更新角色状态」      → track-character-state.md
 用户:「报错了」            → troubleshooting.md
@@ -146,10 +146,10 @@
 
 | 触发 | 自动行为 |
 |------|---------|
-| 创建项目 | fact_db init（建表） |
-| 每章写前 | fact_db query（读上一章状态） |
-| 每章写后 | sync（提取事实）+ mirror（镜像正文）+ version draft（快照） |
-| 每章审计后 | mirror（同步修复）+ version reviewed + daily 审查 |
+| 创建项目 | memory-novel MCP 自动创建知识图谱 |
+| 每章写前 | search_nodes / read_graph MCP（读上一章状态） |
+| 每章写后 | MCP add_observations + writer.json 版本记录 |
+| 每章审计后 | writer.json 版本更新 + daily 审查 |
 | 每5/10/卷 | solo/lean/full 审查（替代升级） |
 | 每100章 | full + longform-quality（叠加） |
 | 质检/润色/修复后 | mirror + version + re-audit |
