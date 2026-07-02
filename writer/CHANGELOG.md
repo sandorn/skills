@@ -4,6 +4,7 @@
 
 | 日期 | 版本 | 关键变更 |
 |------|------|---------|
+| 2026-07-02 | **v8.1 三 MCP 质量工具集成** | 新增 publishready（AI腔语义审计/可读性/风格漂移）、firstory（角色OOC检测/声音分化）、uno（叙事增强/重复消除/环境描写）；3 管线文档 + 4 Agent 模板全部集成 MCP 调用点；quality.md 6 Gate 全链路 MCP 增强；manual-polish 允许 MCP 只读分析；权限规则 +3 |
 | 2026-07-02 | **v8.0 facts.db → memory-novel MCP 迁移** | facts.db (9表SQLite) → memory-novel MCP 知识图谱（4实体/5关系）；fact_db.py 废弃保留；写章/审查/质检全管线改用 MCP 工具；项目初始化无需手动 init；章节正文直接读文件不镜像数据库；analyze_rhythm/report_panorama/report_graph 从 SQLite 改为文件解析；writer CLI 移除 fact 命令；22 文件修改，1 新文件 references/memory-novel-schema.md |
 | 2026-06-30 | **v7.9 数据库+审查+Agent 完善** | facts.db 全自动读写闭环（9表/chapter_content 正文镜像/sync+mirror+version 自动触发）；审查替代升级模型（嵌套包含，只运行最高级）；写章/润色/修复后自动审查（质量闸门）；manual-pass 修复（允许只读脚本/≤5章/批/进度文件）；4 Agent 模板去重+编号（AI腔红线→narrative-writer独占 D33 / OOC→character-designer权威 D38-43 / D34-36 补全 / D37-43 执行卡）；项目骨架 writing_rules 60→42；writer.json 增加 skill_version；troubleshooting 扩展含数据库故障；tool-pitfalls 清除 sed/python3/内联替换残留；fanqie-submission bash 语法修复；Agent frontmatter search_pattern→pattern_search；.gitignore 新建；5 轮审查完成 |
 | 2026-06-30 | **v7.8 减法+安全+路由精简** | 删除 12 文件（3脚本+9参考）；段落上限 60→42 全量更新（17文件）；脚本安全分级（5级铁律+安全头）；路由 34→29（合并6对重叠+补6缺口+删4死路由）；B08 重写禁止脚本注入；manual-polish 砍 41% 作者教材；SKILL.md 禁令速查表前置；优化 pipeline 消除 6 处重叠；00-index 压缩 81%；REVIEW_TRIGGERS 新建 |

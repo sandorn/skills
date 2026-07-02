@@ -107,7 +107,7 @@ mkdir -p {project}/setting {project}/outline/chapter_outline {project}/chapters 
   "words_per_chapter": {每章字数},
   "current_volume": 1,
   "current_chapter": 0,
-  "skill_version": "7.9",
+  "skill_version": "8.1",
   "last_action": "init",
   "created_at": "{当前时间}",
   "updated_at": "{当前时间}"

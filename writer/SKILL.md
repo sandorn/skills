@@ -1,7 +1,7 @@
 ---
 name: writer
-version: "7.7"
-description: "网文写作全流程引擎：扫榜/拆文/大纲/写章/审查/质检/发布/文风转换。"
+version: "8.1"
+description: "网文写作全流程引擎：扫榜/拆文/大纲/写章/审查/质检/发布/文风转换。v8.1 集成 publishready/firstory/uno 三大 MCP 质量工具。"
 category: writing
 tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 ---
@@ -99,6 +99,9 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 | 封面 | 封面、生成封面 | `references/cover.md` |
 | 备份 | 备份、存档 | `git commit`（阶段性提交） |
 | 段落拆分 | 段落太长、拆分段落 | `python scripts/split_paragraphs.py --batch chapters/` |
+| AI腔深度检测 | AI腔、可读性、文风漂移、风格指纹 | `publishready` MCP（语义级审计） |
+| 角色OOC检测 | OOC、角色不一致、人设崩塌、角色声音 | `firstory` MCP → `references/review.md`（character-designer agent） |
+| 叙事增强 | 增强、展开、丰富描写、消除重复、节奏打磨 | `uno` MCP（5 大增强技术） |
 | 故障排除 | 报错、不工作、问题、怎么办 | `references/troubleshooting.md` |
 | 审查触发规则 | 什么时候审查、自动审查 | `references/REVIEW_TRIGGERS.md` |
 | 帮助 | 帮助、功能、命令 | 列出路由表 |
@@ -152,7 +155,10 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 | 审查（daily） | 主会话 8 维 3 分钟发布闸（日更后发布前） |
 | 审查（solo） | 主会话 15 维 + AI 痕迹 + 硬禁令 |
 | 审查（full） | sub-agent delegation 并行审查（模板见 `agents/`），不可用时降级 solo |
-| 去AI味/质检 | 主会话 |
+| 去AI味/质检 | 主会话 + `publishready` MCP（语义级 AI 腔审计） |
+| AI腔深度检测 | `publishready` MCP（可读性 + 风格漂移 + 热点扫描） |
+| 角色一致性 | `firstory` MCP（OOC 检测 + 角色声音分化） |
+| 叙事增强 | `uno` MCP（5 技术：黄金暗影/环境/动作/散文流畅度/重复消除） |
 | 事实库/脚本查询 | 主会话调用对应 Python 脚本 |
 | 封面 | Use available image generation tool; if unavailable, output prompt only |
 
@@ -324,7 +330,7 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 {
   "project": "书名",
   "author": "作者",
-  "skill_version": "7.9",
+  "skill_version": "8.1",
   "stage": "planning|writing|reviewing|completed",
   "genre": "xuanhuan|urban|xianxia|horror|other",
   "platform": "fanqie|feilu|qidian|zhihu|other",

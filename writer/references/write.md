@@ -70,6 +70,13 @@ if not os.path.exists(ch_outline) and state.get("stage") != "planning":
 
 合并 Composer + Architect：整理角色、设定、伏笔、时间锚点，并生成章节结构。以 memory-novel MCP 中的最新数值为基准（知识图谱是已写章节的精确快照，比追踪文件更可靠）。
 
+**角色声音预检**（批量写章必做）：
+```
+调用 firstory MCP：检查即将出场的角色是否存在声音漂移风险
+→ 对比前 5 章角色对话特征 → 输出角色声音一致性提示
+→ 注入本章 Architect 约束
+```
+
 > 适用禁令：B04（避免在结构中使用元叙事标签）
 
 ### Step 3：Write + Reflect
@@ -83,28 +90,33 @@ if not os.path.exists(ch_outline) and state.get("stage") != "planning":
 #    add_observations([...])     — 等级/金币/状态观察
 #    create_relations([...])     — 关系/伏笔关联
 # 3. 更新 writer.json 版本记录（draft 快照）
+# 4. 【可选】调用 uno MCP enhance_text — 展开欠丰满的场景/对话/环境描写
+#    → 仅增强，不改变剧情和人物行为
 ```
 
 > 适用禁令：B01（对话「」） / B02（禁止 ——） / B03（禁止「不是…而是…」） / B05（AI高频词） / B06（每段 ≤42 汉字）
 
 ### Step 4：Audit + Normalize
 
-执行审查（文件已通过 Step 3 mirror 同步到数据库，审计脚本读取文件进行检测）：
-
+**4a. 禁令扫描**：
 ```bash
 python scripts/audit.py chapters/
 ```
 
-审计通过后更新版本状态：
+**4b. MCP 深度审计**（审计脚本只做关键词匹配，语义层由 MCP 补充）：
 
-```bash
-# 1. 读取修复后的章节
-# 2. 通过 memory-novel MCP 更新 observations（如有新发现的事实）
-# 3. 更新 writer.json 版本记录（reviewed）
-```
+| 工具 | 检查内容 | 调用时机 |
+|------|---------|---------|
+| `publishready` | AI 腔套话、过度润色痕迹、可读性评分 | 禁令扫描后 |
+| `firstory` | 角色对话 OOC、配角工具人化 | publishready 后 |
+| `uno` `analyze_text` | 重复措辞模式、叙事节奏评估 | firstory 后 |
 
+**4c. 修复 + 版本更新**：
 ```bash
-python scripts/audit.py chapters/
+# 1. 根据 audit.py + MCP 审计结果逐句修复
+# 2. 修复后重跑 audit.py 确认禁令清零
+# 3. 通过 memory-novel MCP 更新 observations
+# 4. 更新 writer.json 版本记录（reviewed）
 ```
 
 > 适用禁令：B01-B07 全部 / AI 痕迹 6 维

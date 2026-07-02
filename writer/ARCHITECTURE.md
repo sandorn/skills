@@ -44,6 +44,7 @@ writer/                        380 KB / 48 文件
 质检/润色/修复: 完成后→writer.json version update + 自动审查
 
 知识图谱: memory-novel MCP, 4实体/5关系, 写章自动维护, 全管线读写闭环
+质量增强: publishready(AI腔审计) + firstory(OOC检测) + uno(叙事增强)
 ```
 
 ---
@@ -169,7 +170,7 @@ P2 建议 (1): B10 卷间衔接
 | 段落上限 | 42 汉字 |
 | 字数下限 | 2500 汉字 |
 | 子代理批次 | ≤5章(写) / ≤40章(审) |
-| writer.json | skill_version: "7.9" |
+| writer.json | skill_version: "8.1" |
 | 引用断裂 | 0 |
 | 硬编码残留 | 0 |
 | 作者教材 | 0 |

@@ -64,3 +64,15 @@ memory-offical 的记忆工具
 ## Writer Skill 集成
 
 writer skill 的所有写章/审查/质检管线只与 memory-novel 交互。memory-offical 不在 writer skill 的路由表中出现。
+
+## 全 MCP 角色一览（仅 Claude Code 侧）
+
+| MCP | 类型 | 归属域 | 用途 |
+|-----|------|--------|------|
+| `memory-novel` | 记忆存储 | **小说域** | 人物/势力/剧情/伏笔/关系知识图谱 |
+| `memory-offical` | 记忆存储 | **系统域** | 系统维护/工具规范/运维配置 |
+| `publishready` | 分析工具 | **小说域** | AI腔审计/可读性/风格漂移（不存储数据） |
+| `firstory` | 分析工具 | **小说域** | 角色一致性/OOC检测（不存储数据） |
+| `uno` | 增强工具 | **小说域** | 叙事增强/重复消除/环境描写（不存储数据） |
+
+> **分析/增强工具（publishready, firstory, uno）不存储数据**——它们只做分析或文本增强，结果由 writer 管线决策是否采纳。小说事实数据始终只写入 memory-novel。

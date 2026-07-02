@@ -7,6 +7,8 @@ tools:
   - read_files
   - pattern_search
   - list_directory
+  - mcp__uno           # analyze_text 叙事节奏评估
+  - mcp__publishready  # 可读性 + 风格漂移检测
 constraints:
   - read_only
   - no_filesystem_mutation
