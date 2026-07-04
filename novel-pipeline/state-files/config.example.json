@@ -7,7 +7,9 @@
   "total_planned_chapters": 100,
   "polish_toggle": true,
   "auto_skip_transition_chapters": true,
-  "state_dir": "./novel-state/",
+  "state_storage_mode": "local_file",
+  "local_state_dir": "./novel-state/",
+  "mcp_memory_novel_endpoint": "http://127.0.0.1:4000/mcp/memory_novel",
   "chapter_dir": "./chapters/",
   "draft_settings": {
     "max_tokens": 8192,

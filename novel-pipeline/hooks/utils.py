@@ -32,13 +32,28 @@ def find_state_dir() -> Path:
 
 
 def load_dotenv(key: str) -> str:
-    """从 .env 文件读取指定的环境变量"""
+    """
+    读取环境变量优先级：
+    1. 系统环境变量
+    2. ~/.litellm/servers/.env（全局优先，统一配置）
+    3. skill目录下的.env（保底兜底）
+    """
     val = os.environ.get(key, "")
     if val:
         return val
-    dotenv_path = SKILL_DIR / ".env"
-    if dotenv_path.exists():
-        for line in dotenv_path.read_text(encoding="utf-8").splitlines():
+    # 优先读取全局配置
+    global_dotenv = Path.home() / ".litellm" / "servers" / ".env"
+    if global_dotenv.exists():
+        for line in global_dotenv.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                if k.strip() == key:
+                    return v.strip().strip("\"'")
+    # 兜底读取skill本地配置
+    skill_dotenv = SKILL_DIR / ".env"
+    if skill_dotenv.exists():
+        for line in skill_dotenv.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 k, v = line.split("=", 1)
