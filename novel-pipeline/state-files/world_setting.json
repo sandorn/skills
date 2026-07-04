@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "book_title": "万界修仙：从弃子到至尊",
+  "genres": ["仙侠", "系统流", "废材逆袭"],
+  "world_layers": [
+    {"name": "苍玄大陆", "level": "下界", "entry_realm": "练气", "exit_realm": "化神圆满", "chapters": "1-120"},
+    {"name": "九天灵域", "level": "灵界", "entry_realm": "炼虚", "exit_realm": "大乘圆满", "chapters": "121-220"},
+    {"name": "太虚仙域", "level": "仙界", "entry_realm": "真仙", "exit_realm": null, "chapters": "221-270"}
+  ],
+  "realms": [
+    {"name": "练气", "levels": 9, "lifespan_years": 120, "combat_power": "1-10"},
+    {"name": "筑基", "phases": ["初期","中期","后期","圆满"], "lifespan_years": 300, "combat_power": "10-100"},
+    {"name": "金丹", "phases": ["初期","中期","后期","圆满"], "lifespan_years": 800, "combat_power": "100-1000"},
+    {"name": "元婴", "phases": ["初期","中期","后期","圆满"], "lifespan_years": 2000, "combat_power": "1000-10000"},
+    {"name": "化神", "phases": ["初期","中期","后期","圆满"], "lifespan_years": 5000, "combat_power": "10000+"}
+  ],
+  "geography": {
+    "current_map": "苍玄大陆",
+    "regions": [
+      {"name": "东荒", "description": "青云宗势力范围，山脉纵横灵气充沛", "major_forces": ["青云宗","林家","赵家"]},
+      {"name": "南域", "description": "丹塔总部所在，遍布药谷丹坊", "major_forces": ["丹塔","药王谷"]},
+      {"name": "西漠", "description": "荒芜之地，魔道修士聚集", "major_forces": ["天魔殿","血煞宗"]},
+      {"name": "北原", "description": "极北苦寒，散修联盟暗线遍布", "major_forces": ["散修联盟","冰宫"]},
+      {"name": "中州", "description": "天下中枢，万宝商会总部，化神修士出没", "major_forces": ["万宝商会","天机阁"]}
+    ]
+  },
+  "factions": [
+    {
+      "name": "青云宗",
+      "type": "正道宗门",
+      "territory": "东荒青云山脉",
+      "current_leader": "青云真人（化神初期）",
+      "structure": "外门→内门→核心→真传→长老→掌门",
+      "specialties": ["剑修","阵法","炼丹"],
+      "allies": ["丹塔"],
+      "enemies": ["天魔殿","血煞宗"],
+      "active_conflicts": ["与天魔殿的千年宿怨","青云城内家族势力暗斗"],
+      "last_updated_chapter": 0
+    },
+    {
+      "name": "天魔殿",
+      "type": "魔道宗门",
+      "territory": "西漠天魔岭",
+      "current_leader": "魔尊天煞（化神中期）",
+      "specialties": ["魔功","血炼","傀儡术"],
+      "allies": ["血煞宗"],
+      "enemies": ["青云宗","丹塔"],
+      "active_conflicts": ["暗中渗透东荒","秘密追查某件失落的仙器"],
+      "last_updated_chapter": 0
+    },
+    {
+      "name": "万宝商会",
+      "type": "中立商业势力",
+      "territory": "中州，分支遍布大陆",
+      "current_leader": "金万三（元婴圆满）",
+      "specialties": ["法宝交易","情报贩卖","拍卖行"],
+      "allies": [],
+      "enemies": [],
+      "active_conflicts": [],
+      "last_updated_chapter": 0
+    },
+    {
+      "name": "林家",
+      "type": "修仙家族",
+      "territory": "东荒青云城",
+      "current_leader": "林震天（金丹后期）",
+      "members": ["林尘（旁系弃子）","林浩然（嫡子/天才/筑基初期）","林震天（家主）"],
+      "allies": ["青云宗"],
+      "enemies": ["赵家"],
+      "active_conflicts": ["嫡系与旁系资源争夺","与赵家的青云城控制权之争"],
+      "last_updated_chapter": 0
+    }
+  ],
+  "special_rules": [
+    "跨大境界战斗无法用数量弥补，除非有仙器/禁术/阵法加持",
+    "飞升需满足：修为圆满 + 通过天劫 + 飞升令（或偷渡）",
+    "系统积分获取途径：击杀敌人、完成任务、回收法宝",
+    "气运值低于30触发霉运：修炼效率减半、战斗暴击率归零、随机触发意外事件"
+  ]
+}
