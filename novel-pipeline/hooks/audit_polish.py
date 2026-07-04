@@ -2,7 +2,7 @@
 """
 PostToolUse Hook: audit_polish
 润色结果审计——检查是否违反 RED LINE（Layer 1 拦截）
-触发: MCP:novel-doubao.polish_chapter 返回后
+触发: 润色MCP polish_chapter 返回后
 
 RED LINE 检查:
   1. 关键剧情节点是否仍存在于润色文本中
@@ -10,7 +10,7 @@ RED LINE 检查:
   3. 伏笔标记是否未被删除
   4. 段落数量是否合理变化（润色不应大幅增删段落）
 
-注: 本 Hook 做结构性比对。深层语义篡改由 Claude CLI Layer 2 执行。
+注: 本 Hook 做结构性比对。深层语义篡改由 Agent Layer 2 语义检查执行。
 """
 import sys, json, re
 from difflib import SequenceMatcher
@@ -53,7 +53,7 @@ def main():
         if sim < 0.3:
             violations.append(f"[RED LINE] 润色后文本与原文相似度过低 ({sim:.1%})，疑似内容被改写")
 
-        # 检查 2: 对话行数比对
+        # 检查 2: 对话行数比对（支持中英文引号）
         draft_dialogue_count = count_dialogue_lines(draft_text)
         polished_dialogue_count = count_dialogue_lines(polished_text)
         checks["dialogue_count"] = {"original": draft_dialogue_count, "polished": polished_dialogue_count}
@@ -89,8 +89,9 @@ def main():
 
 
 def count_dialogue_lines(text: str) -> int:
-    """统计使用「」的对话行数"""
-    return len(re.findall(r'[「].+?[」]', text))
+    """统计对话行数，支持中文「」和英文""引号"""
+    count = len(re.findall(r'[「"].+?[」"]', text))
+    return count
 
 
 def extract_foreshadowing_marks(text: str) -> list[str]:

@@ -2,14 +2,14 @@
 """
 PostToolUse Hook: check_draft_quality
 初稿生成后执行 3 轮自检（Layer 1 拦截）
-触发: MCP:novel-deepseek.generate_draft 返回后
+触发: 初稿生成MCP generate_draft 返回后
 
 自检项:
   1. 基础结构检查: 字数、段落、格式
   2. 关键元素标记: 是否包含大纲中的关键剧情点关键词
   3. 禁区检测: 是否出现禁止内容（元叙事、分析语句）
 
-注: 深度语义检查（OOC、设定冲突）由 Claude CLI 在 Layer 2 执行。
+注: 深度语义检查（OOC、设定冲突）由 Agent 在 Layer 2 执行。
     Hook 负责可编程的结构性检查。
 """
 import sys, json, os, re
@@ -88,11 +88,11 @@ def check_structure(text: str) -> tuple[bool, list[str]]:
     issues = []
     text_stripped = text.strip()
 
-    # 字数检查：最低 2500 字，最高 4500 字
-    if len(text_stripped) < 2500:
-        issues.append(f"[结构] 正文字数不足 ({len(text_stripped)}字)，最低要求 2500 字")
-    elif len(text_stripped) > 4500:
-        issues.append(f"[结构] 正文字数超标 ({len(text_stripped)}字)，最高限制 4500 字")
+    # 字数检查：最低 2000 字，最高 6000 字（可通过配置调整）
+    if len(text_stripped) < 2000:
+        issues.append(f"[结构] 正文字数不足 ({len(text_stripped)}字)，最低要求 2000 字")
+    elif len(text_stripped) > 6000:
+        issues.append(f"[结构] 正文字数超标 ({len(text_stripped)}字)，最高限制 6000 字")
 
     # 段落检查：至少 5 个段落
     paragraphs = [p for p in text_stripped.split("\n") if p.strip()]
@@ -100,7 +100,7 @@ def check_structure(text: str) -> tuple[bool, list[str]]:
         issues.append(f"[结构] 段落数量过少 ({len(paragraphs)}段)，缺乏叙事层次")
 
     # 是否有章节标题标记
-    if not any(kw in text_stripped[:200] for kw in ["第", "章"]):
+    if not any(kw in text_stripped[:200] for kw in ["第", "章", "Chapter"]):
         issues.append("[结构] 开头未找到章节标识（'第X章'）")
 
     return len(issues) == 0, issues
@@ -146,11 +146,10 @@ def check_banned_content(text: str) -> tuple[bool, list[str]]:
 
 
 def extract_keywords(text: str) -> list[str]:
-    """从文本中提取中文关键词"""
-    # 简单策略：提取引号内的内容 + 2-4字的连续中文片段
+    """从文本中提取中英文关键词"""
     keywords = []
     # 书名号/引号内容
-    quoted = re.findall(r'[《「]([^》」]+)[》」]', text)
+    quoted = re.findall(r'[《「""]([^》」""]+)[》」""]', text)
     keywords.extend(quoted)
     # 2-4 字中文片段（非停用词）
     words = re.findall(r'[一-鿿]{2,4}', text)

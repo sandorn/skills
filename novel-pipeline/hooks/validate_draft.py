@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 PreToolUse Hook: validate_draft
-校验 generate_draft 调用参数完整性（Layer 1 拦截）
-触发: MCP:novel-deepseek.generate_draft 调用前
+校验初稿生成调用参数完整性（Layer 1 拦截）
+触发: 初稿生成MCP generate_draft 调用前
 """
 import sys, json
 
@@ -32,7 +32,7 @@ def main():
             elif p == "chapter_number" and not isinstance(val, (int, float)):
                 errors.append(f"参数 {p} 不是数字类型，当前值: {val}")
 
-        # 检查大纲最小长度（至少 50 字才可能有实质内容）
+        # 检查大纲最小长度（至少 10 字才可能有实质内容）
         outline = args.get("chapter_outline", "")
         if isinstance(outline, str) and len(outline.strip()) < 10:
             errors.append("chapter_outline 过短（<10字），内容不足以指导生成")

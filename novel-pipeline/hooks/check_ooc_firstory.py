@@ -1,33 +1,34 @@
 #!/usr/bin/env python3
 """
 PostToolUse Hook: check_ooc_firstory
-在 DeepSeek 初稿生成后执行人设一致性校验（Layer 2 Round 1 自动化）
-触发: MCP:novel-deepseek.generate_draft 返回后
+在初稿生成后执行人设一致性校验（Layer 2 Round 1 自动化）
+触发: 初稿生成MCP generate_draft 返回后
 
 校验项:
   1. 角色对话是否符合 speech_style
   2. 角色行为是否突破 bottom_lines
-  3. 修为/战力/地名/年龄是否前后矛盾
+  3. 能力/等级/地名/年龄是否前后矛盾
 
-注：firstory 需要 OAuth 认证和网络连接。
-若服务不可用，优雅降级为跳过（不阻断流水线）。
+注：firstory 需要网络连接或本地部署。
+若服务不可用，优雅降级为本地规则检查（不阻断流水线）。
 """
 import sys, json, subprocess, time, os
 from pathlib import Path
 
 
-# firstory MCP 端点（优先远程，回退本地 npx）
-FIRSTORY_REMOTE = "https://firstory-mcp.vercel.app/mcp"
+# firstory MCP 端点配置
+from utils import load_dotenv
+FIRSTORY_ENDPOINT = load_dotenv("MCP_FIRSTORY_ENDPOINT") or "http://127.0.0.1:4000/mcp/firstory"
 FIRSTORY_LOCAL_CMD = ["npx", "-y", "firstory-mcp"]
 
 
 def try_call_firstory(tool_name: str, arguments: dict, timeout: int = 30) -> dict:
-    """尝试调用 firstory MCP 工具（远程 → 本地 npx 回退）"""
-    # 尝试远程端点
+    """尝试调用 firstory MCP 工具（本地HTTP端点 → 本地 npx 回退）"""
+    # 尝试本地HTTP端点（LiteLLM网关）
     try:
         import urllib.request, urllib.error
         req = urllib.request.Request(
-            FIRSTORY_REMOTE,
+            FIRSTORY_ENDPOINT,
             data=json.dumps({
                 "jsonrpc": "2.0", "id": 1, "method": "tools/call",
                 "params": {"name": tool_name, "arguments": arguments}
@@ -53,7 +54,7 @@ def try_call_firstory(tool_name: str, arguments: dict, timeout: int = 30) -> dic
         )
         init = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize",
                            "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                                      "clientInfo": {"name": "novel-pipeline", "version": "1.0"}}})
+                                      "clientInfo": {"name": "novel-pipeline", "version": "2.0"}}})
         proc.stdin.write(init + "\n"); proc.stdin.flush()
         time.sleep(0.5)
         notified = json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"})
@@ -131,18 +132,21 @@ def main():
             bottoms = ", ".join(c.get("bottom_lines", []))
             char_context += f"{name}: 性格[{traits}], 说话[{speech}], 底线[{bottoms}]\n"
 
-        query_result = try_call_firstory("character-query", {
-            "text": draft_text,
-            "characterContext": char_context,
-        })
-        if query_result["success"]:
-            ooc_results["character_query"] = str(query_result["data"])
+        if char_context.strip():
+            query_result = try_call_firstory("character-query", {
+                "text": draft_text,
+                "characterContext": char_context,
+            })
+            if query_result["success"]:
+                ooc_results["character_query"] = str(query_result["data"])
+            else:
+                # 优雅降级：firstory 不可用时用本地规则检查
+                ooc_results["character_query"] = f"firstory 不可用，跳过远程 OOC: {query_result.get('error', 'unknown')}"
+                # 执行本地基础检查
+                local_issues = run_local_ooc_check(draft_text, characters)
+                issues.extend(local_issues)
         else:
-            # 优雅降级：firstory 不可用时用本地规则检查
-            ooc_results["character_query"] = f"firstory 不可用，跳过远程 OOC: {query_result.get('error', 'unknown')}"
-            # 执行本地基础检查
-            local_issues = run_local_ooc_check(draft_text, characters)
-            issues.extend(local_issues)
+            ooc_results["character_query"] = "无角色设定，跳过OOC检查"
 
         passed = len(issues) == 0
         return output(passed, issues, {"ooc_results": ooc_results, "hook": "check_ooc_firstory"})
@@ -160,17 +164,20 @@ def run_local_ooc_check(text: str, characters: list) -> list[str]:
         name = c.get("name", "")
         if not name or name not in text:
             continue
-        # 检查是否在文中出现但行为与性格矛盾（简单关键词检查）
+        # 检查是否在文中出现但行为与底线矛盾（简单关键词检查）
         bottoms = c.get("bottom_lines", [])
         for bl in bottoms:
-            # 检查是否出现了违反底线的行为（如"滥杀"+"凡人"同时出现）
-            if bl == "不滥杀凡人" and "凡人" in text:
-                if "杀" in text and name in text:
-                    issues.append(f"[OOC/本地] {name} 可能突破底线'{bl}'——文中同时出现'{name}'、'杀'、'凡人'，需人工复核")
+            # 简单关键词匹配检查底线突破（可根据题材扩展规则）
+            bl_keywords = [kw for kw in re.findall(r'[\u4e00-\u9fa5]{2,}', bl) if len(kw)>=2]
+            # 如果多个底线关键词同时出现，标记需要人工复核
+            matched = sum(1 for kw in bl_keywords if kw in text)
+            if matched >= len(bl_keywords) * 0.7 and name in text:
+                issues.append(f"[OOC/本地] {name} 可能突破底线'{bl}'——文中同时出现多个相关关键词，需人工复核")
 
     return issues
 
 
+import re
 def output(valid: bool, issues: list[str], details: dict) -> None:
     result = {
         "passed": valid,

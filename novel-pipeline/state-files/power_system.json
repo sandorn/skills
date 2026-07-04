@@ -1,89 +1,13 @@
 {
+  "_comment": "战力/力量体系模板，初始化项目时根据实际小说设定填写（适用于仙侠/玄幻/都市异能/科幻等各类题材，按需求修改字段）",
   "version": 1,
-  "realms": [
-    {
-      "name": "练气",
-      "levels": 9,
-      "lifespan_years": 120,
-      "combat_power_range": "1-10",
-      "signature_ability": "真气外放",
-      "breakthrough_requirement": "天赋 + 灵气积累",
-      "notes": "基础境界，九成修士终生停留。每三层一个小坎，第七层到第九层为练气后期"
-    },
-    {
-      "name": "筑基",
-      "phases": ["初期","中期","后期","圆满"],
-      "lifespan_years": 300,
-      "combat_power_range": "10-100",
-      "signature_ability": "御剑飞行、神识外放",
-      "breakthrough_requirement": "筑基丹（下品50%成功率/中品70%/上品90%）",
-      "notes": "宗门中坚力量。筑基丹极珍贵，散修若无机缘终生无望。林浩然18岁筑基为百年一遇天才"
-    },
-    {
-      "name": "金丹",
-      "phases": ["初期","中期","后期","圆满"],
-      "lifespan_years": 800,
-      "combat_power_range": "100-1000",
-      "signature_ability": "丹火淬体、灵域雏形",
-      "breakthrough_requirement": "凝结金丹（渡金丹劫/三九雷劫）",
-      "notes": "宗门长老级别。金丹以上可开宗立派。林家只有家主林震天一人"
-    },
-    {
-      "name": "元婴",
-      "phases": ["初期","中期","后期","圆满"],
-      "lifespan_years": 2000,
-      "combat_power_range": "1000-10000",
-      "signature_ability": "元婴出窍、领域展开",
-      "breakthrough_requirement": "碎丹成婴（渡元婴劫/六九雷劫）",
-      "notes": "一方霸主。青云宗仅3位元婴长老。元婴陨落后可夺舍重生1次"
-    },
-    {
-      "name": "化神",
-      "phases": ["初期","中期","后期","圆满"],
-      "lifespan_years": 5000,
-      "combat_power_range": "10000+",
-      "signature_ability": "神魂不灭、法则感悟",
-      "breakthrough_requirement": "元神合一（渡化神劫/九九天劫）",
-      "notes": "大陆巅峰。青云真人（化神初期）镇压东荒千年。化神圆满可感应飞升台"
-    }
-  ],
-  "equipment_ranks": [
-    {"rank": "凡阶", "grades": ["下品","中品","上品","极品"], "users": "练气-筑基"},
-    {"rank": "灵阶", "grades": ["下品","中品","上品","极品"], "users": "金丹-元婴"},
-    {"rank": "地阶", "grades": ["下品","中品","上品","极品"], "users": "元婴-化神"},
-    {"rank": "天阶", "grades": ["下品","中品","上品","极品"], "users": "化神-大乘"},
-    {"rank": "仙器", "grades": [], "users": "仙人", "notes": "仅存于传说。主角父母的失踪与此有关"}
-  ],
-  "combat_rules": [
-    "跨大境界战斗无法用数量弥补——1000个练气也打不过1个筑基圆满",
-    "同级战斗取决于：功法克制(30%) > 战斗经验(25%) > 装备优劣(25%) > 运气(20%)",
-    "跨小境界可凭底牌弥补：极品法宝/禁术/阵法/自残式爆发可越1-2个小阶",
-    "神识强度决定：探测范围（练气10m→化神10km）、战斗预判（越高越准）",
-    "灵气密度影响战斗中恢复速度，东荒灵气浓度中等（1.0倍标准）",
-    "身法速度：同境界取决于功法品阶，高境界碾压低境界",
-    "重伤后恢复时间：练气(数日)→筑基(数个时辰)→金丹(一刻)→元婴(瞬息)"
-  ],
-  "system_mechanics": {
-    "name": "万界兑换系统",
-    "activation_chapter": 1,
-    "currency": "积分",
-    "attributes": ["积分","气运值"],
-    "sources_of_points": [
-      "击杀敌人：按修为差计算（练气初期+10，筑基初期+100，金丹初期+1000）",
-      "完成任务：每日任务+5~20，支线任务+50~200，主线任务+500~5000",
-      "回收法宝/丹药：按品阶折算"
-    ],
-    "store_categories": ["功法","丹药","法宝","情报","特殊"],
-    "lottery_cost": 100,
-    "fortune_mechanic": "气运值低于30触发霉运（修炼效率减半、暴击率归零、随机意外）",
-    "locked_functions": ["地图雷达(筑基解锁)","???（金丹解锁）","???(元婴解锁)"]
+  "power_levels": [],
+  "equipment_ranks": [],
+  "combat_rules": [],
+  "special_systems": {
+    "_comment": "系统流/金手指相关配置，无则留空"
   },
-  "equipment": [
-    {"name": "神秘玉佩", "owner": "林尘", "rank": "未知（表面凡阶下品）", "abilities": ["封印中"], "notes": "父母留下的唯一物品，藏有父母最后的信息和仙器线索", "revealed_chapter": 1},
-    {"name": "青云剑", "owner": "青云真人", "rank": "地阶上品", "abilities": ["青云剑气","御剑千里"], "notes": "青云宗镇宗之宝"}
-  ],
+  "equipment": [],
   "techniques": [],
-  "forbidden_techniques": [
-    {"name": "天魔解体大法", "cost": "百年寿元换取一炷香的境界提升（跨越一个大境界）", "source": "天魔殿", "notes": "林尘父母失踪与此相关"}
-  ]
+  "forbidden_techniques": []
 }

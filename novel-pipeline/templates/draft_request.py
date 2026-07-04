@@ -1,7 +1,7 @@
 """
-模板A: DeepSeek-V4-PRO 初稿生成请求模板
+模板A: 初稿生成请求模板
 ============================================
-模块4 — 脚本可直接调用的标准请求构建器。
+脚本可直接调用的标准请求构建器。
 MCP Server 内部使用，也可被外部 PowerShell/Python 脚本独立调用。
 
 可插入变量:
@@ -23,8 +23,8 @@ DRAFT_USER_TEMPLATE = """【章节号】第{chapter_number}章
 根据以上大纲和设定，撰写本章完整草稿。
 要求：
 1. 严格遵循大纲情节线，不自行添加新情节
-2. 对话使用「」
-3. 段落简短，每段不超过42字
+2. 对话使用「」或""
+3. 段落简短，适合手机阅读
 4. 章末必须有悬念/钩子
 5. 纯章节文本，不要任何分析或说明"""
 
@@ -36,7 +36,7 @@ def build_draft_request(
     revision_instructions: str = "",
 ) -> str:
     """
-    构建 DeepSeek 初稿生成的用户消息。
+    构建初稿生成的用户消息。
 
     Args:
         global_setting: 本章相关世界观摘要（势力分布/地理/当前局势）
@@ -45,7 +45,7 @@ def build_draft_request(
         revision_instructions: 修订指令（首次生成留空，重生成时填入自检反馈）
 
     Returns:
-        格式化的用户消息文本，可直接作为 API system message 的 user content
+        格式化的用户消息文本，可直接作为 API user content
     """
     revision_section = ""
     if revision_instructions.strip():
@@ -75,12 +75,12 @@ if __name__ == "__main__":
     else:
         # 交互式演示
         print("=" * 60)
-        print("模板A: DeepSeek 初稿生成请求构建器")
+        print("模板A: 初稿生成请求构建器")
         print("=" * 60)
         sample = build_draft_request(
-            global_setting="青云宗位于青云山脉，当前与血煞门对峙中。主角林尘练气七层。",
-            chapter_outline="1.林尘在后山修炼发现神秘玉佩异动 2.遭遇血煞门探子 3.战斗中玉佩觉醒 4.击退探子但暴露位置",
-            chapter_number=5,
+            global_setting="示例世界观：当前地点是XX门派，局势紧张。主角当前等级/状态XX。",
+            chapter_outline="1.主角在XX地点发现异常 2.遭遇敌对势力 3.战斗中觉醒新能力 4.击退敌人但引来更大危机",
+            chapter_number=1,
             revision_instructions="",
         )
         print(sample)

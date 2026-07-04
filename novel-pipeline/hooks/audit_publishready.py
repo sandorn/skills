@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 PostToolUse Hook: audit_publishready
-在豆包润色完成后执行出版级文本审计（Layer 2 终检）
-触发: MCP:novel-doubao.polish_chapter 返回后
+在润色完成后执行出版级文本审计（Layer 2 终检）
+触发: 润色MCP polish_chapter 返回后
 
 审计项:
   1. AI 腔检测 (audit_ai_sounding_prose)
@@ -28,7 +28,7 @@ def call_publishready_tool(tool_name: str, arguments: dict, timeout: int = 60) -
         # MCP 初始化
         init = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize",
                            "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                                      "clientInfo": {"name": "novel-pipeline", "version": "1.0"}}})
+                                      "clientInfo": {"name": "novel-pipeline", "version": "2.0"}}})
         proc.stdin.write(init + "\n"); proc.stdin.flush()
         time.sleep(0.5)
 

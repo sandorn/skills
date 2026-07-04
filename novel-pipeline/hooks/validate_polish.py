@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 PreToolUse Hook: validate_polish
-校验 polish_chapter 调用参数完整性（Layer 1 拦截）
-触发: MCP:novel-doubao.polish_chapter 调用前
+校验润色调用参数完整性（Layer 1 拦截）
+触发: 润色MCP polish_chapter 调用前
 """
 import sys, json
 

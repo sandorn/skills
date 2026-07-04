@@ -1,46 +1,10 @@
 {
+  "_comment": "伏笔管理模板，写章时自动维护",
   "version": 1,
-  "active": [
-    {
-      "id": "f-001",
-      "description": "神秘玉佩中有封印，蕴含父母最后的信息和仙器线索",
-      "planted_chapter": 1,
-      "status": "unresolved",
-      "expected_payoff_window": "chapters 30-50",
-      "related_characters": ["林尘父母"],
-      "hints_placed": ["玉佩在关键时刻微微发热"]
-    },
-    {
-      "id": "f-002",
-      "description": "父母失踪与天魔殿有关，疑似被追查某件仙器",
-      "planted_chapter": 1,
-      "status": "unresolved",
-      "expected_payoff_window": "chapters 50-80",
-      "related_characters": ["林尘父母","天魔殿"],
-      "hints_placed": ["林震天知道部分真相但选择隐瞒"]
-    },
-    {
-      "id": "f-003",
-      "description": "万界兑换系统的来历——为何选中林尘？系统背后是否有未知意志？",
-      "planted_chapter": 1,
-      "status": "unresolved",
-      "expected_payoff_window": "chapters 100-150",
-      "related_characters": [],
-      "hints_placed": ["系统界面有3个锁定功能，暗示版本不完整"]
-    },
-    {
-      "id": "f-004",
-      "description": "青云宗与天魔殿的千年宿怨背后暗藏三方势力",
-      "planted_chapter": 1,
-      "status": "unresolved",
-      "expected_payoff_window": "chapters 80-120",
-      "related_characters": ["青云真人","魔尊天煞"],
-      "hints_placed": []
-    }
-  ],
+  "active": [],
   "resolved": [],
   "stats": {
-    "total_planted": 4,
+    "total_planted": 0,
     "total_resolved": 0,
     "avg_resolution_chapters": 0,
     "longest_unresolved_chapters": 0
