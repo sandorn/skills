@@ -1,7 +1,7 @@
 ---
 name: writer
-version: "8.1"
-description: "网文写作全流程引擎：扫榜/拆文/大纲/写章/审查/质检/发布/文风转换。v8.1 集成 publishready/firstory/uno 三大 MCP 质量工具。"
+version: "8.2"
+description: "网文写作全流程引擎：扫榜/拆文/大纲/写章/审查/质检/发布/文风转换。v8.2 内置审查管线，MCP 工具为可选增强。"
 category: writing
 tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 ---
@@ -99,9 +99,9 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 | 封面 | 封面、生成封面 | `references/cover.md` |
 | 备份 | 备份、存档 | `git commit`（阶段性提交） |
 | 段落拆分 | 段落太长、拆分段落 | `python scripts/split_paragraphs.py --batch chapters/` |
-| AI腔深度检测 | AI腔、可读性、文风漂移、风格指纹 | `publishready` MCP（语义级审计） |
-| 角色OOC检测 | OOC、角色不一致、人设崩塌、角色声音 | `firstory` MCP → `references/review.md`（character-designer agent） |
-| 叙事增强 | 增强、展开、丰富描写、消除重复、节奏打磨 | `uno` MCP（5 大增强技术） |
+| AI腔深度检测 | AI腔、可读性、文风漂移、风格指纹 | `references/quality.md`（deslop 模式增强版） |
+| 角色OOC检测 | OOC、角色不一致、人设崩塌、角色声音 | `references/review.md`（character-designer agent） |
+| 叙事增强 | 增强、展开、丰富描写、消除重复、节奏打磨 | `references/manual-polish.md`（逐段增强） |
 | 故障排除 | 报错、不工作、问题、怎么办 | `references/troubleshooting.md` |
 | 审查触发规则 | 什么时候审查、自动审查 | `references/REVIEW_TRIGGERS.md` |
 | 帮助 | 帮助、功能、命令 | 列出路由表 |
@@ -155,10 +155,10 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 | 审查（daily） | 主会话 8 维 3 分钟发布闸（日更后发布前） |
 | 审查（solo） | 主会话 15 维 + AI 痕迹 + 硬禁令 |
 | 审查（full） | sub-agent delegation 并行审查（模板见 `agents/`），不可用时降级 solo |
-| 去AI味/质检 | 主会话 + `publishready` MCP（语义级 AI 腔审计） |
-| AI腔深度检测 | `publishready` MCP（可读性 + 风格漂移 + 热点扫描） |
-| 角色一致性 | `firstory` MCP（OOC 检测 + 角色声音分化） |
-| 叙事增强 | `uno` MCP（5 技术：黄金暗影/环境/动作/散文流畅度/重复消除） |
+| 去AI味/质检 | 主会话 + `references/quality.md`（deslop 模式增强版） |
+| AI腔深度检测 | `references/quality.md`（可读性 + 风格漂移 + 热点扫描） |
+| 角色一致性 | `references/review.md`（character-designer agent：OOC 检测 + 角色声音分化） |
+| 叙事增强 | `references/manual-polish.md`（逐段增强，5 技术） |
 | 事实库/脚本查询 | 主会话调用对应 Python 脚本 |
 | 封面 | Use available image generation tool; if unavailable, output prompt only |
 
@@ -170,7 +170,7 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 
 大规模写章后（>20 章）必须执行全面审查。
 
-> **完整流程**：`references/review-cycle.md`（5 步管线权威定义，含 MCP 降级路径）
+> **完整流程**：`references/review-cycle.md`（5 步管线权威定义，含 MCP 降级路径（已移除，全内置管线））
 > **审查维度 + Triage**：`references/review.md`（43 维 + First 5 优先检查）
 > **修复管线**：`references/post-review-fix.md`
 
@@ -382,8 +382,7 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 | `references/cover.md` | 封面生成 |
 | `references/track-character-state.md` | 角色状态追踪更新 |
 | `references/longform-quality-monitor.md` | 长篇质量趋势监控（声音漂移/情绪/风格指纹） |
-| `references/memory-governance.md` | 双记忆 MCP 治理规则（隔离 memory-offical / memory-novel，禁止交叉读写） |
-| `references/memory-novel-schema.md` | memory-novel 知识图谱 Schema（实体/关系/观察模型 + 管线用法） |
+| `references/memory-governance.md` | 记忆体治理规则（仅 memory_official，小说数据由 tracking/ 文件管理） |
 | `references/troubleshooting.md` | 常见故障排除（写章/审查/委派/修复四场景） |
 | `references/tool-pitfalls.md` | 通用工具陷阱参考 |
 | `references/tool-pitfalls-windows.md` | Windows 特有工具陷阱（write_file 换行丢失、PowerShell 引号冲突） |
