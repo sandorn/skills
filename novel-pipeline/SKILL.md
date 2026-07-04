@@ -22,6 +22,61 @@ tags: [网文, 写作, pipeline, deepseek, doubao, MCP, hermes]
 
 ---
 
+## 部署架构说明
+
+### MCP 服务部署规范
+所有小说专用MCP服务统一部署在 `~/.litellm/servers/` 目录下，通过LiteLLM网关对外提供HTTP接口，仅在Hermes和Claude Desktop客户端保留访问权限，其他开发类客户端（Continue/VS Code/CodeBuddy）需精简移除小说类MCP配置。
+
+### 已部署MCP清单
+| MCP服务名称 | 地址 | 功能 | 保留客户端 |
+|-------------|------|------|--------|
+| `litellm-memory-novel` | `http://127.0.0.1:4000/mcp/memory_novel` | 小说专用分布式记忆库，支持多项目隔离、版本回溯、结构化查询 | Hermes + Claude Desktop |
+| `litellm-firstory` | `http://127.0.0.1:4000/mcp/firstory` | 三重质量校验：人设OOC/时间线一致性/战力体系合规检查 | Hermes + Claude Desktop |
+| `litellm-uno` | `http://127.0.0.1:4000/mcp/uno` | 全局规则引擎：红线内容检测、违禁词扫描、写作规范校验 | Hermes + Claude Desktop |
+| `litellm-publishready` | `http://127.0.0.1:4000/mcp/publishready` | 出版级终检：AI特征降低、格式标准化、可读性评分 | Hermes + Claude Desktop |
+
+### 客户端精简规则
+- ✅ 保留客户端：Hermes、Claude Desktop（支持小说写作场景）
+- ❌ 移除客户端：Continue、VS Code、CodeBuddy（开发场景无小说写作需求）
+
+---
+## 项目配置模板
+
+### 标准 `novel-pipeline.json` 配置
+```json
+{
+  "_comment": "复制此文件到你的小说项目根目录",
+  "project_name": "未命名作品",
+  "author": "作者",
+  "genre": "xuanhuan",
+  "current_chapter": 0,
+  "total_planned_chapters": 100,
+  "polish_toggle": true,
+  "auto_skip_transition_chapters": true,
+  "state_storage_mode": "local_file",
+  "local_state_dir": "./novel-state/",
+  "mcp_memory_novel_endpoint": "http://127.0.0.1:4000/mcp/memory_novel",
+  "chapter_dir": "./chapters/",
+  "draft_settings": {
+    "max_tokens": 8192,
+    "temperature": 0.75,
+    "max_retries": 2
+  },
+  "polish_settings": {
+    "max_tokens": 8192,
+    "temperature": 0.6,
+    "max_retries": 1
+  }
+}
+```
+
+### 存储模式切换
+| 模式 | 配置值 | 说明 |
+|------|--------|------|
+| 本地文件存储（默认） | `state_storage_mode: "local_file"` | 所有状态存储在项目本地JSON文件，无需依赖MCP服务 |
+| MCP记忆体存储 | `state_storage_mode: "mcp_memory"` | 状态同步到分布式记忆库，支持多端同步、版本回溯 |
+
+---
 ## 目录索引
 
 | 路径 | 说明 |
@@ -46,6 +101,12 @@ tags: [网文, 写作, pipeline, deepseek, doubao, MCP, hermes]
 
 ---
 
+### 环境变量读取优先级
+1. **最高优先级**：系统环境变量
+2. **次高优先级**：`~/.litellm/servers/.env`（全局统一配置，所有小说MCP服务共享）
+3. **保底兜底**：Skill本地`.env`（已弃用，建议统一使用全局配置）
+
+---
 ## Layer 1 规则（最高权重、不可违反）
 
 ### 1.1 编排器定位
