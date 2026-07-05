@@ -1,6 +1,6 @@
 # novel-pipeline MCP 集成现状
 
-> 最后更新: 2026-07-04
+> 最后更新: 2026-07-05
 > 基于实地验证，非理论规划。
 
 ---
@@ -17,12 +17,13 @@
 | **novel-doubao** | Hermes config → python doubao_server.py | pipeline step [5] polish_chapter | — | ✅ 正常 |
 | **publishready** | Hermes config → npx @veldica/publishready-mcp | `audit_publishready.py` → `subprocess.Popen(["npx","-y","@veldica/publishready-mcp"])` | 16 tools | ✅ 正常 |
 
-### 1.2 已配置但未接入 pipeline
+### 1.2 链式集成（通过 publishready hook 间接调用）
 
-| MCP | 配置方式 | 问题 | 建议处理 |
-|-----|---------|------|---------|
-| **uno** | Hermes config → node uno-mcp/dist/index.js | 3 tools(analyze/enhance/custom_enhance) 无 hook 引用 | 创建 `check_uno.py` hook 或从 config 移除 |
-| **memory-novel** | Hermes config → npx @pepk/mcp-memory-sqlite | `better-sqlite3` 需 C++ 编译（本机无 VS Build Tools），实际走本地 JSON 文件 | 改用 `@modelcontextprotocol/server-memory` 或自建 Python 版 |
+| MCP | 配置方式 | Hook 调用方式 | 工具数 | 状态 |
+|-----|---------|--------------|--------|------|
+| **uno** | Hermes config → node uno-mcp/dist/index.js | `audit_publishready.py` 末尾链式调用 `check_uno.py`(analyze_text) | 3 tools | ✅ 已接入(间接) |
+
+uno 的 `check_uno.py` hook 不再独立触发。`audit_publishready.py` 在完成 publishready 的三项审计(AI腔/热点/模板)后，末尾通过 `subprocess.run` 调用 `check_uno.py` 做内容质量分析，所有报告合并输出。
 
 ### 1.3 已移除
 
@@ -73,13 +74,16 @@ def call_mcp_tool(tool_name: str, arguments: dict) -> dict:
 ### 关键要点
 
 - **npx.cmd** 在 Windows 上需 `shell=True`（批处理文件）；纯 Node/Python 脚本不需要
+- **Hermes TUI 会话 PATH 陷阱**：PowerShell 5.1 会话可能不包含 `C:\Program Files\nodejs\` 路径，导致 `npx` 命令报 `[WinError 2]`。**必须用绝对路径** `C:\Program Files\nodejs\npx.cmd`，不能依赖 PATH 解析。
 - stdio MCP 协议：**先 `initialize`，再 `notifications/initialized`，再 `tools/call`**
 - 每次调用都启动新进程（Hook 是独立脚本），无连接池
 - publishready 的 16 tools 均已验证可用：`analyze_text`, `audit_ai_sounding_prose`, `find_hotspots`, `analyze_against_template` 等
 
 ---
 
-## 三、uno：可用但未接入
+## 三、uno：通过 publishready 链式调用（2026-07-05 已接入）
+
+`check_uno.py` hook 已存在，不再独立触发。`audit_publishready.py` 在完成 publishready 的三项审计后，末尾通过 `subprocess.run` 链式调用 `check_uno.py`，所有报告合并输出。
 
 **已确认的工具（3个）：**
 
@@ -89,10 +93,10 @@ def call_mcp_tool(tool_name: str, arguments: dict) -> dict:
 | `enhance_text` | text, expansionTarget | 全技巧润色扩展 |
 | `custom_enhance_text` | text, expansionTarget, enable* flags | 选择性技巧润色 |
 
-**建议接入点：**
-- 润色链路末尾（`audit_publishready` 之后或之前）
-- 调用 `analyze_text` 返回内容质量报告
-- 不阻断流程，只标记
+**链式调用实测结果：**
+- 输入：ch220 全文(约5000字→截取3000字)
+- 输出：Text Statistics(字数字符)、Contextual Assessment(叙事位置/场景类型/情绪基调)、Enhancement Recommendations(环境扩展/散文平滑等)
+- 环境扩展需求评分 high，感官细节评分 0/4 — 这些数据可辅助修订决策
 
 ---
 
