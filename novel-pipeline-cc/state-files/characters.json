@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "characters": [
+    {
+      "name": "林尘",
+      "role": "protagonist",
+      "aliases": ["林废物（前期）","尘哥（后期）"],
+      "age": 17,
+      "gender": "男",
+      "cultivation": "练气一层",
+      "cultivation_progress": "停滞",
+      "special_abilities": ["万界兑换系统"],
+      "equipment": ["凡阶下品铁剑","系统空间"],
+      "personality_traits": ["隐忍","谨慎","重情义","杀伐果断（后期）"],
+      "speech_style": "话少、不废话、见血前一言不发",
+      "core_values": ["有恩必报","有仇十倍奉还","不伤无辜"],
+      "bottom_lines": ["不背叛朋友","不滥杀凡人"],
+      "current_location": "青云城林家大院（旁系偏院）",
+      "emotional_state": "压抑中带着一丝期待",
+      "active_goals": ["三年内突破筑基进入青云宗内门","查明父母失踪真相"],
+      "relationships": {
+        "林震天": "家主/叔祖——冷淡，视其为家族之耻",
+        "林浩然": "嫡子/堂兄——轻蔑，时常当众羞辱",
+        "林小雨": "旁系堂妹——唯一对自己友善的同辈",
+        "父母": "失踪/疑似被天魔殿抓捕"
+      },
+      "faction_affiliation": "林家旁系（名存实亡）",
+      "secrets": ["体内有万界兑换系统","玉佩中藏有父母最后的信息"],
+      "recent_changes": ["觉醒了万界兑换系统（就在今日）"],
+      "last_appearance_chapter": 0,
+      "first_appearance_chapter": 1
+    },
+    {
+      "name": "林浩然",
+      "role": "antagonist",
+      "aliases": ["林天才"],
+      "age": 18,
+      "gender": "男",
+      "cultivation": "筑基初期",
+      "personality_traits": ["傲慢","妒忌心强","好面子"],
+      "speech_style": "阴阳怪气，喜欢当众羞辱人",
+      "core_values": ["实力至上","嫡系优越感"],
+      "relationships": {
+        "林尘": "堂弟——轻蔑，视为家族耻辱",
+        "林震天": "爷爷——崇拜，渴望继承家主之位"
+      },
+      "faction_affiliation": "林家嫡系",
+      "last_appearance_chapter": 0
+    },
+    {
+      "name": "林小雨",
+      "role": "supporting",
+      "age": 15,
+      "gender": "女",
+      "cultivation": "练气三层",
+      "personality_traits": ["善良","胆小","忠诚"],
+      "speech_style": "轻声细语，只在林尘面前话多",
+      "core_values": ["家人最重要"],
+      "relationships": {
+        "林尘": "堂哥——最信任的人"
+      },
+      "faction_affiliation": "林家旁系",
+      "last_appearance_chapter": 0
+    },
+    {
+      "name": "林震天",
+      "role": "supporting",
+      "age": 180,
+      "gender": "男",
+      "cultivation": "金丹后期",
+      "personality_traits": ["老谋深算","重家族利益","对嫡系偏心"],
+      "speech_style": "威严、话中有话",
+      "core_values": ["家族传承高于一切"],
+      "relationships": {
+        "林尘": "侄孙（旁系）——视为无用的棋子",
+        "林浩然": "嫡孙——重点培养的接班人"
+      },
+      "faction_affiliation": "林家家主",
+      "secrets": ["知道林尘父母失踪的部分真相，选择隐瞒"],
+      "last_appearance_chapter": 0
+    },
+    {
+      "name": "青云真人",
+      "role": "supporting",
+      "age": 600,
+      "gender": "男",
+      "cultivation": "化神初期",
+      "personality_traits": ["淡漠","公正","深不可测"],
+      "speech_style": "惜字如金",
+      "core_values": ["守护青云宗道统"],
+      "faction_affiliation": "青云宗掌门",
+      "last_appearance_chapter": 0
+    }
+  ],
+  "relationships_graph": {
+    "林尘→林浩然": "隐忍→反杀",
+    "林尘→林小雨": "守护→软肋",
+    "林尘→林震天": "冷漠→怀疑→对峙",
+    "林尘→父母": "思念→追查→复仇"
+  }
+}
