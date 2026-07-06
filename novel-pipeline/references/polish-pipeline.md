@@ -1,44 +1,102 @@
-# 润色管线说明
+# 润色管线选择指南
 
-novel-pipeline 有两条润色管线，适用不同场景。
+## 两条管线
 
-## 管线一：写单章润色（novel-doubao）
+| 管线 | 输入 | 引擎 | 何时用 |
+|------|------|------|--------|
+| **写单章** (pipeline step [5]) | 初稿 `draft_text` | novel-doubao | 写新章节时自动走 |
+| **独立润色** (`polish_independent.py`) | 成品正文 | publishready→uno→novel-doubao | 用户说「润色/文笔修饰」 |
 
-写单章流程中的 [5] 润色链路：
-  validate_polish → MCP: polish_chapter (novel-doubao)
-  → audit_polish (检查点 D)
-  → audit_publishready (检查点 E) ← 链式调用 check_uno.py
+## 独立润色管线详解
 
-- 润色引擎: novel-doubao（仅优化文字，不改剧情/人物/事件）
-- 审计: audit_publishready.py 在完成 publishready 的 3 项审计后，末尾自动链式调用 check_uno.py
-- 输出: 1 次执行产出 4 份报告（AI腔 + 热点 + 模板合规 + uno 内容质量）
-- 适用: 刚写完的章节需要文字润色
+### 流程
 
-## 管线二：独立润色（uno）
+```
+① 读取正文
+② publishready 审计：analyze_text + audit_ai_sounding_prose + find_hotspots + suggest_revision_levers
+③ uno 分析：analyze_text（叙事结构 + 感官丰富度）
+④ 综合评估 → 生成摘要报告
+⑤ novel-doubao 润色（携带双报告摘要作为上下文，让 doubao 知道 AI 腔风险点和感官缺失点）
+⑥ publishready 复检：compare_text_versions
+⑦ 输出润色后文本 + 完整审计报告
+```
 
-独立润色入口：hooks/polish_independent.py
+### 报告内容构成
 
-流程：
-  ① 读文本
-  ② publishready 检查（analyze + audit_ai + hotspots + suggest）
-  ③ uno 检查（analyze_text）
-  ④ 综合评估 → 确定修复方向
-  ⑤ uno 修复（custom_enhance_text，按需开启技巧）
-  ⑥ publishready 复检（compare_text_versions）
-  ⑦ 输出润色后文本 + 完整审计报告
+| 步骤 | 来源 | 内容 |
+|------|------|------|
+| ② | publishready | 文本可读性、AI腔风险、热点段落、修改建议方向 |
+| ③ | uno | 叙事位置、场景类型、角色焦点、情绪基调、感官丰富度(0-4)、句长分布 |
+| ④ | 综合 | 摘要：AI风险等级、感官缺失标记、建议方向 |
+| ⑥ | publishready | 修改前后对比评分、内容完整性指标 |
 
-- 审计在前，修复在后，复检验证
-- publishready 发现问题（AI腔/热点），uno 分析质量，综合评估后 uno 执行修复，publishready 再验证修复效果
-- 适用: 已有正文但需要增强（扩写环境/动作/消除重复）
-- 调用方式: python hooks/polish_independent.py < chapter_text.json
-- 输入格式: {"text": "..."} 或 {"chapter": 123}（自动读取章节文件）
+### 命令
 
-## 管线选择规则
+```bash
+# 逐章（stdin 传入文本）
+python hooks/polish_independent.py
 
-| 场景 | 用哪条 | 原因 |
-|------|--------|------|
-| 刚写完一章，文字需要打磨 | 写单章管线（doubao） | doubao 保留剧情骨架，只优化表达 |
-| 已有正文但感觉描写不够 | 独立润色（uno） | uno 会扩写，增强环境/动作/感官细节 |
-| 需要审计已有文本质量 | 任意管线都行 | publishready+uno 审计都包含在内 |
-| 不想改变字数 | 写单章管线（doubao） | doubao 基本不改变原文长度 |
-| 需要扩写 | 独立润色（uno） | uno 的 expansionTarget 控制目标倍数 |
+# 或按章节号
+echo '{"chapter": 123}' | python hooks/polish_independent.py
+```
+
+### 输入格式
+
+```json
+{"text": "完整正文..."}
+{"chapter": 123}          # 自动读 chapters/ch123.md
+{"text": "...", "ch": 1}  # 同时指定
+```
+
+### 输出格式
+
+```json
+{
+  "polished": "润色后正文...",
+  "report": {
+    "pr_analyze": "...",
+    "pr_ai_audit": "...",
+    "pr_hotspots": "...",
+    "pr_suggestions": "...",
+    "uno_analyze": "...",
+    "assessment": {"publishready": {...}, "uno": {...}},
+    "doubao_result": "成功, 1247字",
+    "pr_verification": "..."
+  },
+  "issues": [],
+  "passed": true,
+  "hook": "polish_independent"
+}
+```
+
+## 关键限制
+
+### uno 的 enhance_text 不可用
+uno 的 `enhance_text` / `custom_enhance_text` 是**英文工具**，内部硬编码了英文环境描写模板（光的过滤、声音纹理、触感描述等），注入中文文本会造成**英文段落污染**，且无法恢复。
+
+**中文润色/扩写**：走 novel-doubao（`polish_chapter`），只做文字优化不改剧情。
+**uno 在中文场景的定位**：仅 `analyze_text`（叙事结构分析），不启用 `enhance_text`。
+
+### mcp_call 的 I/O 模型
+novel-doubao 的 API 响应时间约 60-170 秒（因为通过 `/api/plan/v3` 的 agent plan 链路，推理时间较长）。`subprocess.communicate()` 会提前关闭 stdin 导致 `anyio.ClosedResourceError`。
+
+**必须使用线程读取 stdout**（见 `polish_independent.py` 的 `mcp_call` 实现），保持 stdin 开着直到收到 id=2 的响应。
+
+**超时设置**：doubao 的 timeout 建议设为 300s（5 分钟）。大章（9000+ 字）可能需 160s+。publishready 和 uno 可设为 60s。
+
+### 批量润色注意事项
+逐章批量润色时，每章约 80-170s，30 章总计约 60 分钟。建议分批次（3-5 章一批）前台运行，或使用 `timeout=600` 的单次前台批处理。
+
+### doubao 回退降级行为
+当 doubao 调用失败（API 超时、key 错误、网络问题）时，`polish_independent.py` 保留原文不变，并返回完整的 publishready+uno 审计报告，不会丢失数据。`passed=False` + `issues=["doubao 失败: ..."]`。
+
+### doubao 环境配置
+```env
+DOUBAO_BASE_URL=https://ark.cn-beijing.volces.com/api/plan/v3
+DOUBAO_API_KEY=<ark key>
+DOUBAO_MODEL=ark-code-latest
+```
+
+`.env` 位于 `C:\\Users\\Administrator\\.litellm\servers\\.env`。doubao_server.py 启动时**必须设置 cwd** 为该目录，否则读不到 .env。
+
+⚠️ **编码陷阱**：PowerShell `Set-Content` 重置 .env 文件时，如果不带 `-Encoding UTF8` 参数，会因为 PS5.1 的默认编码（系统 ANSI）破坏文件内的中文字符和特殊符号。即使加了 `-Encoding UTF8`，如果用 `(Get-Content ...) -replace ... | Set-Content ...` 的管道模式，可能产生 UTF-8（无 BOM）但中间行被 BOM 破坏的问题。**可靠做法**：用 `write_file` 工具直接覆写，或用 Python 脚本 `open().write()`。

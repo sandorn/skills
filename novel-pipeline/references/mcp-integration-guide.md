@@ -14,7 +14,7 @@
 | MCP | 配置方式 | Hook 调用方式 | 工具数 | 状态 |
 |-----|---------|--------------|--------|------|
 | **novel-deepseek** | Hermes config → python deepseek_server.py | pipeline step [2] generate_draft | — | ✅ 正常 |
-| **novel-doubao** | Hermes config → python doubao_server.py | pipeline step [5] polish_chapter | — | ✅ 正常 |
+| **novel-doubao** | Hermes config → python doubao_server.py | pipeline step [5] polish_chapter + 独立润色 | `DOUBAO_BASE_URL`=`/api/plan/v3`, `DOUBAO_MODEL`=`ark-code-latest`, cwd=servers/novel-doubao/ | ✅ 正常 |
 | **publishready** | Hermes config → npx @veldica/publishready-mcp | `audit_publishready.py` → `subprocess.Popen(["npx","-y","@veldica/publishready-mcp"])` | 16 tools | ✅ 正常 |
 
 ### 1.2 链式集成（通过 publishready hook 间接调用）
@@ -74,10 +74,16 @@ def call_mcp_tool(tool_name: str, arguments: dict) -> dict:
 ### 关键要点
 
 - **npx.cmd** 在 Windows 上需 `shell=True`（批处理文件）；纯 Node/Python 脚本不需要
-- **Hermes TUI 会话 PATH 陷阱**：PowerShell 5.1 会话可能不包含 `C:\Program Files\nodejs\` 路径，导致 `npx` 命令报 `[WinError 2]`。**必须用绝对路径** `C:\Program Files\nodejs\npx.cmd`，不能依赖 PATH 解析。
+- **Hermes TUI 会话 PATH 陷阱**：PowerShell 5.1 会话可能不包含 `C:\\Program Files\\nodejs\\` 路径，导致 `npx` 命令报 `[WinError 2]`。**必须用绝对路径** `C:\\Program Files\\nodejs\\npx.cmd`，不能依赖 PATH 解析。
+- **子进程路径陷阱**：Hook 脚本中 `subprocess.run([sys.executable, ...])` 在本环境可能导致 `[WinError 2]`。原因：`sys.executable` 在某些上下文中解析为不存在的路径。**可靠做法**：硬编码已知 Python 路径 `r'C:\\Users\\Administrator\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe'`，并在调用前检查 `Path(python_path).exists()`。
 - stdio MCP 协议：**先 `initialize`，再 `notifications/initialized`，再 `tools/call`**
 - 每次调用都启动新进程（Hook 是独立脚本），无连接池
 - publishready 的 16 tools 均已验证可用：`analyze_text`, `audit_ai_sounding_prose`, `find_hotspots`, `analyze_against_template` 等
+
+### 已知问题
+
+- **uno enhance_text/custom_enhance_text 正则错误**：uno MCP 的 `enhance_text` 和 `custom_enhance_text` 内部包含非法正则 `/\\bResults**\\b/gi`（`**` 是重复限定符重复，正则引擎拒绝执行）。调用会返回 `MCP error -32603: Invalid regular expression: /\\bResults**\\b/gi: Nothing to repeat`。当前 `polish_independent.py` 降级逻辑：修复失败时保留原文，仅输出 publishready+uno 的分析报告。
+- **uno 版本建议**：如需修复功能，检查 uno-mcp 是否更新。修复前 `analyze_text` 可用但 `enhance` 类工具不可用于实际文本修改。
 
 ---
 

@@ -1,12 +1,47 @@
 ---
 name: novel-pipeline
-version: "2.5.0-generic"
+version: "2.6.0-generic"
 description: "通用三模型网文写作流水线：初稿生成 → 润色 → Hermes Agent 调度管控"
 category: writing
 tags: [网文, 写作, pipeline, MCP, hermes]
 ---
 
 # novel-pipeline: 网文写作流水线（精简版）
+
+## 重要工程发现
+
+### novel-doubao MCP 调用：不要用 communicate() 做长响应调用
+
+`polish_independent.py` 和写单章管线中的 `polish_chapter` 调用，**必须使用线程读取 stdout 的 mcp_call 模式**，原因：
+
+**问题**：`subprocess.Popen(...).communicate(timeout=N)` 在子进程返回前会立即关闭 stdin。对于 doubao（API 响应 80-170s），MCP 服务器检测到 stdin 关闭即触发 `anyio.ClosedResourceError`，在响应写入 stdout 之前就崩溃，客户端永远收不到结果。
+
+**正确模式**（`polish_independent.py` 中已验证可用）：
+1. 启动 `Popen(stdin=PIPE, stdout=PIPE, text=True, encoding='utf-8', errors='replace')`
+2. 启动后台线程逐行读取 `proc.stdout` 放入 `queue.Queue`
+3. 主线程分步写入初始化 → 等待 id=1 响应 → 写入 notifications/initialized → 写入工具调用 → 等待 id=2 响应
+4. 收到 id=2 响应后解析 `msg["result"]["content"]` 返回
+5. 在 `finally` 中关闭 stdin 和 kill 进程
+
+**NOT** 使用 `communicate()`，即使调大 timeout 也不行。
+
+### novel-doubao 配置要点
+
+| 配置项 | 值 |
+|--------|-----|
+| `DOUBAO_BASE_URL` | `https://ark.cn-beijing.volces.com/api/plan/v3` |
+| `DOUBAO_MODEL` | `ark-code-latest` |
+| `.env` 位置 | `C:\Users\Administrator\.litellm\servers\.env` |
+| 服务器 cwd | `servers/novel-doubao/`（必须，否则读不到 .env） |
+| `.env` 编码 | UTF-8 无 BOM，`Set-Content -Encoding UTF8` 写入 |
+
+### MCP 调用超时建议
+
+| MCP 服务 | 建议 timeout | 说明 |
+|---------|------------|------|
+| publishready | 60s | 小文本 <5000字即时返回 |
+| uno analyze_text | 60s | 即时返回 |
+| novel-doubao polish_chapter | 300s | 大章 9000+字 需 160s+，API 响应慢 |
 
 ## 体系架构
 
@@ -27,6 +62,14 @@ tags: [网文, 写作, pipeline, MCP, hermes]
 ⛔ 禁止跳过检查点直接输出
 ⛔ 禁止绕过 MCP 工具直接调用模型 API
 ✅ 只做：路由任务 → 提取上下文 → 调用 MCP → 执行检查脚本 → 汇总输出 → 归档
+
+### 1.1b 审查流程铁律
+
+⛔ 禁止跳过 writer 的 Step 2 深筛（43维定性审计），直接写批量修复脚本去修机械问题  
+⛔ 禁止用 Python 脚本的扫描结果替代逐章通读和 First 5 Triage  
+⛔ 禁止在用户要求「按 skill 流程审查」时，绕过 skill 步骤自己另起一套  
+✅ 审查必须先做深筛（读正文+43维评估）→ 发现问题 → 再写脚本批量修复  
+✅ 修复脚本是深筛产物的执行工具，不是审查流程本身
 
 ### 1.2 可用工具
 
@@ -56,11 +99,12 @@ tags: [网文, 写作, pipeline, MCP, hermes]
 | 大纲编排 | 大纲/章纲 | 辅助规划 → 写入章纲文件 |
 | **写单章** | 写第N章 | 初稿(novel-deepseek)→自检→[润色开关]→润色(novel-doubao)→审计(publishready+uno)→归档 |
 | 章节返工 | 重写/修改第N章 | 读现有章 → 初稿(含修订指令) → 自检 → 输出 |
-| 独立润色 | 润色/文笔修饰 | \*\*publishready审计→uno检查→综合评估→uno修复→publishready复检\*\* → `polish_independent.py` |
+| **独立润色** | 润色/文笔修饰 | publishready审计→uno分析→综合评估→novel-doubao润色(携带双报告作上下文)→publishready复检 → `polish_independent.py` |
+| **批量润色** | 批量润色/润色第X-Y章/润色第N卷 | 自动调用 `polish_batch.py` 批量执行 → 生成汇总报告 |
 | 批量生成 | 批量/第X-Y章 | 逐章循环 + 每章归档 |
 | 伏笔审查 | 伏笔/回收 | 读 foreshadowing.json → 报告 |
 | **卷审查(轻量)** | 审查/审核/全文审查 + 卷/章 | **Mode A** — 3轮自检(OOC→伏笔→设定) + 细纲对比 + 汇总报告 |
-| **卷审查(深度)** | 全面审查/深度审查 + 卷/章 | **Mode B** — 对接 writer 43维管线 + First 5 Triage + 5步审查循环（禁止先机械扫描再批量修复而不做深筛） |
+| **卷审查(深度)** | 全面审查/深度审查 + 卷/章 | **Mode B** — 对接 writer 43维管线 + First 5 Triage + 5步审查循环（必须先做深筛再修复，禁止仅做机械扫描就批量修复） |
 
 ### 2.2 写单章核心流程
 
@@ -157,11 +201,11 @@ tags: [网文, 写作, pipeline, MCP, hermes]
 
 | 扫描项 | PowerShell 命令（不推荐） | Python 替代方案（推荐） |
 |--------|--------------------------|------------------------|
-| 破折号 `——` | 不推荐（见上方陷阱） | `content.count('\u2014\u2014')` |
-| 字数（汉字） | 不推荐 | `len(re.findall(r'[\u4e00-\u9fff]', content))` |
-| 超长段落(>42汉字) | 不推荐 | `sum(1 for p in content.split('\\n') if len(re.findall(r'[\u4e00-\u9fff]', p)) > 42 and not p.startswith('#'))` |
-| AI 句式 | 不推荐 | `{w: content.count(w) for w in ['突然','忽然','仿佛','似乎','他知道','眼中闪过一丝','深吸一口气']}` |
-| 对话引号格式 | — | `has_cn = '\u300c' in content`<br>判定：含「」则B01通过；仅含弯引号`""`则B01违规 |
+| 破折号 `——` | 不推荐（见上方陷阱） | `content.count('\\u2014\\u2014')` |
+| 字数（汉字） | 不推荐 | `len(re.findall(r'[\\u4e00-\\u9fff]', content))` |
+| 超长段落(>42汉字) | 不推荐 | `sum(1 for p in content.split('\\\\n') if len(re.findall(r'[\\u4e00-\\u9fff]', p)) > 42 and not p.startswith('#'))` |
+| AI 句式 | 不推荐 | `{w: content.count(w) for w in ['突然','忽然','仿佛','似乎','他知道','眼中闪过一丝','深吸一口气','心中一动']}` |
+| 对话引号格式 | — | `has_cn = '\\u300c' in content`<br>判定：含「」则B01通过；仅含弯引号`""`则B01违规 |
 
 **批量多章扫描模板**（Python 脚本模式，覆盖所有检查项）：
 ```python
@@ -170,13 +214,13 @@ for ch in range(31, 81):  # 替换为目标卷起止
     path = f'chapters/ch{ch}.md'
     with open(path, 'r', encoding='utf-8') as f:
         content = f.read()
-    cn = len(re.findall(r'[\u4e00-\u9fff]', content))
-    dashes = content.count('\u2014\u2014')
-    has_cn_quotes = '\u300c' in content  # True=正确使用「」
-    curly_quotes = content.count('\u201c') + content.count('\u201d')
-    paras = content.split('\n')
+    cn = len(re.findall(r'[\\u4e00-\\u9fff]', content))
+    dashes = content.count('\\u2014\\u2014')
+    has_cn_quotes = '\\u300c' in content  # True=正确使用「」
+    curly_quotes = content.count('\\u201c') + content.count('\\u201d')
+    paras = content.split('\\n')
     total = sum(1 for p in paras if len(p.strip()) > 0 and not p.startswith('#'))
-    long_p = sum(1 for p in paras if len(re.findall(r'[\u4e00-\u9fff]', p)) > 42 and not p.startswith('#'))
+    long_p = sum(1 for p in paras if len(re.findall(r'[\\u4e00-\\u9fff]', p)) > 42 and not p.startswith('#'))
     ai_words = ['突然','忽然','仿佛','似乎','他知道','眼中闪过一丝','深吸一口气','心中一动']
     ai_total = sum(content.count(w) for w in ai_words)
     ratio = long_p / max(total, 1) * 100
@@ -321,11 +365,18 @@ chapter_number:      <整数>
 revision_instructions: <首次留空，重试时填入自检反馈>
 ```
 
-**polish_chapter 参数：**
+**polish_chapter 参数（写单章）：**
 ```
 chapter_characters:  <仅本章出场角色状态摘要>
 chapter_mood_tone:   <可选: 紧张/爽快/压抑/热血/温情/悬疑/中性>
 draft_text:          <原始初稿全文>
+```
+
+**polish_chapter 参数（独立润色）：**
+```
+chapter_characters:  <publishready+uno 审计报告摘要 JSON>
+draft_text:          <需要润色的成品正文>
+chapter_mood_tone:   <可选，默认"中性">
 ```
 
 ### 2.6 持久化存档
@@ -349,23 +400,39 @@ draft_text:          <原始初稿全文>
 
 ---
 
-## Hook 脚本调用速查
+## 脚本调用速查
 
-> 调用：`python <Skill路径>\hooks\<script>.py`
+### Hook 脚本
+> 调用：`python <Skill路径>\\hooks\\<script>.py`
 > 输入：stdin JSON | 输出：stdout JSON
 
-| 脚本 | 触发点 | 关键输出 | 失败处理 |
-|------|--------|---------|---------|
-| `validate_draft.py` | generate_draft 前 | `valid`, `errors` | 修复重试 |
-| `validate_polish.py` | polish_chapter 前 | `valid`, `errors` | 修复重试 |
-| `check_draft_quality.py` | 初稿返回后 | `passed`, `issues` | 重生成 |
-| `check_ooc_firstory.py` | 初稿返回后 | `passed`, `issues` | 标记不阻断 |
-| **`check_uno.py`** | 初稿/润色返回后 | `passed`, `analysis` | 标记不阻断 |
-| `audit_polish.py` | 润色返回后 | `passed`, `violations` | 重新润色 |
-| `audit_publishready.py` | 润色返回后 | `passed`, `issues` | 标记不阻断 |
-| `load_state.py` | 流水线启动 | `loaded`, `summary` | 不阻断 |
-| `polish_independent.py` | 独立润色入口 | `polished`, `report`, `issues` | 降级: uno不可用时保留原文 |
-| `archive_state.py` | 每章完成 | `archived`, `message` | 记错 |
+|| 脚本 | 触发点 | 关键输出 | 失败处理 |
+||------|--------|---------|---------|
+|| `validate_draft.py` | generate_draft 前 | `valid`, `errors` | 修复重试 |
+|| `validate_polish.py` | polish_chapter 前 | `valid`, `errors` | 修复重试 |
+|| `check_draft_quality.py` | 初稿返回后 | `passed`, `issues` | 重生成 |
+|| `check_ooc_firstory.py` | 初稿返回后 | `passed`, `issues` | 标记不阻断 |
+|| **`check_uno.py`** | 初稿/润色返回后 | `passed`, `analysis` | 标记不阻断 |
+|| `audit_polish.py` | 润色返回后 | `passed`, `violations` | 重新润色 |
+|| `audit_publishready.py` | 润色返回后 | `passed`, `issues` | 标记不阻断 |
+|| `load_state.py` | 流水线启动 | `loaded`, `summary` | 不阻断 |
+|| `polish_independent.py` | 独立润色入口 | `polished`, `report`, `issues` | 降级: doubao不可用时保留原文+出审计报告 |
+|| `archive_state.py` | 每章完成 | `archived`, `message` | 记错
+
+### 批量工具脚本
+> 调用：`python <Skill路径>\\scripts\\<script>.py [参数]`
+
+|| 脚本 | 功能 | 常用参数 | 示例 |
+||------|------|----------|------|
+|| `polish_batch.py` | 通用批量润色（支持自定义章节范围） | `--start <起始章> --end <结束章> --chapters-dir <章节目录> --output-report <报告路径> --timeout <单章超时秒> --wait-interval <章节间隔秒>` | `python polish_batch.py --start 1 --end 30 --chapters-dir D:\\Writer\\novel-project\\chapters --output-report D:\\Writer\\novel-project\\polish_vol1_report.json`
+
+## MCP 调用超时速查
+
+|| 服务 | 建议 timeout | 原因 |
+||------|-------------|------|
+|| publishready | 60s | 小文本即时返回 |
+|| uno analyze_text | 60s | 即时返回 |
+|| novel-doubao | 300s | 大章 9000+字 需 160s+ |
 
 ---
 
@@ -373,35 +440,35 @@ draft_text:          <原始初稿全文>
 
 详细集成状态见 `skill_view('novel-pipeline', 'references/mcp-integration-guide.md')`。速览：
 
-| MCP 服务 | 类型 | 实际调用 | 状态 |
-|---------|------|---------|------|
-| novel-deepseek | 原生 stdio | ✅ pipeline step [2] | 正常 |
-| novel-doubao | 原生 stdio | ✅ pipeline step [5] | 正常 |
-| publishready | 原生 stdio | ✅ `audit_publishready.py` 子进程调用（末尾链式调用 check_uno.py） | 正常，16 tools |
-| uno | 原生 stdio | ✅ `check_uno.py` 子进程调用(analyze_text) | 正常 |
-| memory-novel | 原生 stdio | ✅ `load_state.py` 读取 + `archive_state.py` 写入 | 正常(标准 memory server) |
-| firstory | — | 🗑️ 已移除(Windows ESM bug) | OOC 降级本地规则 |
+|| MCP 服务 | 类型 | 实际调用 | 状态 |
+||---------|------|---------|------|
+|| novel-deepseek | 原生 stdio | ✅ pipeline step [2] | 正常 |
+|| novel-doubao | 原生 stdio | ✅ pipeline step [5] + 独立润色 | 正常（需 cwd=servers/novel-doubao/ 读 .env） |
+|| publishready | 原生 stdio | ✅ `audit_publishready.py` 子进程调用（末尾链式调用 check_uno.py） | 正常，16 tools |
+|| **uno** | 原生 stdio | ✅ `check_uno.py` 子进程调用(analyze_text, 禁用enhance_text) | 正常，analyze_text 可用 |
+|| memory-novel | 原生 stdio | ✅ `load_state.py` 读取 + `archive_state.py` 写入 | 正常(标准 memory server) |
+|| firstory | — | 🗑️ 已移除(Windows ESM bug) | OOC 降级本地规则 |
 
 ---
 
 ## 详细参考（按需加载）
 
-| 内容 | 加载方式 |
-|------|---------|
-| 部署指南 + MCP 客户端配置 | `skill_view('novel-pipeline', 'references/deployment-guide.md')` |
-| 环境变量模板 | `skill_view('novel-pipeline', 'references/env-template.md')` |
-| 3 轮自检详细协议 | `skill_view('novel-pipeline', 'references/quality_check.md')` |
-| 任务路由决策树 | `skill_view('novel-pipeline', 'references/task_routing.md')` |
-| 项目隔离 + 新建项目 + 升级 | `skill_view('novel-pipeline', 'references/project-setup.md')` |
-| 使用指引 | `skill_view('novel-pipeline', 'references/usage-guide.md')` |
-| 故障排查 | `skill_view('novel-pipeline', 'references/troubleshooting.md')` |
-| **MCP 集成现状（推荐先看这个）** | `skill_view('novel-pipeline', 'references/mcp-integration-guide.md')` |
-| 旧版升级 | `skill_view('novel-pipeline', 'references/legacy-project-upgrade.md')` |
-| 流派适配参考 | `skill_view('novel-pipeline', 'references/genre-adaptation.md')` |
-| 项目配置模板 | `state-files/config.example.json` |
-| 批量审计脚本 | `scripts/batch_audit.py` |
-| 卷审查协议（含子代理验证 + 跨卷伏笔延续） | `skill_view('novel-pipeline', 'references/volume-audit-protocol.md')` |
-| 卷审查抽样策略（大型卷的抽样+批量扫描方案） | `skill_view('novel-pipeline', 'references/volume-review-sampling.md')` |
-| 批量章节编辑工作流（patch 替代方案 + 修为统一模板） | `skill_view('novel-pipeline', 'references/mass-edit-workflow.md')` |
-| 润色管线选择（两条管线区别） | `skill_view('novel-pipeline', 'references/polish-pipeline.md')` |
-| 环境诊断脚本 | `scripts/verify_env.py` |
+|| 内容 | 加载方式 |
+||------|---------|
+|| 部署指南 + MCP 客户端配置 | `skill_view('novel-pipeline', 'references/deployment-guide.md')` |
+|| 环境变量模板 | `skill_view('novel-pipeline', 'references/env-template.md')` |
+|| 3 轮自检详细协议 | `skill_view('novel-pipeline', 'references/quality_check.md')` |
+|| 任务路由决策树 | `skill_view('novel-pipeline', 'references/task_routing.md')` |
+|| 项目隔离 + 新建项目 + 升级 | `skill_view('novel-pipeline', 'references/project-setup.md')` |
+|| 使用指引 | `skill_view('novel-pipeline', 'references/usage-guide.md')` |
+|| 故障排查 | `skill_view('novel-pipeline', 'references/troubleshooting.md')` |
+|| **MCP 集成现状（推荐先看这个）** | `skill_view('novel-pipeline', 'references/mcp-integration-guide.md')` |
+|| 旧版升级 | `skill_view('novel-pipeline', 'references/legacy-project-upgrade.md')` |
+|| 流派适配参考 | `skill_view('novel-pipeline', 'references/genre-adaptation.md')` |
+|| 项目配置模板 | `state-files/config.example.json` |
+|| 批量审计脚本 | `scripts/batch_audit.py` |
+|| 卷审查协议（含子代理验证 + 跨卷伏笔延续） | `skill_view('novel-pipeline', 'references/volume-audit-protocol.md')` |
+|| 卷审查抽样策略（大型卷的抽样+批量扫描方案） | `skill_view('novel-pipeline', 'references/volume-review-sampling.md')` |
+|| 批量章节编辑工作流（patch 替代方案 + 修为统一模板） | `skill_view('novel-pipeline', 'references/mass-edit-workflow.md')` |
+|| 润色管线选择 | `skill_view('novel-pipeline', 'references/polish-pipeline.md')` |
+|| 环境诊断脚本 | `scripts/verify_env.py` |
