@@ -325,8 +325,29 @@ def _xml_app(*, author: str = "") -> str:
 </Properties>"""
 
 
+def _strip_markdown_inline(text: str) -> str:
+    """Remove Markdown inline formatting that should not appear in docx output.
+
+    gb_gongwen.py reads raw Markdown content. Common internal-management-system
+    markdown files use **bold** for emphasis (e.g. "**第一条**"). These must be
+    stripped before writing to docx; the WordprocessingML styles handle visual
+    formatting instead.
+
+    Current cleanup operations:
+    - **bold** / __bold__ → plain text
+    - `---` divider lines → empty (whole-line only)
+    """
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+    text = re.sub(r'__(.*?)__', r'\1', text)
+    text = re.sub(r'^\s*---+$', '', text, flags=re.MULTILINE)
+    return text
+
+
 def markdown_to_parts(text: str, title: str | None = None, author: str | None = None, date: str | None = None) -> list[tuple]:
-    lines = [ln.strip() for ln in text.replace("\r\n", "\n").split("\n")]
+    # Strip Markdown inline formatting before parsing
+    text = _strip_markdown_inline(text)
+
+    lines = [ln.strip() for ln in text.replace("\\r\\n", "\\n").split("\\n")]
     lines = [ln for ln in lines if ln]
     if not lines and not title:
         raise ValueError("输入为空，且未指定 --title")

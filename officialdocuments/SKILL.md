@@ -1,6 +1,6 @@
 ---
 name: officialdocuments
-version: 2.1.0
+version: 2.2.2
 description: "起草、修改和排版央国企正式公文（请示、报告、通知、函件等）。"
 tags: [official-documents, 公文, 正式文档, 央国企, 报告]
 category: document
@@ -12,6 +12,7 @@ linked_files:
     - references/workflow.md
     - references/format-spec.md
     - references/checklist.md
+    - references/internal-management-systems.md
     - references/vocabulary.md
   scripts:
     - scripts/gb_gongwen.py
@@ -37,6 +38,7 @@ linked_files:
 | 检查报告、督导检查、安全检查 | 检查报告 | 上行/下行 | 请按整改要求落实 / 以上报告请审阅 |
 | 修改/精简/扩充/结构重整 + 公文 | 公文编辑 | — | 须输出改动说明 |
 | /公文 | 显式调用 | — | — |
+| 制度、管理办法、实施细则、管理规定、管理总则 | 内部管理制度 | 内部 | 依据本制度执行（可附带印发通知） | 适用于甲方对委托运营方的管理制度，采用章/条结构而非公文六要素 |
 
 > **严禁"请示报告"叠用。** 向不相隶属机关禁用"请示"，下行禁用"请示"。
 
@@ -65,6 +67,14 @@ linked_files:
 4. **检查报告也按正式公文交付** — 必须套用 `scripts/gb_gongwen.py` 达到可报送的版式要求
 5. **格式不合格必须返工** — 用户指出格式问题时，回到 `format-spec.md` 重新生成并按质量门逐项验证，不解释
 6. **交付前必须通过质量门** — 任何 `.docx` 产物必须在回复中说明 `format-spec.md` 8 项验证结果；用户要求"可报送专业版式"时，8 项必须全部通过，缺一不可
+7. **内部管理制度（甲方视角）** — 为甲方起草对委托运营方的管理制度时，遵循"定标准不定操作、管结果不管过程"原则。每项制度须回答：①甲方做什么（监督/考核/结算）②乙方做什么（运营方自己的事）③日常落地动作量（人员少时必须极小）。制度正文用章/条结构，非公文六要素。参见 `references/internal-management-systems.md`。
+    - **微型团队陷阱**：如果甲方只有2-3人、没有部门划分，制度中**一律不得出现"综合管理部门""财务部门"等具体部门名称**，统一用"分公司""公司"替代。检查考核的频次、时限等严禁写死，用"定期""适时""按需"等弹性表述。参见 `references/internal-management-systems.md` 的 2a 节。
+    - **评分细节下沉**：得分计算方式、等级区间、具体扣分标准等机械性细节，**不得写入制度正文**，统一放入附件量化表（如"违规处罚量化表"）。正文仅保留框架性管理逻辑。参见 `references/internal-management-systems.md` 的 4 节。
+   - **边界越界自检**：起草时如果自我怀疑"这个制度是不是太细了"，用 reference 中的边界自检表快速判断——≥2个YES=走考核标准路线而非单独发文。
+
+### Windows 环境坑点（CRLF 兼容性）
+
+在本 Windows 主机上，`patch` 工具对 `.md` 文件（CRLF 换行符）的模糊匹配偶尔失败。如果 `skill_manage(action='patch')` 连续失败 2 次以上，改用 `skill_manage(action='edit')` 提供完整文件内容重新写入，而非重复尝试同一匹配模式。
 
 ---
 
@@ -79,6 +89,7 @@ linked_files:
 | `references/workflow.md` | 起草流程、导出/OA 对接 | 协作交付时必查 |
 | `references/format-spec.md` | GB/T 9704-2012 排版参数 + 交付质量门 | 生成 docx 时及生成后必查 |
 | `references/checklist.md` | 发文前自检清单 | 定稿前核验 |
+| `references/internal-management-systems.md` | 甲方视角内部管理制度起草指导 | 用户需求为内部管理制度时必查 |
 | `scripts/gb_gongwen.py` | Word 排版引擎（纯 XML+zipfile） | 正式 docx 导出首选 |
 
 ## 维护与验收提示
@@ -100,3 +111,11 @@ linked_files:
    python scripts/gb_gongwen.py "公文_XX.md" "公文_XX.docx" --author "发文机关" --date "2026年X月X日"
    ```
 6. **验证版式**：按 `references/format-spec.md` 质量门 8 项逐项检查，解压 docx 验证 XML
+
+### gb_gongwen.py 使用陷阱
+
+**Markdown 内联标记残留**：当输入 .md 文件包含 `**加粗**` 语法时（内部管理制度中常见，如 `**第一条**`），`markdown_to_parts()` 在 2.2.1 版本及之前会将 `**` 原封不动写入 docx。
+
+- ✅ 2.2.2+ 版本已在 `markdown_to_parts()` 入口自动调用 `_strip_markdown_inline()` 清理 `**`、`__` 和 `---` 分隔线。
+- 🔄 调用脚本生成 docx 后，须解压验证 `word/document.xml` 中不含有 `**` 字符串。
+- ⚠️ 如仍出现残留，在调用前手动执行 `re.sub(r'\*\*(.*?)\*\*', ...)` 预清洗。
