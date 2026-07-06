@@ -49,6 +49,7 @@ tags: [网文, 写作, pipeline, MCP, hermes, 逐章润色]
 ⛔ 禁止跳过检查点直接输出
 ⛔ 禁止绕过 MCP 工具直接调用模型 API
 ⛔ 禁止使用任何批量/后台运行的润色模式
+⛔ 禁止自行编写临时润色脚本，所有润色任务必须调用官方 `scripts/polish_chapter.py` 入口
 ✅ 只做：单章顺序路由 → 调用 MCP → 执行检查 → 单章结果反馈 → 归档
 ### 1.2 审查流程铁律
 ⛔ 禁止跳过深筛直接批量修复
@@ -69,7 +70,7 @@ tags: [网文, 写作, pipeline, MCP, hermes, 逐章润色]
 | 大纲编排 | 大纲/章纲 | 辅助规划 → 写入章纲文件 | `task_routing.md` |
 | **写单章** | 写第N章 | 初稿生成 → 3轮自检 → 润色 → 审计 → 归档 | `quality_check.md` |
 | 章节返工 | 重写/修改第N章 | 读现有章 → 初稿重生成 → 自检输出 | `usage-guide.md` |
-| **逐章润色** | 润色 + 章节范围 | 单章顺序执行：publishready审计→uno分析→doubao润色→二次复检 → 输出结果 → 下一章 | `polish-pipeline.md` |
+| **逐章润色** | 「润色」「逐章润色」「批量润色」「独立润色」 + 章节范围 | 单章顺序执行：publishready审计→uno分析→doubao润色→二次复检 → 输出结果 → 下一章（所有旧的批量/独立润色模式已废弃，统一走本流程） | `polish-pipeline.md` |
 | 伏笔审查 | 伏笔/回收 | 读 foreshadowing.json → 输出报告 | `usage-guide.md` |
 | **卷审查** | 审查/审核 + 卷/章 | 3轮自检：OOC一致性→伏笔覆盖→设定冲突 → 汇总报告 | `volume-audit-protocol.md` |
 
@@ -99,7 +100,7 @@ tags: [网文, 写作, pipeline, MCP, hermes, 逐章润色]
 ### 核心工具（唯一入口）
 | 脚本 | 功能 | 示例 | 详细参数 |
 |------|------|------|----------|
-| `scripts/polish_chapter.py` | 官方唯一润色工具（逐章顺序调度） | `python polish_chapter.py 101 --chapters-dir D:\\Writer\\novel-project\\chapters` | `usage-guide.md` |
+| `scripts/polish_chapter.py` | 官方唯一润色工具（逐章顺序调度） | `cd D:\Writer\novel-project; python <Skill路径>\scripts\polish_chapter.py 101 .\chapters` ⚠️ 禁用长绝对路径作为章节参数，避免Windows路径解析失败误判文件不存在 | `usage-guide.md` |
 ### Hook 脚本（流程内部自动调用，无需手动执行）
 | 脚本 | 作用 |
 |------|------|
