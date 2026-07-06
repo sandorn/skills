@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """GB/T 9704-2012 标准公文 docx 排版引擎（纯 XML+zipfile）。
 
 用途：
@@ -347,7 +347,7 @@ def markdown_to_parts(text: str, title: str | None = None, author: str | None = 
     # Strip Markdown inline formatting before parsing
     text = _strip_markdown_inline(text)
 
-    lines = [ln.strip() for ln in text.replace("\\r\\n", "\\n").split("\\n")]
+    lines = [ln.strip() for ln in text.replace("\r\n", "\n").split("\n")]
     lines = [ln for ln in lines if ln]
     if not lines and not title:
         raise ValueError("输入为空，且未指定 --title")
@@ -430,3 +430,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
