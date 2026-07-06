@@ -22,6 +22,9 @@ tags: [网文, 写作, pipeline, MCP, hermes, 逐章润色]
 | `DOUBAO_MODEL` | `ark-code-latest` |
 | `.env` 位置 | `C:\Users\Administrator\.litellm\servers\.env` |
 | 服务器 cwd | `servers/novel-doubao/`（必须，否则读不到 .env） |
+### 润色结果处理规则
+✅ 自动保留原文的所有剧情/人物/战力设定，仅优化文本表达
+⚠️ 检测到章节内容截断（结尾无终结标点、剧情未完成）时，不修改原文，直接返回问题提示
 ### MCP 调用超时配置
 | 服务 | 建议 timeout | 说明 |
 |---------|------------|------|
@@ -100,7 +103,7 @@ tags: [网文, 写作, pipeline, MCP, hermes, 逐章润色]
 ### 核心工具（唯一入口）
 | 脚本 | 功能 | 示例 | 详细参数 |
 |------|------|------|----------|
-| `scripts/polish_chapter.py` | 官方唯一润色工具（逐章顺序调度） | `cd D:\Writer\novel-project; python <Skill路径>\scripts\polish_chapter.py 101 .\chapters` ⚠️ 禁用长绝对路径作为章节参数，避免Windows路径解析失败误判文件不存在 | `usage-guide.md` |
+| `scripts/polish_chapter.py` | 官方唯一润色工具（逐章顺序调度，禁止任何自定义临时润色脚本，所有润色请求必须走此入口） | `cd D:\\Writer\\novel-project; C:\Users\Administrator\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe <Skill路径>\\scripts\\polish_chapter.py 101 .\\chapters` ⚠️ 必须使用完整Python绝对路径调用，禁用长绝对路径作为章节参数，避免Windows路径解析失败误判文件不存在 | `usage-guide.md` |
 ### Hook 脚本（流程内部自动调用，无需手动执行）
 | 脚本 | 作用 |
 |------|------|
