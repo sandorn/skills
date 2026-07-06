@@ -9,6 +9,9 @@
 
 ## polish_chapter 返回错误
 - 检查 `.env` 中润色模型 API Key 是否有效
+- 如果 DOUBAO_BASE_URL 包含完整路径（如 `/api/plan/v3/chat/completions`），doubao_server.py 的代码会额外追加 `/chat/completions` 导致双路径（`.../chat/completions/chat/completions` → 404）。
+  - **修复**：在 `doubao_server.py` 第136行改为 `f"{DOUBAO_BASE_URL}" if DOUBAO_BASE_URL.endswith("chat/completions") else f"{DOUBAO_BASE_URL}/chat/completions"`
+  - 或确保 `.env` 中 `DOUBAO_BASE_URL` 为基础URL（不含 `chat/completions` 后缀）
 
 ## 检查点脚本报错（ImportError）
 - 运行 `python scripts/verify_env.py` 诊断缺失包
