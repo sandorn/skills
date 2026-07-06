@@ -422,9 +422,10 @@ chapter_mood_tone:   <可选，默认"中性">
 ### 批量工具脚本
 > 调用：`python <Skill路径>\\scripts\\<script>.py [参数]`
 
-|| 脚本 | 功能 | 常用参数 | 示例 |
-||------|------|----------|------|
-|| `polish_batch.py` | 通用批量润色（支持自定义章节范围） | `--start <起始章> --end <结束章> --chapters-dir <章节目录> --output-report <报告路径> --timeout <单章超时秒> --wait-interval <章节间隔秒>` | `python polish_batch.py --start 1 --end 30 --chapters-dir D:\\Writer\\novel-project\\chapters --output-report D:\\Writer\\novel-project\\polish_vol1_report.json`
+|| 脚本 | 功能 | 常用参数 | 示例 | 适用场景 |
+||------|------|----------|------|----------|
+|| `polish_batch.py` | 通用批量润色（支持自定义章节范围） | `--start <起始章> --end <结束章> --chapters-dir <章节目录> --output-report <报告路径> --timeout <单章超时秒> --wait-interval <章节间隔秒>` | `python polish_batch.py --start 1 --end 30 --chapters-dir D:\\Writer\\novel-project\\chapters --output-report D:\\Writer\\novel-project\\polish_vol1_report.json` | 大量章节批量润色、无需实时进度、可接受后台运行 |
+|| `single_chapter_polish.py` | 单章顺序润色工具 | `<章节号> --chapters-dir <章节目录> --timeout <超时秒>` | `python single_chapter_polish.py 61 --chapters-dir D:\\Writer\\novel-project\\chapters` | 用户偏好实时反馈、避免前端卡顿、小范围润色验证、需要随时中断
 
 ## MCP 调用超时速查
 
