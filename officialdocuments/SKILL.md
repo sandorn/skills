@@ -1,6 +1,6 @@
 ---
 name: officialdocuments
-version: 2.2.2
+version: 2.3.0
 description: "起草、修改和排版央国企正式公文（请示、报告、通知、函件等）。"
 tags: [official-documents, 公文, 正式文档, 央国企, 报告]
 category: document
@@ -115,6 +115,8 @@ linked_files:
 
 ### gb_gongwen.py 使用陷阱
 
+**P0 先看文档再动手**：接到 docx 生成任务时，第一件事是查阅 `references/workflow.md` 的标准导出流程（命令行 `python gb_gongwen.py 输入.md 输出.docx`），而不是用 Python 接口绕路、预清洗文本、改脚本源码。把简单的事做复杂是本 skill 使用中最常见且代价最大的错误。
+
 **P0 双反斜杠 bug（Windows CRLF 换行符导致 parts=1，内容全丢）**：
 
 `markdown_to_parts()` 第 350 行的字符串分割逻辑中，如果写成 `text.replace("\\r\\n", "\\n").split("\\n")`（双反斜杠），Python 会将其解析为**字面量字符串** `\n`（反斜杠+n 两个字符）而非换行符，导致 `split()` 不按换行分割，整个文本变成一行。结果 `markdown_to_parts()` 只识别出标题（第一条 line），**正文全部丢失**。
@@ -155,4 +157,8 @@ lines = text.replace("\r\n", "\n").split("\n")
 
 - ✅ 2.2.2+ 版本已在 `markdown_to_parts()` 入口自动调用 `_strip_markdown_inline()` 清理 `**`、`__` 和 `---` 分隔线。
 - 🔄 调用脚本生成 docx 后，须解压验证 `word/document.xml` 中不含有 `**` 字符串。
+
+---
+
+**Markdown 表格支持（2.3.0+）**：`gb_gongwen.py` 从 2.3.0 起支持识别 Markdown 表格（`| ... | ... |` 格式），输出为标准 WordprocessingML `<w:tbl>`，包含边框线、灰色表头（`D9E2F3`底色）、仿宋五号居中对齐。识别逻辑在 `markdown_to_parts()` 的 while 循环中：遇到 `|...|` 行时连续收集直到非表格行，自动跳过 `|:---:|` 分隔行，第一行为表头。
 - ⚠️ 如仍出现残留，在调用前手动执行 `re.sub(r'\\*\\*(.*?)\\*\\*', ...)` 预清洗。

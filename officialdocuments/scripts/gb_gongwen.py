@@ -34,6 +34,7 @@ PARTS 格式：
     - "15" = 二级标题（三号楷体_GB2312，自动加"（一）"）
     - "16" = 三级标题（三号仿宋_GB2312 加粗，自动加"1．"）
     - "19" = 正文（三号仿宋_GB2312）
+    - "table" = 表格，格式 ("table", [["列1","列2"], ["数据1","数据2"]])
     - "sign" = 落款，格式 ("sign", "署名", "日期")
 
 Markdown 输入规则：
@@ -41,6 +42,7 @@ Markdown 输入规则：
     - 已带编号的标题（如"一、总体情况""（一）问题"）会识别层级并去掉编号，
       再由脚本统一自动编号，避免重复编号。
     - 普通段落作为正文。
+    - 表格（|...|...|）识别为 Word 表格。
     - Markdown 图片语法会跳过；图片需人工插入或后续扩展处理。
 
 实现说明：
@@ -104,18 +106,79 @@ H2_RE = re.compile(r"^（([一二三四五六七八九十]+)）\s*(.*)$")
 H3_RE = re.compile(r"^(\d+)[.．、]\s*(.*)$")
 
 
+def _parse_table_row(line: str) -> list[str]:
+    """Parse a single pipe-separated table row into cells."""
+    return [c.strip() for c in line.strip("|").split("|")]
+
+
+def _xml_table(rows: list[list[str]]) -> list[str]:
+    """Build WordprocessingML <w:tbl> from parsed table rows."""
+    if not rows:
+        return []
+
+    col_count = max(len(r) for r in rows)
+    for r in rows:
+        while len(r) < col_count:
+            r.append("")
+
+    table_width = PAGE["width"] - PAGE["left"] - PAGE["right"]
+    col_width = table_width // col_count
+
+    lines = [
+        '    <w:tbl>'
+        '<w:tblPr>'
+        '<w:tblW w:w="{}" w:type="dxa"/>'
+        '<w:tblBorders>'
+        '<w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
+        '<w:left w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
+        '<w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
+        '<w:right w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
+        '<w:insideH w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
+        '<w:insideV w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
+        '</w:tblBorders>'
+        '</w:tblPr>'
+        '<w:tblGrid>'.format(table_width)
+    ]
+    for _ in range(col_count):
+        lines.append('    <w:gridCol w:w="{}"/>'.format(col_width))
+    lines.append('    </w:tblGrid>')
+
+    is_header = True
+    for row in rows:
+        lines.append('    <w:tr>')
+        for cell in row:
+            lines.append('      <w:tc>')
+            lines.append('        <w:tcPr><w:tcW w:w="{}" w:type="dxa"/>'.format(col_width))
+            if is_header:
+                lines.append('          <w:shd w:val="clear" w:color="auto" w:fill="D9E2F3"/>')
+            lines.append('        </w:tcPr>')
+            lines.append('        <w:p><w:pPr>'
+                         '<w:spacing w:line="{}" w:lineRule="exact" w:before="40" w:after="40"/>'
+                         '<w:jc w:val="center"/>'
+                         '</w:pPr>'.format(LINE_SPACING))
+            lines.append('          <w:r><w:rPr>')
+            if is_header:
+                lines.append('<w:b/>')
+            lines.append(
+                '<w:rFonts w:eastAsia="仿宋_GB2312" w:ascii="Times New Roman" w:hAnsi="Times New Roman"/>'
+                '<w:sz w:val="24"/><w:szCs w:val="24"/>'
+                '</w:rPr><w:t xml:space="preserve">{}</w:t></w:r>'
+                '</w:p>'.format(_esc(cell))
+            )
+            lines.append('      </w:tc>')
+        lines.append('    </w:tr>')
+        is_header = False
+
+    lines.append('    </w:tbl>')
+    return lines
+
+
 def _esc(s: object) -> str:
     return _xml_escape(str(s), {"\"": "&quot;"})
 
 
 def generate(parts: list[tuple], output_path: str | os.PathLike[str], *, author: str = "") -> None:
-    """生成 docx。
-
-    Args:
-        parts: 段落列表，格式见模块文档。
-        output_path: 输出 .docx 路径。
-        author: 起草单位/作者，写入文档属性。
-    """
+    """生成 docx。"""
     _build_docx(parts, Path(output_path), author=author)
 
 
@@ -182,13 +245,16 @@ def _xml_document(parts: list[tuple]) -> str:
         if entry[0] == "sign":
             lines.extend(_make_sign(entry))
             continue
+        if entry[0] == "table":
+            rows = entry[1] if len(entry) > 1 else []
+            lines.extend(_xml_table(rows))
+            continue
 
         sid = str(entry[0])
         text = _esc(entry[1] if len(entry) > 1 else "")
         indent = bool(entry[2]) if len(entry) > 2 else False
         align = entry[3] if len(entry) > 3 else None
 
-        # 自动编号。调用方传入标题正文即可，不要带"一、""（一）"。
         if sid == "14":
             h1 += 1
             h2 = h3 = 0
@@ -230,7 +296,7 @@ def _make_sign(entry: tuple) -> list[str]:
     name = str(entry[1]) if len(entry) > 1 else ""
     date = str(entry[2]) if len(entry) > 2 else ""
     lines = []
-    for _ in range(2):  # 正文后空两行
+    for _ in range(2):
         lines.append(
             f'    <w:p><w:pPr><w:pStyle w:val="19"/><w:spacing w:line="{LINE_SPACING}" '
             f'w:lineRule="exact"/></w:pPr></w:p>'
@@ -251,12 +317,9 @@ def _make_sign(entry: tuple) -> list[str]:
 
 
 def _measure_text_twips(text: str) -> int:
-    """估算/测量落款宽度。
-
-    有 Pillow 时用 simfang.ttf 测宽；无 Pillow 时按中文 320twips、半角 160twips 估算。
-    """
+    """估算/测量落款宽度。"""
     try:
-        from PIL import ImageFont  # type: ignore
+        from PIL import ImageFont
 
         font_path = "C:/Windows/Fonts/simfang.ttf"
         if Path(font_path).exists():
@@ -326,17 +389,7 @@ def _xml_app(*, author: str = "") -> str:
 
 
 def _strip_markdown_inline(text: str) -> str:
-    """Remove Markdown inline formatting that should not appear in docx output.
-
-    gb_gongwen.py reads raw Markdown content. Common internal-management-system
-    markdown files use **bold** for emphasis (e.g. "**第一条**"). These must be
-    stripped before writing to docx; the WordprocessingML styles handle visual
-    formatting instead.
-
-    Current cleanup operations:
-    - **bold** / __bold__ → plain text
-    - `---` divider lines → empty (whole-line only)
-    """
+    """Remove Markdown inline formatting.  """
     text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
     text = re.sub(r'__(.*?)__', r'\1', text)
     text = re.sub(r'^\s*---+$', '', text, flags=re.MULTILINE)
@@ -344,7 +397,6 @@ def _strip_markdown_inline(text: str) -> str:
 
 
 def markdown_to_parts(text: str, title: str | None = None, author: str | None = None, date: str | None = None) -> list[tuple]:
-    # Strip Markdown inline formatting before parsing
     text = _strip_markdown_inline(text)
 
     lines = [ln.strip() for ln in text.replace("\r\n", "\n").split("\n")]
@@ -353,17 +405,38 @@ def markdown_to_parts(text: str, title: str | None = None, author: str | None = 
         raise ValueError("输入为空，且未指定 --title")
 
     doc_title = title or lines[0].strip("# ").strip()
-    # 如外部指定标题，且第一行是 Markdown 标题行（以 # 开头），则跳过
     if title and lines and lines[0].startswith("#"):
         body_lines = lines[1:]
     else:
         body_lines = lines if title else lines[1:]
     parts: list[tuple] = [("13", doc_title)]
 
-    for raw in body_lines:
+    i = 0
+    while i < len(body_lines):
+        raw = body_lines[i]
         line = raw.strip().strip("# ").strip()
         if not line or line.startswith("!["):
+            i += 1
             continue
+
+        stripped = raw.strip()
+        if stripped.startswith("|") and stripped.endswith("|"):
+            table_rows = []
+            while i < len(body_lines):
+                s = body_lines[i].strip()
+                if not (s.startswith("|") and s.endswith("|")):
+                    break
+                table_rows.append(_parse_table_row(s))
+                i += 1
+            # 跳过表头分隔行 (|:---:|:---:| ...)
+            if len(table_rows) >= 2:
+                sep_line = ''.join(table_rows[1])
+                if re.search(r'^[\s\-:]+$', sep_line):
+                    table_rows.pop(1)
+            if table_rows:
+                parts.append(("table", table_rows))
+            continue
+
         m1 = H1_RE.match(line)
         m2 = H2_RE.match(line)
         m3 = H3_RE.match(line)
@@ -375,6 +448,7 @@ def markdown_to_parts(text: str, title: str | None = None, author: str | None = 
             parts.append(("16", m3.group(2).strip()))
         else:
             parts.append(("19", line, True))
+        i += 1
 
     if author or date:
         parts.append(("sign", author or "", date or ""))
@@ -430,4 +504,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
