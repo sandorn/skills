@@ -88,6 +88,8 @@ PAGE = {  # A4，单位 twips
 
 INDENTED_HEADS = {"14", "15", "16"}
 CN_NUM = "〇一二三四五六七八九十"
+# 制度类文档的"第X条"模式——正文中的一级结构边界，重置二级/三级编号
+ART_RE = re.compile(r"第[一二三四五六七八九十百千]+条")
 
 def _h1_num(n: int) -> str:
     """一级标题中文序号，>10 时兜底为阿拉伯数字。"""
@@ -266,6 +268,9 @@ def _xml_document(parts: list[tuple]) -> str:
         elif sid == "16":
             h3 += 1
             text = f"{h3}．{text}"
+        elif sid == "19" and ART_RE.search(text):
+            # 制度类"第X条"作为一级结构边界，重置二级/三级计数器
+            h2 = h3 = 0
 
         need_indent = indent or sid in INDENTED_HEADS
         ind = f'<w:ind w:firstLine="{FIRST_INDENT}"/>' if need_indent else ""
