@@ -12,7 +12,6 @@ linked_files:
     - references/workflow.md
     - references/format-spec.md
     - references/checklist.md
-    - references/internal-management-systems.md
     - references/vocabulary.md
   scripts:
     - scripts/gb_gongwen.py
@@ -39,7 +38,7 @@ linked_files:
 | 检查报告、督导检查、安全检查 | 检查报告 | 上行/下行 | 请按整改要求落实 / 以上报告请审阅 |
 | 修改/精简/扩充/结构重整 + 公文 | 公文编辑 | — | 须输出改动说明 |
 | /公文 | 显式调用 | — | — |
-| 制度、管理办法、实施细则、管理规定、管理总则 | 内部管理制度 | 内部 | 章/条结构，非公文六要素；参见 `references/internal-management-systems.md` |
+| 制度、管理办法、实施细则、管理规定、管理总则 | 内部管理制度 | 内部 | 章/条结构，非公文六要素 |
 
 > **严禁"请示报告"叠用。** 向不相隶属机关禁用"请示"，下行禁用"请示"。
 
@@ -77,7 +76,6 @@ linked_files:
 | `references/workflow.md` | 起草流程与导出 |
 | `references/format-spec.md` | GB/T 9704-2012 排版参数 + 质量门 |
 | `references/checklist.md` | 发文前自检清单 |
-| `references/internal-management-systems.md` | 内部管理制度起草指导 |
 | `scripts/gb_gongwen.py` | Word 排版引擎（纯 XML+zipfile） |
 | `scripts/qa_docx.py` | 产物质检工具（26 项自动化检查） |
 
