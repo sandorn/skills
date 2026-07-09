@@ -41,14 +41,14 @@
 |------------|---------|---------|
 | `novel_deepseek` | `~/.litellm/servers/novel-deepseek/deepseek_server.py` | `pip install mcp httpx` |
 | `novel_doubao` | `~/.litellm/servers/novel-doubao/doubao_server.py` | `pip install mcp httpx` |
-| `litellm_admin` | `~/.litellm/servers/litellm-admin/litellm_admin_mcp.py` | `pip install mcp httpx` |
+| `litellm_admin` | `~/.litellm/servers/admin/litellm_admin_mcp.py` | `pip install mcp httpx` |
 | `memory_novel` | npx `@pepk/mcp-memory-sqlite` | env: `MEMORY_DB_DIR`, `MEMORY_PROJECT` |
 
 ## Hermes 同步状态
 
 | 接入方式 | 数量 | Hermes key 模式 | 示例 |
 |---------|------|-----------------|------|
-| HTTP proxy（通过 LiteLLM） | 17 | `litellm-<name>` | `litellm-publishready` → `http://127.0.0.1:4000/mcp/publishready` |
+| HTTP proxy（通过 LiteLLM） | 17 | `<name>` | `publishready_LL` → `http://127.0.0.1:4000/mcp/publishready` |
 | 原生 stdio | 2 | `<name>` | `novel-deepseek` → `python deepseek_server.py` |
 
 > **全部 19 个已同步到 `~/.hermes/config.yaml` 的 `mcp_servers:` 段。**

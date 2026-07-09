@@ -16,7 +16,7 @@
 
 1. **Hermes 侧新增**：在 `~/.hermes/config.yaml` 的 `mcp_servers:` 中添加原生 stdio 条目（command/args/env 格式）
 2. **LiteLLM 侧删除**：从 `~/.litellm/config.yaml` 的 `mcp_servers:` 中删除对应条目
-3. **客户端清理**：从所有 4 个客户端配置中删除对应的 `litellm-*` HTTP proxy 条目（Continue / VS Code MCP / Claude Desktop / CodeBuddy）
+3. **客户端清理**：从所有 4 个客户端配置中删除对应的 `_LL` HTTP proxy 条目（Continue / VS Code MCP / Claude Desktop / CodeBuddy）
 4. **重启 LiteLLM**（移除生效）
 5. **生效**：`/new` 新会话验证
 
@@ -40,10 +40,10 @@
 
 1. **从 LiteLLM 删除**：编辑 `~/.litellm/config.yaml` 删除 mcp_servers 条目
 2. **重启 LiteLLM**
-3. **逐客户端精准清理**（只删 litellm-* 条目，保留其他，**不要 search_files**）：
+3. **逐客户端精准清理**（只删 _LL 条目，保留其他，**不要 search_files**）：
    - `~/.continue/config.yaml`
    - `AppData/Roaming/Code/User/mcp.json`
    - `~/.claude.json` → projects.claude_desktop_config.mcpServers
-   - `~/.codebuddy/mcp.json`（**保留 hermes-mcp 等非 litellm- 条目**）
+   - `~/.codebuddy/mcp.json`（**保留 hermes-mcp 等非  条目**）
 4. **删除 Hermes 侧条目**（如果存在）
 5. **验证**：`/new` 新会话

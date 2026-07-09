@@ -191,42 +191,38 @@ npm install --prefix "C:\Users\Administrator\.litellm\servers\<name>"
 
 **注意**：如果包是 pnpm monorepo（`package.json` 中有 `"packageManager": "pnpm"`），npm install 可能装不全 workspace 内部包。需要 `pnpm install && pnpm run build` 从源码构建。
 
-## Stdio MCP 服务器通用验证（完整握手）
+## Stdio MCP 服务器通用验证（Python / Node.js / npx）
+
+验证 stdio MCP 服务器是否正常工作的标准方法：
 
 ```python
 import subprocess, json, time
 
+# 正确：传入 "npx"（非 "npx.cmd"），shell=False（默认）
+# 注意：shell=True + stdin=PIPE 时 cmd.exe 会截获 stdin，JSON 被当作命令执行
 proc = subprocess.Popen(
-    ["npx", "-y", "@veldica/publishready-mcp"],
-    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    text=True, bufsize=1,
+    ["npx", "-y", "@veldica/publishready-mcp"],  # 或 ["node", "server.js"]
+    stdin=subprocess.PIPE,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+    bufsize=1,
 )
-time.sleep(2)
+time.sleep(2)  # 等待初始化
 
-# 必须走完整初始化握手，FastMCP 服务器否则不响应 tools/list
-init = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize",
-                   "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                              "clientInfo": {"name": "test", "version": "1.0"}}})
-proc.stdin.write(init + "\n"); proc.stdin.flush(); time.sleep(0.5)
-
-notified = json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"})
-proc.stdin.write(notified + "\n"); proc.stdin.flush(); time.sleep(0.3)
-
-request = json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}) + "\n"
+# MCP stdio 协议：请求 = 一行 JSON + 换行
+request = json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': 'tools/list'}) + '\n'
 stdout, stderr = proc.communicate(input=request, timeout=15)
-# 解析 id=2 的 JSON-RPC 响应
+# 解析 stdout 中的 JSON-RPC 响应行
 ```
 
 **关键要点**：
 - 用 `"npx"` 而非 `"npx.cmd"`，`shell=False`（默认即可）
-- `shell=True` + `stdin=PIPE` 时 cmd.exe 会截获 stdin，传入的 JSON 被当作命令执行
-- MCP stdio 协议：每条消息一行 JSON，换行分隔
-- **FastMCP 服务器必须走 initialize → notifications/initialized → tools/list 三步**
+- `shell=True` + `stdin=PIPE` 时 cmd.exe 会截获 stdin，传入的 JSON 被当作命令执行（"XXX not recognized"）
+- MCP stdio 协议：请求/响应各一行 JSON，换行分隔
 - 首次 npx 可能需下载包，timeout 设 30s+
 - stderr 可能有启动日志，不一定是错误
-- 也适用于 `python server.py` 和 `node server.js` 等原生 stdio MCP
-
-可用脚本：`scripts/verify_stdio_mcp.py`（已集成完整握手）
+- Node/Python 脚本可直接传路径，不需 shell
   
 ## Hermes 自定义 MCP 服务器组织规范
 

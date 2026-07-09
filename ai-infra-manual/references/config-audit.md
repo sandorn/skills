@@ -35,13 +35,13 @@
 **小说创作**: publishready, firstory, uno, novel_deepseek, novel_doubao
 **AI 管理**: litellm_admin
 
-> **命名演变**: `github_official` → `github`, `litellm-manager` → `litellm_admin`, `mcp_audit`/`shell` 已移除
+> **命名演变**: `github_official` → `github`, `manager` → `litellm_admin`, `mcp_audit`/`shell` 已移除
 
 ### 自定义 MCP 服务器 (`servers/*/`)
 
 | 服务器 | 路径 | 说明 |
 |--------|------|------|
-| `litellm-admin` | `servers/litellm-admin/litellm_admin_mcp.py` | MCP 工具管理 LiteLLM 模型/Key/配置 |
+| `admin` | `servers/admin/litellm_admin_mcp.py` | MCP 工具管理 LiteLLM 模型/Key/配置 |
 | `novel-deepseek` | `servers/novel-deepseek/deepseek_server.py` | 小说专用 DeepSeek 代理 |
 | `novel-doubao` | `servers/novel-doubao/doubao_server.py` | 小说专用豆包代理 |
 | `uno-mcp` | `servers/uno-mcp/dist/index.js` | UNO 写作工具 MCP |
@@ -54,25 +54,25 @@
 
 | Hermes 配置键 | LiteLLM 对应名 | URL路径 |
 |--------------|---------------|---------|
-| `litellm-context7` | context7 | `/mcp/context7` |
-| `litellm-playwright` | playwright | `/mcp/playwright` |
-| `litellm-officecli` | officecli | `/mcp/officecli` |
-| `litellm-git` | git | `/mcp/git` |
-| `litellm-pandoc` | pandoc | `/mcp/pandoc` |
-| `litellm-windows-admin` | windows_admin | `/mcp/windows_admin` |
-| `litellm-yaml-lint` | yaml_lint | `/mcp/yaml_lint` |
-| `litellm-sequential-thinking` | sequential_thinking | `/mcp/sequential_thinking` |
-| `litellm-memory-official` | memory_official | `/mcp/memory_official` |
-| `litellm-memory-novel` | memory_novel | `/mcp/memory_novel` |
-| `litellm-publishready` | publishready | `/mcp/publishready` |
-| `litellm-firstory` | firstory | `/mcp/firstory` |
-| `litellm-uno` | uno | `/mcp/uno` |
-| `litellm-novel-deepseek` | novel_deepseek | `/mcp/novel_deepseek` |
-| `litellm-novel-doubao` | novel_doubao | `/mcp/novel_doubao` |
-| `litellm-litellm-admin` | litellm_admin | `/mcp/litellm_admin` |
-| `litellm-github` | github | `/mcp/github` |
-| `litellm-filesystem` | filesystem | `/mcp/filesystem` |
-| `litellm-firecrawl` | firecrawl | `/mcp/firecrawl` |
+| `context7_LL` | context7 | `/mcp/context7` |
+| `playwright_LL` | playwright | `/mcp/playwright` |
+| `officecli_LL` | officecli | `/mcp/officecli` |
+| `git_LL` | git | `/mcp/git` |
+| `pandoc_LL` | pandoc | `/mcp/pandoc` |
+| `windows-admin_LL` | windows_admin | `/mcp/windows_admin` |
+| `yaml-lint_LL` | yaml_lint | `/mcp/yaml_lint` |
+| `sequential-thinking_LL` | sequential_thinking | `/mcp/sequential_thinking` |
+| `memory-official_LL` | memory_official | `/mcp/memory_official` |
+| `memory_novel_LL` | memory_novel | `/mcp/memory_novel` |
+| `publishready_LL` | publishready | `/mcp/publishready` |
+| `firstory_LL` | firstory | `/mcp/firstory` |
+| `uno_LL` | uno | `/mcp/uno` |
+| `novel-deepseek_LL` | novel_deepseek | `/mcp/novel_deepseek` |
+| `novel-doubao_LL` | novel_doubao | `/mcp/novel_doubao` |
+| `admin_LL` | litellm_admin | `/mcp/litellm_admin` |
+| `github_LL` | github | `/mcp/github` |
+| `filesystem_LL` | filesystem | `/mcp/filesystem` |
+| `firecrawl_LL` | firecrawl | `/mcp/firecrawl` |
 
 ---
 

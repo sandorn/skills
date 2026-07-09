@@ -46,7 +46,7 @@ ws.Run "powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File ""C:\Us
 | Continue | `~/.continue/config.yaml` | `apiKey:` + `headers.Authorization` |
 | VS Code MCP | `AppData/Roaming/Code/User/mcp.json` | `headers.Authorization` |
 | VS Code LiteLLM 扩展 | VS Code 设置 | `litellm.apiKey` |
-| Claude Desktop | `~/.claude.json` → mcpServers | `headers.x-litellm-api-key` |
+| Claude Desktop | `~/.claude.json` → mcpServers | `headers.x-api-key` |
 | CodeBuddy | `~/.codebuddy/mcp.json` | `headers.Authorization` |
 
 ## Key 迁移
@@ -55,11 +55,11 @@ ws.Run "powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File ""C:\Us
 
 | 配置文件 | 典型旧值 |
 |---------|---------|
-| `~/.hermes/config.yaml` | `sk-local-litellm-gateway` |
+| `~/.hermes/config.yaml` | `sk-local-gateway` |
 | `~/.continue/config.yaml` | 同上 |
 | `~/.codebuddy/mcp.json` | **最容易遗漏** |
 | `AppData/Roaming/Code/User/mcp.json` | 通常正确 |
-| `~/.claude.json` | `x-litellm-api-key` 格式 |
+| `~/.claude.json` | `x-api-key` 格式 |
 
 **检查方法（读原始字节，不看终端显示）：**
 ```python
