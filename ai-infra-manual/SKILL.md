@@ -62,6 +62,7 @@ curl -H "Authorization: Bearer *** http://localhost:4000/v1/models
 |------|------|---------|
 | **Provider配置** | 所有厂商API地址、豆包特殊配置、多环境路由规则 | `skill_view('ai-infra-manual', 'references/provider-routing.md')` |
 | **MCP运维** | MCP命名规则、4客户端同步表、全量同步脚本、排错指南 | `skill_view('ai-infra-manual', 'references/mcp-debugging.md')` |
+| **MCP最佳实践** | Skill专属MCP分类规范、动态加载模板、迁移标准流程 | `skill_view('ai-infra-manual', 'references/skill-mcp-best-practices.md')` |
 | **发布流程** | 模型/MCP变更、全量同步、下线标准操作流 | `skill_view('ai-infra-manual', 'references/publishing-workflow.md')` |
 | **启动配置** | 多配置策略、SSL证书、环境变量加载、后台启动避坑 | `skill_view('ai-infra-manual', 'references/startup-guide.md')` |
 | **配置审计** | 模型清单、MCP服务器清单、一致性验证脚本 | `skill_view('ai-infra-manual', 'references/config-audit.md')` |
