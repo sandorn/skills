@@ -43,6 +43,7 @@ powershell.exe -ExecutionPolicy Bypass -File "C:\Users\Administrator\.litellm\st
 1. **⚠️ LiteLLM必须走start.ps1启动**：直接启动会导致.env未加载，所有模型认证失败
 2. **⚠️ 禁止全局search_files扫描**：所有配置路径已明确写在reference中，直接read_file对应路径
 3. **⚠️ Hermes config.yaml缩进必须精确**：patch工具会拒绝格式不匹配的写入，编辑后用`python -c "import yaml; yaml.safe_load(open(r'~/.hermes/config.yaml'))"`验证
+4. **⚠️ Skill维护操作准则**：进行Skill维护/修改前，必须先完整审计现有Skill目录结构、代码库、入口点，禁止在未了解现有结构的前提下反复要求用户执行手动操作，避免冗余提醒。
 
 ---
 
@@ -63,6 +64,8 @@ curl -H "Authorization: Bearer *** http://localhost:4000/v1/models
 | **Provider配置** | 所有厂商API地址、豆包特殊配置、多环境路由规则 | `skill_view('ai-infra-manual', 'references/provider-routing.md')` |
 | **MCP运维** | MCP命名规则、4客户端同步表、全量同步脚本、排错指南 | `skill_view('ai-infra-manual', 'references/mcp-debugging.md')` |
 | **MCP最佳实践** | Skill专属MCP分类规范、动态加载模板、迁移标准流程 | `skill_view('ai-infra-manual', 'references/skill-mcp-best-practices.md')` |
+| **MCP自包含改造** | LiteLLM耦合改造、动态注册、零全局依赖打包指南 | `skill_view('ai-infra-manual', 'references/mcp-self-contained-guide.md')` |
+| **MCP自包含迁移模板** | 业务专属MCP迁移到Skill内部标准流程、代码模板、坑点规避 | `skill_view('ai-infra-manual', 'references/mcp-self-contained-migration-pattern.md')` |
 | **发布流程** | 模型/MCP变更、全量同步、下线标准操作流 | `skill_view('ai-infra-manual', 'references/publishing-workflow.md')` |
 | **启动配置** | 多配置策略、SSL证书、环境变量加载、后台启动避坑 | `skill_view('ai-infra-manual', 'references/startup-guide.md')` |
 | **配置审计** | 模型清单、MCP服务器清单、一致性验证脚本 | `skill_view('ai-infra-manual', 'references/config-audit.md')` |

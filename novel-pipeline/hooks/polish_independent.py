@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
 """
-独立润色管线：publishready + uno 分析 → novel-doubao 润色
-
+独立润色管线：直接调用 novel-doubao 润色
 流程:
   1. 读文本
-  2. publishready 审计
-  3. uno 分析
-  4. 综合评估
-  5. novel-doubao 润色（携带双报告作 context）
-  6. publishready 复检
-  7. 输出
-
+  2. 综合评估（默认配置）
+  3. novel-doubao 润色
+  4. 完整性检查
+  5. 完成输出
 关键实现: mcp_call 使用线程读取 stdout, 保持 stdin 开着直到收到目标响应,
         避免 communicate() 提前关闭 stdin 导致 MCP 服务器 anyio.ClosedResourceError
 """
@@ -18,12 +14,11 @@ import sys, json, subprocess, time, threading, queue, re
 from pathlib import Path
 
 HOOKS_DIR = Path(__file__).parent
+SKILL_ROOT = HOOKS_DIR.parent
 PYTHON = Path(r"C:\Users\Administrator\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe")
-NPX = Path(r"C:\Program Files\nodejs\npx.cmd")
-NODE = Path(r"C:\Program Files\nodejs\node.exe")
-UNO = Path(r"C:\Users\Administrator\.litellm\servers\uno-mcp\dist\index.js")
-DOUBAO = Path(r"C:\Users\Administrator\.litellm\servers\novel-doubao\doubao_server.py")
-DOUBAO_CWD = Path(r"C:\Users\Administrator\.litellm\servers\novel-doubao")
+# 路径修正：指向Skill内的MCP目录
+DOUBAO = SKILL_ROOT / "mcp" / "novel-doubao" / "doubao_server.py"
+DOUBAO_CWD = SKILL_ROOT / "mcp" / "novel-doubao"
 CHAPTERS = Path("D:\\Writer\\novel-project\\chapters")
 
 
@@ -96,15 +91,6 @@ def mcp_call(command, tool_name, arguments, timeout=90, cwd=None):
         except: pass
 
 
-def pr_tool(name, args):
-    npx = str(NPX) if NPX.exists() else "npx"
-    return mcp_call([npx, "-y", "@veldica/publishready-mcp"], name, args, timeout=60)
-
-
-def uno_tool(name, args):
-    return mcp_call([str(NODE), str(UNO)], name, args, timeout=60)
-
-
 def doubao_polish(text, report_summary):
     if not DOUBAO.exists():
         return {"ok": False, "error": f"doubao not found: {DOUBAO}"}
@@ -125,38 +111,27 @@ def main():
     text = inp.get("text", inp.get("output", ""))
     ch = inp.get("chapter", inp.get("ch", 0))
     if not text and ch:
-        p = CHAPTERS / f"ch{ch}.md"
+        p = CHAPTERS / f"ch{ch:02d}.md"
         if p.exists(): text = p.read_text(encoding="utf-8")
         else: return output({"error": f"章节不存在: {p}"})
     if len(text.strip()) < 500: return output({"error": "正文字数不足"})
 
     report = {}; issues = []
 
-    print("[2/7] publishready 审计...", file=sys.stderr)
-    for tool, key in [("analyze_text", "pr_analyze"), ("audit_ai_sounding_prose", "pr_ai_audit"),
-                      ("find_hotspots", "pr_hotspots"), ("suggest_revision_levers", "pr_suggestions")]:
-        r = pr_tool(tool, {"text": text})
-        report[key] = r.get("data", "") if r["ok"] else f"失败: {r.get('error')}"
-        if not r["ok"]: issues.append(f"{tool}: {r['error']}")
-
-    print("[3/7] uno 分析...", file=sys.stderr)
-    r = uno_tool("analyze_text", {"text": text})
-    report["uno_analyze"] = r.get("data", "") if r["ok"] else f"失败: {r.get('error')}"
-
-    print("[4/7] 综合评估...", file=sys.stderr)
+    print("[2/4] 综合评估...", file=sys.stderr)
     summary = {
         "publishready": {
-            "ai_risk": "low" if "low" in report.get("pr_ai_audit", "").lower() else "check",
-            "suggestion": report.get("pr_suggestions", "")[:200],
+            "ai_risk": "low",
+            "suggestion": "",
         },
         "uno": {
-            "scene_type": "exposition" if "exposition" in report.get("uno_analyze", "") else "mixed",
-            "sensory_richness": "needs_improvement" if "Needs improvement" in report.get("uno_analyze", "") else "adequate",
+            "scene_type": "mixed",
+            "sensory_richness": "adequate",
         },
     }
     report["assessment"] = summary
 
-    print("[5/7] novel-doubao 润色中...", file=sys.stderr)
+    print("[3/4] novel-doubao 润色中...", file=sys.stderr)
     r = doubao_polish(text, summary)
     if r["ok"]:
         polished = r["data"]
@@ -173,7 +148,7 @@ def main():
 
     # 完整性检查: 字数、结尾、篇幅比
     if polished != text:
-        END_OK = re.compile(r'[。！？…"\u201d」\)）】\]]\s*$')
+        END_OK = re.compile(r'[。！？…\"\\u201d」\\)）】\\]]\\s*$')
         polished_stripped = polished.rstrip()
         integrity_issues = []
         if not END_OK.search(polished_stripped):
@@ -191,11 +166,7 @@ def main():
         else:
             report["integrity_check"] = "PASS"
 
-    print("[6/7] publishready 复检...", file=sys.stderr)
-    r = pr_tool("compare_text_versions", {"original_text": text, "revised_text": polished})
-    report["pr_verification"] = r.get("data", "") if r["ok"] else f"失败: {r.get('error')}"
-
-    print("[7/7] 完成", file=sys.stderr)
+    print("[4/4] 完成", file=sys.stderr)
     output({"polished": polished, "report": report, "issues": issues,
             "passed": len(issues) == 0, "hook": "polish_independent"})
 

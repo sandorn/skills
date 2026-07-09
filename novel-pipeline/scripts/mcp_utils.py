@@ -10,6 +10,19 @@ from pathlib import Path
 # 全局SKILL根目录适配
 SKILL_ROOT = Path(__file__).parent.parent
 
+def load_env():
+    """加载Skill根目录的.env文件到环境变量"""
+    env_path = SKILL_ROOT / ".env"
+    env = {}
+    if env_path.exists():
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                k = k.strip(); v = v.strip().strip("\\\"'")
+                env[k] = v
+    return env
+
 def check_mcp_registered(mcp_name: str) -> bool:
     """检查MCP服务是否已在Hermes中注册"""
     try:
@@ -30,28 +43,34 @@ def register_mcp(mcp_name: str, server_dir: str, script_name: str) -> bool:
     """动态注册MCP服务到当前Hermes会话"""
     server_path = SKILL_ROOT / "mcp" / server_dir / script_name
     cwd = SKILL_ROOT / "mcp" / server_dir
-    env_path = SKILL_ROOT / ".env"
+    # 加载.env环境变量
+    env = load_env()
+    # 拼接启动命令，带上环境变量
+    env_str = " && ".join([f"set {k}={v}" for k, v in env.items()])
+    start_cmd = f"{env_str} && \"{sys.executable}\" \"{server_path}\""
     
     try:
         subprocess.run(
             [
                 "hermes", "mcp", "add",
-                "--name", mcp_name,
-                "--command", sys.executable,
-                "--args", str(server_path),
-                "--cwd", str(cwd),
-                "--env-file", str(env_path),
-                "--session-only"
+                mcp_name,
+                "--command", "cmd.exe",
+                "--args", "/c", start_cmd
             ],
             check=True,
             capture_output=True,
             timeout=30
         )
         # 等待MCP加载完成
-        time.sleep(2)
+        time.sleep(3)
         return True
     except Exception as e:
-        print(f"⚠️ MCP {mcp_name} 注册失败：{str(e)}", file=sys.stderr)
+        print(f"⚠️ MCP {mcp_name} 注册失败: {str(e)}", file=sys.stderr)
+        # 打印详细错误
+        if hasattr(e, "stderr"):
+            print(f"错误详情: {e.stderr}", file=sys.stderr)
+        if hasattr(e, "stdout"):
+            print(f"输出详情: {e.stdout}", file=sys.stderr)
         return False
 
 def ensure_mcps_ready(required_mcps=None) -> bool:
