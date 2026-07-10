@@ -52,49 +52,58 @@ if not os.path.exists(ch_outline) and state.get("stage") != "planning":
 确认章节号、字数目标、核心事件、情绪目标、必须包含、必须避免、章末钩子。加载当前状态：
 
 ```bash
-# 从 memory-novel MCP 读取上一章结束时的精确状态
-# search_nodes("主角") → 获取主角最新等级/金币/位置
-# search_nodes(entityType="Character") → 获取所有角色最近状态
-# search_nodes(entityType="Hook") → 获取待回收伏笔
-# read_graph → 获取完整关系图
+# 读 .writer/state/*.json 获取已归档的原子事实（Agent 上一章后的归档结果）
+# - .writer/state/characters.json  → 主角/配角当前修为/位置/最近变化
+# - .writer/state/foreshadowing.json → 待回收伏笔列表 + 部分回收记录
+# - .writer/state/power_system.json  → 已揭示的境界/装备/系统机制
+# - .writer/state/world_setting.json → 已引入的势力/地理/规则
 ```
 
 同时对照以下文件确认一致性：
-- `outline/chapter_outline/ch_NNN.md` 或 `大纲/` 下对应章纲
-- `writer.json`
-- `tracking/current_state.md` 或 `追踪/当前状态.md`
+- `outline/chapter_outline/ch_NNN.md`（本章计划）
+- `novel.json`（项目元数据）
+- `setting/*.md`（世界观/角色的静态约束——用户改过之后的最新版）
+- `tracking/*.md`（人读快照，含用户 `<!-- user-edit -->` 里的规划意图）
 
-> 适用禁令：B09（批次上限） / B10（如是新卷首章，卷间衔接检查）
+> 适用禁令：B09（批次上限）/ B10（如是新卷首章，卷间衔接检查）
 
 ### Step 2：Architect
 
-合并 Composer + Architect：整理角色、设定、伏笔、时间锚点，并生成章节结构。以 memory-novel MCP 中的最新数值为基准（知识图谱是已写章节的精确快照，比追踪文件更可靠）。
-
-**角色声音预检**（批量写章必做）：
-```
-调用 firstory MCP：检查即将出场的角色是否存在声音漂移风险
-→ 对比前 5 章角色对话特征 → 输出角色声音一致性提示
-→ 注入本章 Architect 约束
-```
+合并 Composer + Architect：整理角色、设定、伏笔、时间锚点，并生成章节结构。以 `.writer/state/*.json` 中的最新数值为基准（这是已写章节的精确事实源，比 tracking/*.md 人读版更可靠）。
 
 > 适用禁令：B04（避免在结构中使用元叙事标签）
 
 ### Step 3：Write + Reflect
 
-写正文到 `chapters/ch_{NNN}.md`。写完后自动同步知识图谱：
+写正文到 `chapters/ch_{NNN}.md`。写完后自动归档事实：
 
 ```bash
-# 1. 读取刚写完的章节 → 分析等级/金币/角色/关系/伏笔变更
-# 2. 通过 memory-novel MCP 写入：
-#    create_entities([...])      — 新角色/新伏笔实体
-#    add_observations([...])     — 等级/金币/状态观察
-#    create_relations([...])     — 关系/伏笔关联
-# 3. 更新 writer.json 版本记录（draft 快照）
-# 4. 【可选】调用 uno MCP enhance_text — 展开欠丰满的场景/对话/环境描写
-#    → 仅增强，不改变剧情和人物行为
+# 1. 读刚写完的章节 → Agent 分析等级/金币/角色/关系/伏笔变更
+# 2. 构造 JSON payload 调用 archive_facts.py：
+#    {
+#      "chapter_number": {NNN},
+#      "changes": {
+#        "characters": [{"name": ..., "cultivation": ..., "recent_changes": [...]}],
+#        "foreshadowing": {"new": [...], "resolved_ids": [...]},
+#        "power_system": {"equipment": [...], "techniques": [...]},
+#        "world_setting": {"factions": [...], "geography": [...]}
+#      }
+#    }
+#    → 追加到 .writer/state/*.json（自动 .bak 备份 + 版本号自增）
+#
+# 3. 派生人读快照：
+#    python <writer>/scripts/render_tracking.py
+#    → 从 .writer/state/*.json 重新生成 tracking/characters.md / hooks.md / current_state.md
+#    → 保留用户在 `<!-- user-edit -->` 块内的手写规划
+#
+# 4. 更新 novel.json / writer.json：
+#    chapters_done += 1
+#    current_chapter = {NNN}
+#    last_action = "write"
+#    updated_at = <now>
 ```
 
-> 适用禁令：B01（对话「」） / B02（禁止 ——） / B03（禁止「不是…而是…」） / B05（AI高频词） / B06（每段 ≤42 汉字）
+> 适用禁令：B01（对话「」）/ B02（禁止 ——）/ B03（禁止「不是…而是…」）/ B05（AI高频词）/ B06（每段 ≤42 汉字）
 
 ### Step 4：Audit + Normalize
 
@@ -103,20 +112,12 @@ if not os.path.exists(ch_outline) and state.get("stage") != "planning":
 python scripts/audit.py chapters/
 ```
 
-**4b. MCP 深度审计**（审计脚本只做关键词匹配，语义层由 MCP 补充）：
-
-| 工具 | 检查内容 | 调用时机 |
-|------|---------|---------|
-| `publishready` | AI 腔套话、过度润色痕迹、可读性评分 | 禁令扫描后 |
-| `firstory` | 角色对话 OOC、配角工具人化 | publishready 后 |
-| `uno` `analyze_text` | 重复措辞模式、叙事节奏评估 | firstory 后 |
-
-**4c. 修复 + 版本更新**：
+**4b. 修复 + 版本更新**：
 ```bash
-# 1. 根据 audit.py + MCP 审计结果逐句修复
+# 1. 根据 audit.py 结果逐句修复
 # 2. 修复后重跑 audit.py 确认禁令清零
-# 3. 通过 memory-novel MCP 更新 observations
-# 4. 更新 writer.json 版本记录（reviewed）
+# 3. archive_facts.py 已在 Step 3 归档过一次；若修复涉及事实变更需再跑一次
+# 4. render_tracking.py 保持派生同步
 ```
 
 > 适用禁令：B01-B07 全部 / AI 痕迹 6 维
@@ -143,7 +144,7 @@ python scripts/audit.py chapters/
 | 8 | Auditor | solo 审查：15 维核心 + AI 痕迹 + 硬禁令 → blocking 则进 Step 9 |
 | 9 | Reviser | 定点修复 blocking；修后重跑 Step 8 |
 
-完成后：更新 `writer.json`，标记已回收伏笔。验证：memory-novel MCP `read_graph` 完整性。
+完成后：`novel.json` / `writer.json` 更新，标记已回收伏笔（`.writer/state/foreshadowing.json` 的 resolved_ids）。验证：`.writer/state/*.json` 各文件版本号已自增。
 
 ### 写后自动审查（质量闸门，每章必跑）
 
@@ -250,11 +251,11 @@ python scripts/audit.py chapters/
 - AI高频词禁用：他知道/忽然/突然/似乎/仿佛/眼中闪过一丝/深吸一口气/心中一动
 - 每句≤42 汉字，句号处换行
 
-【当前状态】（从 memory-novel MCP + tracking/ 文件获得，写前必须执行）
-- 主角等级：{level}（来源: search_nodes("主角") 最新 observation）
-- 金币余额：{gold}（来源: search_nodes("主角") + tracking/resource_ledger.md）
-- 待回收伏笔：{hooks_summary}（来源: search_nodes(entityType="Hook")）
-- 最近角色状态：{char_states}（来源: search_nodes(entityType="Character")）
+【当前状态】（写前必须读 .writer/state/*.json 与 setting/*.md 与 tracking/*.md）
+- 主角修为：{level}（来源: .writer/state/characters.json 的 cultivation 字段）
+- 位置/资源：{loc/gold}（来源: .writer/state/characters.json + tracking/current_state.md 用户笔记）
+- 待回收伏笔：{hooks_summary}（来源: .writer/state/foreshadowing.json active 数组）
+- 用户规划意图：{user_planning}（来源: tracking/hooks.md 中 <!-- user-edit --> 块内容）
 - 上一章结尾：{prev_chapter_ending}
 
 【章纲摘要】

@@ -7,7 +7,6 @@ tools:
   - read_files
   - pattern_search
   - list_directory
-  - mcp__firstory   # 角色一致性 + OOC 检测
 constraints:
   - read_only
   - no_filesystem_mutation

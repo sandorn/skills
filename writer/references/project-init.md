@@ -18,7 +18,7 @@
 ## Step 1：预检
 
 - 是否有 `选题决策.md` → 读取作为开书依据
-- 是否有已有项目（检测 `writer.json` + `setting/` + `chapters/`）→ 不覆盖
+- 是否有已有项目（检测 `novel.json` / `writer.json` / `setting/` + `chapters/`）→ 不覆盖
 - 确认项目输出目录（默认当前工作目录）
 
 ---
@@ -68,69 +68,108 @@
 
 ---
 
-## Step 4：生成项目骨架
+## Step 4：生成项目骨架（新架构 v8.3）
 
 ```bash
 mkdir -p {project}/setting {project}/outline/chapter_outline {project}/chapters \
-         {project}/tracking {project}/.writer/runtime {project}/analysis_lib \
-         {project}/cover
+         {project}/tracking {project}/.writer/state {project}/.writer/runtime
 ```
 
-创建以下文件（模板见 `templates/project-skeleton/`）：
+### 四层职责结构
 
-| 文件 | 内容 |
+```
+{project}/
+├── novel.json                # 项目根标记（新架构统一用 novel.json）
+├── setting/                  # 用户领地：静态约束（世界观/角色/战力）
+│   ├── story_bible.md
+│   ├── characters.md
+│   ├── power_system.md
+│   ├── factions.md
+│   └── writing_rules.md      # 可选：项目声音卡
+├── outline/                  # 用户领地：大纲
+│   ├── master_outline.md
+│   ├── volume_outline.md
+│   └── chapter_outline/      # 章纲（每章一个）
+├── chapters/                 # 产出：正文（ch_NNN.md 三位数补零）
+├── tracking/                 # 【Agent 派生渲染】进度笔记
+│   ├── characters.md         # 从 .writer/state/characters.json 渲染
+│   ├── hooks.md              # 从 .writer/state/foreshadowing.json 渲染
+│   └── current_state.md      # 当前状态快照（派生）
+└── .writer/
+    ├── state/                # 【Agent 归档写入】原子事实（机读源）
+    │   ├── characters.json   # {"version": 1, "characters": []}
+    │   ├── foreshadowing.json
+    │   ├── power_system.json
+    │   └── world_setting.json
+    ├── project_memory.json   # skill 学到的项目习惯
+    └── runtime/              # 临时文件（.gitignore）
+```
+
+### 四层写权限
+
+| 层 | 谁写 | 谁改 | 用途 |
+|---|---|---|---|
+| `.writer/state/*.json` | Agent 独写（`scripts/archive_facts.py`）| 只 Agent | 原子事实源，程序读 |
+| `tracking/*.md` | Agent 派生（`scripts/render_tracking.py`）| 用户可在 `<!-- user-edit -->` 块内增补 | 人读快照 |
+| `setting/*.md` | Agent 初始化 + 用户手改 | 用户为主 | 世界观/角色的静态约束 |
+| `chapters/*.md` | Agent 主写 | 用户可修 | 正文 |
+| `outline/*.md` | Agent 生成 + 用户改 | 双方 | 大纲 |
+
+### 创建以下文件
+
+| 文件 | 初始内容 |
 |------|------|
-| `writer.json` | 项目状态（stage=scaffold） |
+| `novel.json` | 项目状态（stage=scaffold）|
 | `setting/story_bible.md` | 世界观基础 |
 | `setting/characters.md` | 主角+基础角色卡 |
 | `setting/power_system.md` | 力量/等级体系 |
 | `setting/factions.md` | 势力关系 |
+| `setting/writing_rules.md` | 项目声音卡（可选，从波次 3 主角性格生成）|
 | `outline/master_outline.md` | 核心冲突 + 结局方向 |
-| `tracking/current_state.md` | 角色初始状态 |
-| `tracking/hooks.md` | 伏笔池（空） |
-| `tracking/chapter_summaries.md` | 章节摘要（空） |
-| `tracking/subplot_board.md` | 支线进度板（空） |
-| `tracking/emotional_arcs.md` | 情绪弧线（空） |
-| `tracking/resource_ledger.md` | 资源账本（空） |
+| `.writer/state/characters.json` | `{"version": 1, "characters": []}` |
+| `.writer/state/foreshadowing.json` | `{"version": 1, "active": [], "resolved": []}` |
+| `.writer/state/power_system.json` | `{"version": 1, "realms": [], "equipment": [], "combat_rules": []}` |
+| `.writer/state/world_setting.json` | `{"version": 1, "factions": [], "geography": [], "special_rules": []}` |
+| `.writer/runtime/.gitkeep` | 占位 |
 
-### writer.json 初始化
+**tracking/ 目录初始为空**——用户第一次写章后由 `render_tracking.py` 自动生成。
+
+### novel.json 初始化
 
 ```json
 {
-  "project": "{书名}",
+  "_comment": "writer + novel-pipeline 统一项目根标记",
+  "project_name": "{书名}",
   "author": "{作者}",
-  "stage": "scaffold",
   "genre": "{题材}",
   "platform": "{平台}",
   "chapters_total": {目标章节数},
   "chapters_done": 0,
-  "words_per_chapter": {每章字数},
-  "current_volume": 1,
   "current_chapter": 0,
-  "skill_version": "8.1",
+  "current_volume": 1,
+  "words_per_chapter": {每章字数},
+  "chapter_dir": "./chapters/",
+  "setting_dir": "./setting/",
+  "outline_dir": "./outline/",
+  "tracking_dir": "./tracking/",
+  "state_dir": "./.writer/state/",
+  "polish_toggle": true,
+  "auto_skip_transition_chapters": true,
+  "stage": "scaffold",
+  "skill_version": "8.3",
   "last_action": "init",
   "created_at": "{当前时间}",
   "updated_at": "{当前时间}"
 }
 ```
 
-知识图谱就绪：
-```
-memory-novel MCP 在首次调用时自动创建知识图谱（npx @pepk/mcp-memory-sqlite）。
-无需手动 init。数据库文件位于 ./novel_memory_db/。
-初始实体：从 setting/characters.md 提取角色 → create_entities
-```
-
 ---
 
 ## Step 5：填充核心设定
 
-| 文件 | 内容 |
-|------|------|
-| `setting/story_bible.md` | 世界观类型 + 核心规则（从题材推导默认框架） |
-| `setting/power_system.md` | 等级体系（入门→进阶→高阶→巅峰，如适用） |
-| `setting/characters.md` | 主角信息（姓名+底色+金手指），配角留空后续补充 |
-| `outline/master_outline.md` | 核心冲突 + 主角弧线 + 结局方向 + 第一卷目标 |
+Agent 根据波次 2-3 收集的信息初始化 `setting/*.md` 骨架 + `.writer/state/*.json` 骨架。
+
+**注意**：setting/*.md 是**用户人读源**，写成完整的 markdown 描述（含世界观框架、主角背景、金手指规则）；.writer/state/*.json 保留空数组，等第一次写章由 `archive_facts.py` 自动填充。
 
 ---
 
@@ -149,12 +188,13 @@ memory-novel MCP 在首次调用时自动创建知识图谱（npx @pepk/mcp-memo
 
 ## 成功标准
 
-- [ ] 项目目录结构完整
-- [ ] `writer.json` 格式合法，字段齐备
+- [ ] 项目目录结构完整（8 个目录 + 11 个文件）
+- [ ] `novel.json` 格式合法，字段齐备（含 state_dir）
 - [ ] `setting/story_bible.md` 包含世界观类型和核心规则
 - [ ] `setting/characters.md` 包含主角基本信息
 - [ ] `outline/master_outline.md` 包含核心冲突和结局方向
-- [ ] `tracking/` 下 6 个追踪文件已创建
+- [ ] `.writer/state/*.json` 4 个骨架文件已创建（空数组）
+- [ ] `.writer/runtime/` 目录存在
 
 ---
 
@@ -162,13 +202,27 @@ memory-novel MCP 在首次调用时自动创建知识图谱（npx @pepk/mcp-memo
 
 触发词：「导入小说」「把我的书导进来」「迁移」。
 
-流程：
-1. 识别输入：单个 `.md/.txt`、一组章节文件、或已有项目目录
-2. 判断篇幅：短篇走单篇结构化；长篇按章节切分
-3. 创建 Writer 标准目录结构，不覆盖已有正文
-4. 从正文反推：主角、重要配角、世界观、力量/系统、伏笔、章节摘要
-5. 写入 `setting/`、`outline/`、`tracking/`
-6. 生成导入报告：已识别章节数、缺失设定、疑似断章、下一步建议
+**支持的老结构类型**：
+- 单个 `.md/.txt` 长文 → 按章节切分
+- 一组 `ch_NNN.md` / `chNN.md` / 章节.md → 直接采纳，重命名为标准格式
+- 老 novel-pipeline 项目（`state-files/*.json` + `novel-pipeline.json`）→ 迁移到新架构
+- 老 writer v8.2 项目（`writer.json` + 无 `.writer/state/`）→ 补建 state 骨架
+
+### 迁移映射表
+
+| 老结构 | 新结构 |
+|---|---|
+| `novel-pipeline.json` / `writer.json` | 保留（三种 marker 都被识别），或 `git mv` 为 `novel.json` |
+| `state-files/*.json` | `git mv` 到 `.writer/state/*.json` |
+| `chXX.md` / `chXXX.md` | `git mv` 为 `ch_NNN.md` |
+| `chapters_polished/` | 删除（新架构原地覆盖）|
+
+### 流程
+1. 识别输入类型
+2. 创建 Writer v8.3 标准目录结构（不覆盖已有正文）
+3. 迁移映射（如上表）
+4. 从正文反推：主角、重要配角、伏笔、章节摘要（可选，交给用户确认后写入 setting/ 与 .writer/state/）
+5. 生成导入报告：已识别章节数、缺失设定、疑似断章、下一步建议
 
 ---
 

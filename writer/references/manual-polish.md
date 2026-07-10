@@ -8,10 +8,9 @@
 
 ### 三零原则
 
-1. **零修改脚本**：不调用任何会修改文件的脚本。只读脚本允许（`audit.py --verify` 验证）。**MCP 分析工具允许**（`publishready` 定位 AI 腔、`firstory` 校验角色声音、`uno analyze_text` 评估叙事节奏——均为只读分析，不修改文件）
+1. **零修改脚本**：不调用任何会修改文件的脚本。只读脚本允许（`audit.py --verify` 验证）。
 2. **零子代理**：完全不使用子代理委派（sub-agent delegation），不 spawn 任何子 Agent
 3. **零批量替换**：不使用 sed/awk/正则批量替换，每处改动逐句阅读后手动判断
-4. **MCP 辅助润色**：润色完成后可调用 `uno enhance_text` 做散文流畅度打磨，但**必须逐段 review uno 的改动**，不可一键接受全部
 
 ### 子代理边界（防破窗指引）
 

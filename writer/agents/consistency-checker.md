@@ -7,7 +7,6 @@ tools:
   - read_files
   - pattern_search
   - list_directory
-  - mcp__firstory      # 角色行为一致性交叉验证
 constraints:
   - read_only
   - no_filesystem_mutation

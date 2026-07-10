@@ -1,15 +1,15 @@
 ---
 name: novel-pipeline
-version: "3.3.0-lean"
-description: "网文批量生产线：DeepSeek 初稿 + 豆包润色两个 stdio MCP，前置 git 快照 + 断点续传 + 字数循环。可独立运行，也可作为 writer skill 的子服务"
+version: "3.4.0-writer-align"
+description: "网文批量生产线：DeepSeek 初稿 + 豆包润色两个 stdio MCP。专注于章节生成和润色，状态管理由 writer skill 负责。可独立运行，也可作为 writer skill 的子服务"
 category: writing
 tags: [网文, 写作, pipeline, MCP, 逐章润色, writer 协作]
 ---
 
-# novel-pipeline: 网文写作流水线（精简版）
+# novel-pipeline: 网文批量生产线（精简版 v3.4）
 
-> 🔴 所有润色请求默认走逐章顺序模式，禁止任何批量/后台运行逻辑
-> 📌 详细规则/模板/示例请查看末尾「详细参考」对应跳转文档
+> 🔴 所有润色请求走逐章顺序模式，禁止批量/后台运行
+> 📌 状态管理（角色/伏笔/世界观）**不再本 skill 职责**，交给 writer skill
 
 ---
 
@@ -20,197 +20,53 @@ tags: [网文, 写作, pipeline, MCP, 逐章润色, writer 协作]
 1. **批量初稿生成** — `novel-deepseek` MCP `generate_draft`
 2. **章节润色** — `novel-doubao` MCP `polish_chapter`（支持字数循环 + 文风预设 override）
 
-配合 `scripts/polish_chapter.py` 提供的**前置 git 快照 + 断点续传 + 批量 CLI**，可独立运行。
+配合 `scripts/polish_chapter.py` 提供：
+- 前置 git 快照（`ensure_git_snapshot`）
+- 断点续传（`.polish_progress.json`）
+- 批量 CLI（`--range N-M`）
+- 字数循环（`--min-words` / `--max-words`）
+- 文风预设 override（`--style-file`）
 
-**大纲规划 / 状态追踪 / 审查体系 / 发布导出** 这些流程编排能力**不由本 skill 提供**——请配合 `writer` skill 使用。见末尾「协作模式」。
+**明确不做**（v3.4 起）：
+- 项目初始化、大纲规划
+- 状态归档（伏笔/角色/世界观）
+- 43 维审查、禁令扫描
+- 批量格式修复、跨卷审查
+- 题材适配、tracking 维护
+
+以上全部交给 `writer` skill。
 
 ---
 
-## 环境与配置（必看）
+## 环境与配置
 
-### 唯一权威 `.env` 位置
-`C:\Users\Administrator\.agents\skills\novel-pipeline\.env`
-
-优先级：**Skill 本地 .env → 系统环境变量**。两级都缺则 MCP server 启动即 `sys.exit(1)`。
+### `.env` 位置
+`<Skill目录>\.env`
 
 必需 6 个变量：`DEEPSEEK_{API_KEY,BASE_URL,MODEL}` + `DOUBAO_{API_KEY,BASE_URL,MODEL}`。
 
-### novel-doubao 调用规范
-禁止使用 `subprocess.communicate()` 立即关闭 stdin，会触发 `anyio.ClosedResourceError`。必须使用 `hooks/utils.py::BaseMCPClient`（队列+线程读 stdout 模式）。
+优先级：Skill 本地 .env → 系统环境变量。两级都缺则 MCP server 启动即 `sys.exit(1)`。
 
-### MCP 调用超时
-| 服务 | 建议 timeout | 说明 |
-|------|------------|------|
-| novel-doubao polish_chapter | 300s | 大章 9000+ 字需 160s+，可延至 600s |
-| novel-deepseek generate_draft | 300s | 一般 30–90s |
+### novel-doubao 调用规范
+禁止 `subprocess.communicate()` 立即关闭 stdin（会触发 `anyio.ClosedResourceError`）。必须用 `hooks/utils.py::BaseMCPClient`（队列+线程读 stdout）。
 
 ### 章节文件命名（强制）
-统一三位数补零：`chapters/ch_001.md`、`ch_010.md`、`ch_101.md`（下划线分隔，与 writer skill 一致）。
-唯一入口：`hooks/utils.py::chapter_filename(n)`。禁止硬编码 `f"ch{n:02d}.md"`。
-
-### 润色结果处理规则
-✅ 自动保留原文的所有剧情/人物/战力设定，仅优化文本表达
-⚠️ 检测到章节内容截断（结尾无终结标点、剧情未完成）时，不修改原文，直接返回问题提示
+统一 `chapters/ch_NNN.md`（三位数补零 + 下划线，与 writer 一致）。
+入口：`hooks/utils.py::chapter_filename(n)`。
 
 ---
 
-## 体系架构
-| 角色 | 职责 |
-|------|------|
-| **调度中枢** | 任务拆解、规则下发、质量校验、状态归档 |
-| **初稿生成 (novel-deepseek)** | 产出剧情骨架，禁止文笔修饰 |
-| **后置润色 (novel-doubao)** | 仅文字优化，锁定全部剧情/人物/事件 |
-| **自动检查** | 参数校验、内容质量分析、RED LINE 审计 |
-| **持久化** | 本地 JSON：世界观/人物/伏笔/战力 |
+## 使用场景
 
-### 状态持久化说明
-**本流水线不接任何外部记忆库/知识图谱**。所有跨章上下文（人物、伏笔、战力、世界观）都存 `state-files/*.json` 一份，`load_state.py` 在会话开始读取，`archive_state.py` 在章末写回。若需要多端同步，请自行 git 或云盘同步项目目录。
-
-### 覆盖原文行为
-`scripts/polish_chapter.py` 完成润色后**原地覆盖** `chapters/chNNN.md`，不生成备份文件。因此润色前脚本会自动在项目目录做 git 快照（详见「润色前置：git 快照」）。若项目未做 git 初始化，脚本会打印警告并要求用户确认后继续。
-
----
-
-## Layer 1 规则（最高权重，不可违反）
-
-### 1.1 编排器定位（禁令）
-- ⛔ 禁止自行生成长篇正文（>200 字的小说内容）
-- ⛔ 禁止自行润色文本
-- ⛔ 禁止跳过检查点直接输出
-- ⛔ 禁止绕过 MCP 工具直接调用模型 API
-- ⛔ 禁止使用任何批量/后台运行的润色模式
-- ⛔ 禁止编写任何临时自定义润色脚本，所有润色任务强制使用官方 `scripts/polish_chapter.py` 逐章执行
-- ✅ 只做：单章顺序路由 → 调用 MCP → 执行检查 → 单章结果反馈 → 归档
-
-### 1.2 润色执行强制要求
-- ✅ 所有润色任务无论章节范围大小，必须逐章执行，完成一章立即向用户反馈该章的字数变化、问题数等结果
-- ✅ 润色完成后自动原地覆盖原文件，不生成任何冗余临时文件
-- ✅ 禁止任何批量/并行/后台润色操作，避免前端卡顿
-
-### 1.3 审查流程铁律
-- ⛔ 禁止跳过深筛直接批量修复
-- ⛔ 禁止用脚本扫描结果替代逐章通读审核
-- ✅ 审查流程：深筛 → 发现问题 → 批量修复 → 终验
-
-### 1.4 内容红线 & 人设底线
-- 禁止现实政治影射、色情/低俗描写、违法犯罪鼓吹、平台违禁内容
-- 主角核心人设不可突破，除非细纲标注弧线且有 ≥3 章铺垫
-
----
-
-## Layer 2 规则（硬性执行）
-
-### 2.1 任务自动路由
-| 用户意图 | 触发词 | 处理概要 | 详细参考 |
-| --- | --- | --- | --- |
-| 初始化设定 | 世界观/设定/力量体系 | 引导填写 state-files | `project-setup.md` |
-| 大纲编排 | 大纲/章纲 | 辅助规划 → 写入章纲文件 | `task_routing.md` |
-| **写单章** | 写第N章 | 初稿生成 → 3轮自检 → 润色 → 归档 | `quality_check.md` |
-| 章节返工 | 重写/修改第N章 | 读现有章 → 初稿重生成 → 自检输出 | `usage-guide.md` |
-| **逐章润色** | 润色 + 章节范围 | 单章顺序执行：doubao 润色 → 完整性检查 → 输出结果 → 下一章。**必须调用官方 `scripts/polish_chapter.py`** | `polish-pipeline.md` |
-| **纯质量分析** | 分析/质检 + 章节范围 | **仅做检测不修改任何原文**，输出合规结果/质量评分/问题清单 | `quality_check.md` |
-| 伏笔审查 | 伏笔/回收 | 读 foreshadowing.json → 输出报告 | `usage-guide.md` |
-| **卷审查** | 审查/审核 + 卷/章 | 3轮自检：OOC→伏笔→设定 → 汇总报告 | `volume-audit-protocol.md` |
-
-### 2.2 核心流程概要
-- **写单章**：`[0] 读状态 → [1] 参数校验 → [2] 生成初稿 → [3] 3轮自检 → [4] 润色开关判定 → [5] 润色 → [6] 归档`
-- **逐章润色**：`[0] 读章节 → [1] doubao 润色 → [2] 完整性检查 → [3] 保存结果 → [4] 下一章`
-- **卷审查**：`[0] 确认范围 → [1] 加载基准 → [2] 批量读章 → [3] OOC 检查 → [4] 伏笔检查 → [5] 设定检查 → [6] 汇总报告`
-
----
-
-## Layer 3 规则（软性优化建议）
-- 每 3-4 段一个小转折，每 10 段一个大节奏点，章末 90-95% 埋钩子
-- 对话口语化（符合人物性格），感官细节每场景 1-2 处
-- 情绪通过身体反应外化（握拳、瞳孔收缩等）
-- 拆分"然后…然后…"流水账句式
-> 更多写作技巧：`webnovel_triggers.md`
-
-## Layer 4 常见问题处理
-
-### 4.1 工具误报问题
-🔍 现象：润色完成后工具返回「篇幅缩水100% (原X→润0)」提示，实际章节字数未发生变化
-✅ 处理方案：此为工具检测误报，无需修改原文，直接向用户说明实际情况即可
-
-### 4.2 结尾截断提示
-🔍 现象：润色完成后工具返回「结尾无终结标点(可能截断)」提示
-✅ 处理方案：
-1. 若为章节正常结束（如全书完、卷尾过渡等格式），无需处理，向用户说明内容正常
-2. 若为实际内容截断，记录问题告知用户，等待用户确认是否补全内容
-
----
-
-## 脚本调用速查
-
-### 核心工具（唯一入口）
-| 脚本 | 功能 | 示例 |
-|------|------|------|
-| `scripts/polish_chapter.py` | 官方唯一润色入口（逐章顺序）。⚠️ 禁用任何自定义临时润色脚本 | `python <Skill路径>/scripts/polish_chapter.py 101 D:\\Writer\\novel-project\\chapters` |
-| `scripts/verify_env.py` | 环境诊断 | `python <Skill路径>/scripts/verify_env.py [项目根目录]` |
-
-### Hook 脚本（流程内部自动调用）
-| 脚本 | 作用 |
-|------|------|
-| `load_state.py` | 读取最新状态作为上下文 |
-| `validate_draft.py` / `validate_polish.py` | 参数预校验 |
-| `check_draft_quality.py` | 初稿 3 轮自检 |
-| `audit_polish.py` | 润色结果 RED LINE 审计 |
-| `polish_independent.py` | 润色核心管线 |
-| `archive_state.py` | 状态自动归档 |
-| `utils.py` | 共享工具（含 `chapter_filename` / `BaseMCPClient` / `find_state_dir`） |
-
----
-
-## MCP 集成状态
-| 服务 | 位置 | 用途 | 状态 |
-|------|------|------|------|
-| novel-deepseek | `mcp/novel-deepseek/deepseek_server.py` | 初稿生成 | ✅ 正常 |
-| novel-doubao | `mcp/novel-doubao/doubao_server.py` | 章节润色 | ✅ 正常 |
-
-已移除依赖：`firstory` / `uno` / `publishready` / `memory-novel`。所有状态回归本地 `state-files/*.json`。
-
-> 详细配置/故障排查：`mcp-integration-guide.md` / `troubleshooting.md`
-
----
-
-## 详细参考（按需加载）
-| 内容 | 跳转入口 |
-|------|---------|
-| 部署指南 | `references/deployment-guide.md` |
-| 环境变量模板 | `references/env-template.md` |
-| 3 轮自检详细协议 | `references/quality_check.md` |
-| 任务路由详细规则 | `references/task_routing.md` |
-| 项目初始化/配置指南 | `references/project-setup.md` |
-| 使用指南/参数模板/示例 | `references/usage-guide.md` |
-| 故障排查手册 | `references/troubleshooting.md` |
-| MCP 集成详细说明 | `references/mcp-integration-guide.md` |
-| 旧版本升级指南 | `references/legacy-project-upgrade.md` |
-| 流派适配写作技巧 | `references/genre-adaptation.md` |
-| 卷审查完整协议（含抽样策略） | `references/volume-audit-protocol.md` |
-| 批量章节编辑（剧情/修为跨章统一） | `references/mass-edit-workflow.md` |
-| 润色管线详细规则 | `references/polish-pipeline.md` |
-| 批量格式修复（引号/破折号/AI 词） | `references/batch-format-fix.md` |
-| 网文写作技巧汇总 | `references/webnovel_triggers.md` |
-
----
-
-## 协作模式：与 writer skill 配合
-
-`writer` skill 提供大纲规划、状态追踪、43 维审查、多平台发布等编排能力。本 skill 是它的"批量生产"驱动器。
-
-### 项目结构约定
-两个 skill 均识别 `novel.json` / `writer.json` / `novel-pipeline.json` 任一标记（优先 `novel.json`）。章节文件统一命名 `chapters/ch_NNN.md`。
-
-### 三种协作模式
-
-**A. writer 主导 + 本 skill 出稿/润色**（推荐大批量场景）
+### 场景 A：writer 主导 + 本 skill 出稿/润色（推荐）
 
 ```powershell
-# 1. writer 侧规划
-# （在 writer skill 会话中）plan → outline/chapter_outline/ch_NNN.md
+# 1. writer 会话内规划（不涉及本 skill）
+#    → outline/chapter_outline/ch_NNN.md
 
-# 2. 本 skill 批量出稿（DeepSeek）
-# 通过主 Agent 调用 novel-deepseek MCP.generate_draft 逐章生成
+# 2. writer 主 Agent 调 novel-deepseek MCP 出初稿
+#    → chapters/ch_NNN.md
+#    → writer 侧 archive_facts.py 归档事实到 .writer/state/*.json
 
 # 3. 本 skill 批量润色（豆包 + writer 番茄预设）
 python <novel-pipeline>/scripts/polish_chapter.py --range 1-30 <project>/chapters `
@@ -219,25 +75,117 @@ python <novel-pipeline>/scripts/polish_chapter.py --range 1-30 <project>/chapter
 
 # 4. writer 侧审查
 python <writer>/scripts/audit.py <project>/chapters
-# 或 writer 会话中执行 review --daily / --solo / --full
+# 或 writer 会话中 review --daily
 ```
 
-**B. 完全独立**（不装 writer 也能用）
+### 场景 B：本 skill 独立运行（无 writer 项目结构）
 
 ```powershell
-python <novel-pipeline>/scripts/polish_chapter.py --range 1-30 <project>/chapters
-# 走 MCP 内嵌通用锁定式 prompt；无字数循环、无风格约束
+python <novel-pipeline>/scripts/polish_chapter.py --range 1-20 <chapters_dir>
 ```
 
-**C. writer 独立**（不用本 skill）
+行为：
+- MCP 调用不带 `style_prompt_override`，走内嵌通用锁定式 prompt
+- ensure_git_snapshot 检测非 git repo → 除非 `--force` 否则拒绝
+- 原地覆写 `chapters/*.md`
 
-writer 内所有写章由主 Agent 直写，不涉及豆包/DeepSeek MCP。审查/发布走 writer 自己的 43 维管线。
+---
 
-### 边界
+## 项目根识别
 
-本 skill **不** 提供：
-- 大纲/章纲规划 → 用 writer `references/plan.md`
-- 硬禁令 B01-B10 / 43 维审查 → 用 writer `references/review.md` / `hard-bans.md`
-- 状态追踪 (`tracking/*.md`) → 用 writer 或自持 `state-files/*.json`
-- 多平台导出 / 封面 → 用 writer `scripts/export.py` / `references/cover.md`
+识别以下三种标记（优先 `novel.json`）：
 
+| 标记 | 场景 |
+|---|---|
+| `novel.json` | 新项目推荐（writer + novel-pipeline 共用）|
+| `writer.json` | writer skill 项目（协作场景）|
+| `novel-pipeline.json` | 老项目（向后兼容） |
+
+**v3.4 起**：识别到项目根后**不再要求 state-files/**——本 skill 只用 `chapters/` 目录 + MCP 生成/润色文本。项目状态由 writer 侧的 `.writer/state/*.json` 管理，本 skill 不读不写。
+
+---
+
+## MCP 调用超时
+| 服务 | 建议 timeout | 说明 |
+|------|------------|------|
+| novel-doubao polish_chapter | 300s | 大章 9000+ 字需 160s+，可延至 600s |
+| novel-deepseek generate_draft | 300s | 一般 30-90s |
+
+---
+
+## 目录结构
+
+```
+novel-pipeline/
+├── SKILL.md
+├── .env
+├── hooks/
+│   ├── utils.py                    # 环境变量 + 章节命名 + BaseMCPClient
+│   └── polish_independent.py       # 润色核心管线（stdin 输入 chapter，输出 polished）
+├── mcp/
+│   ├── novel-doubao/doubao_server.py     # 润色 MCP
+│   └── novel-deepseek/deepseek_server.py # 初稿 MCP
+├── scripts/
+│   ├── polish_chapter.py           # 官方唯一润色入口（CLI）
+│   ├── mcp_utils.py                # Hermes 自动注册（可选）
+│   └── verify_env.py               # 环境诊断
+└── references/                     # 6 份必要文档
+    ├── polish-pipeline.md          # 润色核心规则
+    ├── mcp-integration-guide.md    # MCP 配置
+    ├── env-template.md
+    ├── deployment-guide.md
+    ├── troubleshooting.md
+    └── webnovel_triggers.md        # DeepSeek 出稿时用的网文技法参考
+```
+
+---
+
+## Layer 1 规则（不可违反）
+
+- ⛔ 禁止在本 skill 内做状态归档（伏笔/角色/世界观）——交给 writer
+- ⛔ 禁止编写审查/大纲/项目初始化脚本——交给 writer
+- ⛔ 禁止批量/并行/后台润色（前端卡顿）
+- ⛔ 禁止绕过 MCP 工具直接调用模型 API（除 MCP server 内部）
+- ✅ 只做：单章顺序路由 → 调 MCP → 覆写 chapters/*.md → 下一章
+
+---
+
+## 脚本速查
+
+| 脚本 | 功能 |
+|------|------|
+| `scripts/polish_chapter.py` | 唯一润色入口（前置 git 快照 + 断点续传 + 字数循环 + 文风 override）|
+| `scripts/verify_env.py` | 环境诊断（Python/依赖包/.env/MCP server 文件）|
+| `scripts/mcp_utils.py` | Hermes 会话内自动注册 MCP（非 Hermes 环境打印手动配置片段）|
+
+Hook 脚本（被 polish_chapter.py 调用，无独立入口）：
+| `hooks/polish_independent.py` | 润色核心管线（读 stdin → 调 MCP → 完整性检查 → 输出 JSON）|
+| `hooks/utils.py` | 共享工具（BaseMCPClient / chapter_filename / find_project_root）|
+
+---
+
+## 与 writer skill 协作
+
+| 能力 | writer | novel-pipeline |
+|---|---|---|
+| 大纲规划、状态追踪、审查、发布、封面 | ✅ | — |
+| 初稿写章（主 Agent 直写） | ✅ 5/9 步管线 | — |
+| 批量豆包润色（`DOUBAO_MODEL`） | 不自持 | ✅ `polish_chapter.py` |
+| DeepSeek MCP 批量出稿 | 调本 skill MCP | ✅ `generate_draft` |
+| 硬禁令 B01-B10、43 维审查 | ✅ | — |
+| Git 前置快照 | writer 侧有 `lib.ensure_git_snapshot`（供批量写章/修复用） | 本 skill 自持（供批量润色用）|
+| 状态归档（`.writer/state/*.json`）| ✅（`scripts/archive_facts.py`）| ❌ |
+| tracking 派生（`tracking/*.md`）| ✅（`scripts/render_tracking.py`）| ❌ |
+
+---
+
+## 详细参考（按需加载）
+
+| 内容 | 跳转 |
+|------|---------|
+| 润色管线详细规则 | `references/polish-pipeline.md` |
+| 环境变量模板 | `references/env-template.md` |
+| 部署指南 | `references/deployment-guide.md` |
+| MCP 集成详细说明 | `references/mcp-integration-guide.md` |
+| 故障排查手册 | `references/troubleshooting.md` |
+| 网文写作技巧（DeepSeek 出稿参考）| `references/webnovel_triggers.md` |

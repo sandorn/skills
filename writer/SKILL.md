@@ -20,43 +20,163 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 
 ---
 
-## 项目目录结构（唯一标准）
+## 项目目录结构（唯一标准 · v8.3）
 
 ```
 {project}/
-├── writer.json                  # 项目状态（writer 主状态；也可命名 novel.json 与 novel-pipeline 共用）
-├── setting/
+├── novel.json                   # 项目根标识（首选，与 novel-pipeline 共用）
+│   └── 或 writer.json / novel-pipeline.json（都被识别，novel.json 优先）
+├── setting/                     # 【用户领地】静态约束
 │   ├── story_bible.md           # 世界观设定总纲
 │   ├── characters.md            # 角色卡 + 关系矩阵
 │   ├── power_system.md          # 力量/等级/权限体系
-│   └── factions.md              # 势力/门派/阵营
-├── outline/
+│   ├── factions.md              # 势力/门派/阵营
+│   └── writing_rules.md         # 可选：项目声音卡（写章前自动加载）
+├── outline/                     # 【用户 + Agent 协作】大纲
 │   ├── master_outline.md        # 总纲：核心冲突 + 结局方向
 │   ├── volume_outline.md        # 卷纲：节拍表 + 时间线
 │   └── chapter_outline/         # 章纲（每章一个文件）
 │       ├── ch_001.md
 │       └── ...
-├── chapters/
-│   ├── ch_001.md
+├── chapters/                    # 【Agent 主写】正文
+│   ├── ch_001.md                # 命名格式：ch_NNN.md（三位数补零 + 下划线）
 │   └── ...
-├── tracking/
-│   ├── current_state.md         # 角色位置/状态快照
-│   ├── hooks.md                 # 伏笔池（已埋/已回收）
-│   ├── chapter_summaries.md     # 章节摘要
-│   ├── subplot_board.md         # 支线进度板
-│   ├── emotional_arcs.md        # 情绪弧线追踪
-│   └── resource_ledger.md       # 资源/金币账本
-├── .writer/
-│   ├── state.json               # 系统运行时状态
-│   ├── project_memory.json      # 写作模式记忆
-│   ├── memory-novel.db/          # 知识图谱（MCP auto，4实体/5关系）
-│   └── runtime/                 # 临时文件
-├── analysis_lib/                # 对标书分析数据
-├── reference/                   # 引用书参考视图
-└── cover/                       # 封面输出
+├── tracking/                    # 【Agent 派生渲染】人读快照
+│   ├── characters.md            # 从 .writer/state/characters.json 派生
+│   ├── hooks.md                 # 从 .writer/state/foreshadowing.json 派生
+│   ├── current_state.md         # 当前状态快照（派生）
+│   └── 用户可在任意 md 里插入 <!-- user-edit -->...<!-- /user-edit --> 块保留规划意图
+└── .writer/                     # 【skill 领地】不入 git 主线（runtime 除外）
+    ├── state/                   # 【Agent 独写】原子事实源（机读）
+    │   ├── characters.json      # {"version": N, "characters": [...]}
+    │   ├── foreshadowing.json   # {"version": N, "active": [], "resolved": []}
+    │   ├── power_system.json
+    │   └── world_setting.json
+    ├── project_memory.json      # skill 学到的项目习惯（可选）
+    └── runtime/                 # 临时文件（.gitignore）
 ```
 
-项目根识别：当前目录含 `novel.json` / `writer.json` / `novel-pipeline.json` 任一（优先 `novel.json`），或含 `setting/` + `chapters/` 即视为项目根。writer 侧默认读写 `writer.json`；新项目也可写 `novel.json`（与 novel-pipeline 共用）。
+### 四层写权限（从严到松）
+
+| 层 | 谁写 | 谁改 | 用途 |
+|---|---|---|---|
+| `.writer/state/*.json` | Agent 独写（`archive_facts.py`）| 只 Agent | 原子事实源，写章后归档 |
+| `tracking/*.md` | Agent 派生（`render_tracking.py`）| 用户可在 user-edit 块内增补 | 人读快照 |
+| `setting/*.md` | Agent 初始化 + 用户手改 | 用户为主 | 静态约束 |
+| `chapters/*.md` | Agent 主写 | 用户可修 | 正文 |
+| `outline/*.md` | Agent 生成 + 用户改 | 双方 | 大纲 |
+
+### 项目根识别
+
+当前目录含以下任一：**`novel.json`**（首选）/ `writer.json` / `novel-pipeline.json`，或含 `setting/` + `chapters/` 即视为项目根。writer 侧默认读写 `novel.json`（也向后兼容 writer.json）。
+
+---
+
+## 使用场景全景
+
+> 8 个场景覆盖网文写作全生命周期。每个场景说清：**谁触发** → **哪个 skill** → **文件流**。
+
+### 场景 0 · 开新书
+- **用户说**：「帮我开本都市重生文，主角回到 2001 年开网吧」
+- **skill**：writer（`project-init`），novel-pipeline 不介入
+- **产物**：`novel.json` + 5 段目录骨架 + `.writer/state/*.json` 空骨架
+
+### 场景 1 · 规划大纲
+- **用户说**：「规划大纲，写三卷每卷 60 章」
+- **skill**：writer（`plan`）
+- **产物**：`outline/master_outline.md` + `volume_outline.md` + `chapter_outline/ch_NNN.md`
+
+### 场景 2 · 写单章（主 Agent 亲写）
+- **用户说**：「写第 1 章」
+- **skill**：writer 5 步管线
+- **文件流**：
+  ```
+  读 .writer/state/*.json + setting/*.md + outline/ch_NNN.md + tracking/*.md（含用户 user-edit 块）
+    → 主 Agent 亲写 → chapters/ch_NNN.md
+    → archive_facts.py 追加事实到 .writer/state/*.json
+    → render_tracking.py 派生 tracking/*.md（保留用户块）
+    → daily 审查 8 维
+  ```
+
+### 场景 3a · 批量写章（writer 主 Agent 直写）
+- **用户说**：「写第 2-6 章」
+- **skill**：writer（`write --batch 5`）
+- **特点**：sub-agent delegation 并行写章 ≤5 章/批 → 每章各自跑 Step 5 归档 → 批次结束跑 solo 审查
+
+### 场景 3b · 批量出稿（novel-pipeline 出初稿）
+- **用户说**：「用 DeepSeek 帮我出 30 章初稿」
+- **skill**：writer + **novel-pipeline**（`novel-deepseek MCP`）
+- **文件流**：
+  ```
+  writer 主 Agent 拿章纲 + .writer/state/*.json 状态
+    → 调 novel-pipeline 的 novel-deepseek MCP.generate_draft（返回文本）
+    → writer 主 Agent 把初稿写入 chapters/ch_NNN.md
+    → archive_facts.py + render_tracking.py（同 Step 5）
+    → writer 跑 review
+  ```
+
+### 场景 4 · 批量润色（novel-pipeline 主导）
+- **用户说**：「把 ch_001-020 全部用番茄风重写」
+- **skill**：**novel-pipeline**（`polish_chapter.py --range`）
+- **命令**：
+  ```powershell
+  python <novel-pipeline>/scripts/polish_chapter.py --range 1-20 <project>/chapters `
+      --style-file <writer>/references/presets/fanqie-quick-anti.md `
+      --min-words 2500 --max-words 3000
+  ```
+- **文件流**：
+  ```
+  novel-pipeline 内部：
+    ensure_git_snapshot()  → git 快照（前置钩子）
+    for ch in 1..20:
+        读 chapters/ch_NNN.md 原文
+        调 novel-doubao MCP.polish_chapter(style_prompt_override=fanqie 预设)
+        字数循环最多 2 轮
+        覆写 chapters/ch_NNN.md
+    输出 .polish_progress.json + polish_compare/*.md
+  ```
+- **skill 边界**：novel-pipeline **不动** `.writer/state/*.json` / `tracking/*.md` / `setting/*.md`
+- **用户后续**：writer 跑 daily 审查确认润色未引入禁令
+
+### 场景 5 · 用户手补 tracking 内容
+- **场景**：读到 ch_010 突然想给某伏笔留回收线索
+- **做法**：
+  ```markdown
+  在 tracking/hooks.md 相应 ## 标题下方追加：
+  <!-- user-edit -->
+  老周暴露规划：ch_028-030 用刘强作证；先让张远在 ch_020 起疑
+  <!-- /user-edit -->
+  ```
+- **保护**：下次 render_tracking.py 重跑时**保留此块不动**
+- **注入**：下次写章时 Agent 读 tracking/hooks.md → user-edit 块作为规划意图进 context
+
+### 场景 6 · 审查已写章节
+- **用户说**：「全面审查前 20 章」
+- **skill**：writer（`review-cycle` 5 步 + 4 Agent full 模式 43 维）
+- **交叉源**：`.writer/state/*.json`（当前事实）+ `setting/*.md`（原始设定）+ `chapters/*.md`（正文）
+- **产物**：S1-S4 分级报告到 `.writer/runtime/audit_<date>.md`
+
+### 场景 7 · 导入旧稿（老 novel-pipeline / 老 writer 项目）
+- **用户说**：「导入 D:/OLD/wanjie 这本旧书」
+- **skill**：writer（`project-init` import 模式）
+- **迁移映射**：
+  ```
+  novel-pipeline.json / writer.json → 保留（三种 marker 都被识别）或 mv 为 novel.json
+  state-files/*.json → git mv 到 .writer/state/*.json
+  chXX.md / chXXX.md → git mv 为 ch_NNN.md
+  chapters_polished/ → 删除（新架构原地覆盖）
+  ```
+
+### 场景 8 · novel-pipeline 独立运行
+- **场景**：只想批量润色某个非 writer 项目（比如 `D:/RandomBook/chapters/` 目录，没有其他架构）
+- **做法**：
+  ```powershell
+  python <novel-pipeline>/scripts/polish_chapter.py --range 1-2 D:/RandomBook/chapters --force
+  ```
+- **行为**：
+  - 无 setting/state/tracking → MCP 走默认锁定式 prompt（不带 style override）
+  - 非 git repo → `--force` 放行（无 git 快照保护）
+  - 原地覆写 chapters/*.md
 
 ---
 
@@ -130,17 +250,19 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 
 每次写作会话启动时自动执行：
 
-1. **解析项目根**：检测 `writer.json` + `setting/` + `chapters/`
+1. **解析项目根**：检测 `novel.json`（首选）/ `writer.json` / `novel-pipeline.json`，任一存在即视为项目根
 2. **读取状态**：stage、chapters_done、current_chapter
 3. **检测缺口**（仅发现问题时提示）：
-   - 章节 > 10 但设定文件 < 3 → 建议补充设定
-   - `.writer/` 结构不完整 → 提示修复
-   - `analysis_lib/` 有待完成的 `_progress.md` → 提示继续拆解
-   - `tracking/` 文件缺失 → 提示重建
+   - 章节 > 10 但设定文件 < 3 → 建议补充 setting/
+   - `.writer/state/*.json` 缺失或版本号异常 → 提示跑 `archive_facts.py --dry-run` 诊断
+   - `.writer/runtime/` 缺失 → 提示重建
+   - `tracking/` 缺失或长时间未更新 → 提示 `render_tracking.py` 重生成
    - `setting/writing_rules.md` 存在 → 自动加载声音指引
 4. **无信息时完全静默**
 
-已有项目时：从 `writer.json` 读取状态；写章时自动检查上一章进度；批量写章前强制预写对齐检查。
+已有项目时：从项目根 JSON 读取状态；写章时自动检查上一章进度；批量写章前强制预写对齐检查。
+
+**新架构变化**：老 writer 项目里 `.writer/` 下只有 `state.json` + `runtime/`；v8.3 新项目 `.writer/` 下有 `state/*.json`（4 份原子事实）+ `project_memory.json` + `runtime/`。老项目通过 `project-init` 的 import 模式自动补建。
 
 ---
 
@@ -375,20 +497,28 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 
 ---
 
-## writer.json 格式
+## 项目根标记格式（novel.json / writer.json）
 
 ```json
 {
-  "project": "书名",
+  "project_name": "书名",
   "author": "作者",
-  "skill_version": "8.1",
-  "stage": "planning|writing|reviewing|completed",
+  "skill_version": "8.3",
+  "stage": "scaffold|planning|writing|reviewing|completed",
   "genre": "xuanhuan|urban|xianxia|horror|other",
   "platform": "fanqie|feilu|qidian|zhihu|other",
   "chapters_total": 100,
   "chapters_done": 0,
+  "current_chapter": 0,
   "words_per_chapter": 3000,
   "current_volume": 1,
+  "chapter_dir": "./chapters/",
+  "setting_dir": "./setting/",
+  "outline_dir": "./outline/",
+  "tracking_dir": "./tracking/",
+  "state_dir": "./.writer/state/",
+  "polish_toggle": true,
+  "auto_skip_transition_chapters": true,
   "last_action": "scan|analyze|init|plan|write|review|quality|learn",
   "created_at": "2026-01-01T00:00:00",
   "updated_at": "2026-01-01T00:00:00"
@@ -444,6 +574,8 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 | 文件 | 功能 | 安全 |
 |------|------|------|
 | `scripts/lib.py` | 共享工具模块（含 `ensure_git_snapshot` 快照钩子） | INFRA |
+| `scripts/archive_facts.py` | 章末事实归档到 `.writer/state/*.json`（Agent 写章 Step 5 调用） | SAFE_WRITE |
+| `scripts/render_tracking.py` | 从 state JSON 派生 tracking md（含 user-edit 块保护） | SAFE_WRITE |
 | `scripts/analyze_hook.py` | 追读力分析 | READONLY |
 | `scripts/analyze_rhythm.py` | 节奏状态查询 | READONLY |
 | `scripts/report_panorama.py` | 项目全景报告 | READONLY |

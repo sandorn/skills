@@ -16,11 +16,11 @@ Step 3: 终验      ──→ Step 4: 追踪+事实库 → Step 5: 全景报告
 
 | Step | 名称 | 执行方式 | 产出 |
 |------|------|---------|------|
-| 0 | 项目体检 | 主会话 solo | 环境状态声明（含 memory-novel MCP 可用性声明） |
+| 0 | 项目体检 | 主会话 solo | 环境状态声明（目录 + `.writer/state/` 完整性）|
 | 1 | 粗筛 | delegate 并行 / solo | 违规模板清单 + 5维数据表 |
 | 2 | 深筛 | delegate 并行 | S1-S4 分级问题清单 + 追读力报告 |
 | 3 | 终验 | 主会话 solo / delegate | 阻塞清零确认 |
-| 4 | 追踪+事实库 | 主会话 solo | 追踪文件更新 + 事实库同步 |
+| 4 | 追踪+事实库 | 主会话 solo | 追踪文件更新（archive_facts + render_tracking）|
 | 5 | 全景报告 | 主会话 solo | 健康评分 + 修复排序 + 趋势对比 |
 
 ---
@@ -29,17 +29,17 @@ Step 3: 终验      ──→ Step 4: 追踪+事实库 → Step 5: 全景报告
 
 调用 `quality.md` 的 doctor 模式，确认审查环境完整：
 
-- **目录/文件完整性检查**：设定/大纲/正文/追踪 是否存在
-- **知识图谱状态检查**：memory-novel MCP 是否可用、`./novel_memory_db/` 是否存在
+- **目录/文件完整性检查**：`setting/` / `outline/` / `chapters/` / `.writer/state/` 是否存在
+- **状态文件检查**：`.writer/state/*.json` 4 份是否格式合法（`python <writer>/scripts/archive_facts.py --dry-run` 诊断）
 - 发现问题 → 先修复再进入 Step 1
 
-### memory-novel MCP 降级声明（Step 0 必须输出以下状态之一）
+### 状态文件缺失时的降级
 
-| MCP 状态 | 影响范围 | 降级行为 |
-|---------------|---------|---------|
-| ✅ MCP 可用，知识图谱完整 | 全管线正常 | Step 2c/3b/4/5 全部启用 |
-| ⚠️ MCP 不可用 | Step 3b 增量校验 + Step 4 KG 写入 跳过 | Step 2c 仅用 `analyze_hook.py`；Step 3b 降级为文件级交叉校验；Step 5 健康评分不含 KG 覆盖率 |
-| ⚠️ KG 存在但断层 >20 章 | 同「不可用」 | 通过 MCP 重建索引，读取最近章节 + tracking/ 文件 |
+| 状态 | 降级行为 |
+|---------------|---------|
+| ✅ `.writer/state/*.json` 完整 | Step 3b 增量校验 + Step 4 事实归档 全部启用 |
+| ⚠️ `.writer/state/` 缺失或为空 | Step 3b 降级为文件级交叉校验（对照 setting/*.md）；Step 4 用当前审查发现补建 state 骨架 |
+| ⚠️ state 断层 >20 章（chapters 增长但 state version 未更新） | 提示用户跑 `archive_facts.py` 补齐再审查 |
 
 降级声明写入审查报告顶部。
 
@@ -79,7 +79,7 @@ python scripts/audit.py chapters/                    # 批量扫描（含5维交
 
 ## Step 2：深筛（43维审计 + 交叉校验 + 追读力）
 
-> **memory-novel MCP 可用时**启用增量校验；**不可用时**降级为文件级交叉校验（见 Step 0 降级声明）。
+> **`.writer/state/*.json` 完整时**启用增量校验；**不完整时**降级为文件级交叉校验（见 Step 0 降级声明）。
 
 ### 2a. 43 维质量审计（`review.md`）
 
@@ -118,14 +118,14 @@ python scripts/audit.py chapters/                    # 批量扫描（含5维交
 --dim love     感情线里程碑间隔是否合理
 ```
 
-### 3b. 知识图谱增量校验
+### 3b. 事实库增量校验
 
-> **仅在 Step 0 确认 memory-novel MCP 可用时执行。** 不可用时降级为文件级交叉校验——人工对照 `tracking/` 下文件逐条验证，以注释形式追加到审查报告。
+> **仅在 Step 0 确认 `.writer/state/*.json` 存在时执行。** 不存在时降级为文件级交叉校验——人工对照 `setting/*.md` 与 `tracking/*.md` 逐条验证，以注释形式追加到审查报告。
 
-MCP 可用时：将审查中发现的新事件通过 MCP 写入知识图谱，并与已有记录交叉验证：
-- 等级事件：确认不倒退、不自相矛盾
-- 金币事件：余额可追溯
-- 伏笔事件：新增伏笔标记「未埋」，回收伏笔标记「已回收」
+state 完整时：将审查中发现的新事件通过 `archive_facts.py` 写入 `.writer/state/*.json`，并与已有记录交叉验证：
+- 等级事件：确认不倒退、不自相矛盾（`characters.json` cultivation 字段递增性检查）
+- 金币事件：余额可追溯（`recent_changes` 时间线）
+- 伏笔事件：新增伏笔标记「未埋」，回收伏笔标记「已回收」（`foreshadowing.json` active/resolved 迁移）
 
 ### 3c. 阻塞清零确认
 
@@ -133,35 +133,43 @@ S1 问题未全部清零前不进入 Step 4。
 
 ---
 
-## Step 4：追踪更新 + 知识图谱写入（强制执行）
+## Step 4：追踪更新 + 事实库归档（强制执行）
 
-### 追踪文件更新（始终执行）
+### 事实库归档（archive_facts.py）
 
-- `tracking/hooks.md`：跨卷伏笔+已回收+版本号
-- `tracking/current_state.md`：年龄/等级/权限/资产/关系/位置
-- 关键章阅读策略：卷末 → 已有伏笔章 → 重大事件章 → 前后5章
-- 详细方法见 `hooks-scan.md`
-
-### 知识图谱同步（仅在 memory-novel MCP 可用时执行）
-
-对审查范围内的章节，通过 MCP 写入新发现的事实（审查可能发现了写章时漏提取的事实），并更新版本状态：
+审查中发现的新事实（写章时漏提取的）→ 构造 payload → `python <writer>/scripts/archive_facts.py`：
 
 ```bash
-# 通过 memory-novel MCP 写入：
-#   add_observations → 新发现的等级/金币/角色变更
-#   create_relations → 新发现的关系
-# 更新 writer.json 中 reviewed 版本状态
+cat <<EOF | python <writer>/scripts/archive_facts.py
+{
+  "chapter_number": <审查发现的章号>,
+  "changes": {
+    "characters": [...],
+    "foreshadowing": {...},
+    "power_system": {...},
+    "world_setting": {...}
+  }
+}
+EOF
 ```
 
-> 若 MCP 不可用 → 该步骤跳过，在审查报告中注明。写章管线已自动更新 KG，此处为补充校验。
+- `.writer/state/*.json` 版本号自增 + .bak 备份
+
+### 追踪派生（render_tracking.py）
+
+```bash
+python <writer>/scripts/render_tracking.py
+```
+
+- 从最新 `.writer/state/*.json` 派生 `tracking/*.md`
+- 保留用户 `<!-- user-edit -->` 块
 
 ### 检查清单
 
-- □ 伏笔版本号已更新
-- □ 跨卷伏笔状态已刷新
-- □ 已回收伏笔已追加
-- □ 角色状态（年龄/等级/权限/资产/关系/位置）已同步
-- □ 事实库已同步最新事件（若不可用则标注 N/A）
+- □ `.writer/state/foreshadowing.json` 版本号已递增（若有新伏笔发现）
+- □ `.writer/state/characters.json` 版本号已递增（若有角色状态变更）
+- □ `tracking/*.md` 已重新派生
+- □ 用户 user-edit 块保留数 == 派生前提取数（无丢失）
 
 ---
 
@@ -172,8 +180,8 @@ python scripts/report_panorama.py . --output 审查报告-全景.md
 ```
 
 报告包含：
-- **健康评分**（0-100）：基于字数/禁令/段落/追踪/事实库覆盖率
-  - 若 memory-novel MCP 不可用，健康评分不含 KG 覆盖率，权重重新分配
+- **健康评分**（0-100）：基于字数/禁令/段落/追踪/状态归档完整度
+  - 若 `.writer/state/*.json` 不完整，健康评分不含事实库覆盖率，权重重新分配
 - **修复优先级排序**：S1 > S2 > S3 按章节排序
 - **项目整体建议**：下一步写作方向、风险提示
 - **趋势对比**：本次审查 vs 上次审查的健康评分变化
@@ -200,7 +208,7 @@ S2 (建议 — 应该修)
 S3 (提示 — 可忽略)
   {分析}
 
-memory-novel MCP 状态: ✅ 可用 / ⚠️ 降级 ({降级原因})
+.writer/state 状态: ✅ 完整 / ⚠️ 降级（{降级原因}）
 阻塞统计: S1={N}个, S2={M}个, S3={K}个
 最终判定: 通过 / 需修复后再审 / 阻塞未清
 ```
@@ -225,4 +233,5 @@ S1 未全部清零前不进入下一轮审查。
 
 | 日期 | 变更 |
 |------|------|
-| 2026-06-23 | 与 SKILL.md 5步管线统一，增加 memory-novel MCP 降级路径、Triage 引用、Step 5 全景报告 |
+| 2026-07-10 | v8.3 — memory-novel MCP 相关字段全部替换为 `.writer/state/*.json` + `archive_facts.py` + `render_tracking.py` 三件套 |
+| 2026-06-23 | 与 SKILL.md 5步管线统一，增加 Triage 引用、Step 5 全景报告 |

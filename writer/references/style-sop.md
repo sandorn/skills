@@ -154,7 +154,7 @@ style_override:
 
 ### 3.3 文风转换时的动态参数
 
-文风转换脚本 (`scripts/polish.py`) 使用本 SOP 的 `content_focus` + `emotion_rules` 作为系统提示词核心，`sentence_params` + `bans` 作为质检校验依据。切换目标文风只需更换预设名称。
+文风转换脚本（**novel-pipeline** 的 `polish_chapter.py --style-file`）读取本 SOP 对应 preset 文件的全文作为 system prompt override 传给豆包 MCP。切换目标文风只需更换 `--style-file` 指向的 preset 文件。
 
 ---
 

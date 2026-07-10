@@ -2,7 +2,7 @@
 
 **预设名:** fanqie-quick-anti
 **适用场景:** 都市游戏锚点、单人隐秘机缘、草根逆袭题材的章节润色/文风转换
-**使用方式:** `python scripts/polish.py --style fanqie-quick-anti`
+**使用方式:** `python <novel-pipeline>/scripts/polish_chapter.py --range N-M <chapters> --style-file <writer>/references/presets/fanqie-quick-anti.md`
 
 ---
 

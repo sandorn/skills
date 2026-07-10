@@ -14,7 +14,6 @@ from pathlib import Path
 SKILL_DIR = Path(__file__).resolve().parent.parent
 HOOKS_DIR = SKILL_DIR / "hooks"
 MCP_DIR = SKILL_DIR / "mcp"
-STATE_TEMPLATE = SKILL_DIR / "state-files"
 
 STDLIB_CHECKS = [
     "json", "os", "re", "asyncio", "subprocess",
@@ -33,10 +32,8 @@ ENV_KEYS_REQUIRED = [
     "DOUBAO_API_KEY", "DOUBAO_BASE_URL", "DOUBAO_MODEL",
 ]
 HOOK_SCRIPTS = [
-    "validate_draft.py", "validate_polish.py",
-    "check_draft_quality.py", "audit_polish.py",
-    "load_state.py", "archive_state.py",
-    "polish_independent.py", "utils.py",
+    "polish_independent.py",
+    "utils.py",
 ]
 
 
@@ -119,8 +116,6 @@ def run():
                 break
     if project_root and project_marker:
         results.append(check("Project marker", True, str(project_marker)))
-        state_dir = project_root / "state-files"
-        results.append(check("Project state-files", state_dir.exists(), str(state_dir)))
         chapters_dir = project_root / "chapters"
         if chapters_dir.exists():
             count = len(list(chapters_dir.glob("*.md"))) + len(list(chapters_dir.glob("*.txt")))
@@ -137,21 +132,13 @@ def run():
     else:
         results.append(check("Project root", False, "no marker found (looked for novel.json / writer.json / novel-pipeline.json in CWD + 5 parents)"))
 
-    # 模板 JSON 合法性
-    for tf in STATE_TEMPLATE.glob("*.json"):
-        try:
-            json.loads(tf.read_text(encoding="utf-8"))
-            results.append(check(f"Template: {tf.name}", True))
-        except json.JSONDecodeError as e:
-            results.append(check(f"Template: {tf.name}", False, str(e)))
-
     # 汇总
-    # 关键项：Python 版本、stdlib、hook 脚本、MCP server、状态模板、Skill .env 存在、6 个必需环境变量
+    # 关键项：Python 版本、stdlib、hook 脚本、MCP server、Skill .env 存在、6 个必需环境变量
     critical = [
         r for r in results
         if r["check"].startswith((
             "Python version", "stdlib:", "hook:", "MCP server:",
-            "Template:", "Skill .env", ".env: ",
+            "Skill .env", ".env: ",
         ))
     ]
     summary = {

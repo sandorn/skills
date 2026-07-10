@@ -7,32 +7,37 @@
 | 文件 | 依赖脚本 |
 |------|---------|
 | `quality.md` | audit.py, split_paragraphs.py |
-| `review.md` | agents/ (4 templates) |
-| `review-cycle.md` | audit.py, memory-novel MCP, report_panorama.py |
+| `review.md` | agents/ (4 templates), audit.py |
+| `review-cycle.md` | audit.py, report_panorama.py |
 | `post-review-fix.md` | audit.py, split_paragraphs.py |
-| `style-transfer.md` | polish.py, style-sop.md |
+| `style-transfer.md` | **novel-pipeline** `polish_chapter.py`, style-sop.md, presets/ |
 | `deploy.md` | audit.py, split_paragraphs.py |
-| `write.md` | audit.py |
+| `write.md` | audit.py, archive_facts.py, render_tracking.py |
 | `hard-bans.md` | audit.py (--dump-bans 校验) |
 | `manual-polish.md` | 无（三零原则禁止脚本） |
+| `project-init.md` | archive_facts.py（初始化空骨架时用）|
 
 ## 文风预设
 
 | 文件 | 说明 |
 |------|------|
-| `presets/fanqie-quick-anti.md` | 番茄爆款轻松逆袭风（polish.py --style 默认） |
+| `presets/fanqie-quick-anti.md` | 番茄爆款轻松逆袭风（novel-pipeline `polish_chapter.py --style-file` 消费）|
 
-## 已移除 (v7.8 激进精简)
+## 状态归档链（v8.3 新增）
 
-- `pad_chapter.py` → 字数注入器已废弃，改为手工扩充
-- `audit_5dim.py` → 功能已集成到 audit.py
+```
+写章 → chapters/ch_NNN.md
+     → archive_facts.py 读 stdin JSON → .writer/state/*.json 追加事实
+     → render_tracking.py 读 .writer/state/*.json → tracking/*.md 渲染（保留 <!-- user-edit --> 块）
+```
+
+## 已移除
+
+- `scripts/polish.py` (v8.3) → 迁至 novel-pipeline skill 的 `scripts/polish_chapter.py`
+- `references/memory-novel-schema.md` (v8.3) → memory-novel MCP 已废弃，改用 `.writer/state/*.json`
+- `pad_chapter.py` (v7.8) → 字数注入器已废弃，改为手工扩充
+- `audit_5dim.py` (v7.8) → 功能已集成到 audit.py
 - `backup.py` → 改用 git commit
 - `publishable-check.md` → 被 review daily 吸收
-- `memory.md` → 被 memory-novel MCP 吸收
-- `opening-craft.md` → 不可达，删除
-- `project-knowledge-base.md` → 不可达，删除
-- `corruption-fix-bu-shi.md` → 核心教训已写入硬禁令 B08
-- `optimize.md` → 钩子分析用 analyze_hook.py，手工优化见 manual-polish.md
-- `fix-template-cleanup.md` → 模板检测已集成到 audit.py
-- `setting-audit-gaming-manifest.md` → 项目特定遗留
-- `project-review-novel-gaming-manifest.md` → 项目特定遗留
+- `memory.md` → v8.0 之前的旧记忆管理，被 memory-novel 短暂替代，v8.3 最终迁至 `.writer/state/*.json`
+- `opening-craft.md` / `project-knowledge-base.md` / `corruption-fix-bu-shi.md` / `optimize.md` / `fix-template-cleanup.md` / 两个 gaming-manifest 项目遗留文件（v7.8 一并清理）

@@ -40,7 +40,7 @@ python scripts/audit.py chapters/
 对全部章节的权限/等级/金额/属性/感情线逐章校验：
 
 ```bash
-python scripts/audit_5dim.py chapters/
+python scripts/audit.py chapters/
 ```
 
 检查项：

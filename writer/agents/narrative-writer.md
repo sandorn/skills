@@ -7,8 +7,6 @@ tools:
   - read_files
   - pattern_search
   - list_directory
-  - mcp__publishready  # 语义级 AI 腔审计
-  - mcp__uno           # 重复措辞检测 + 散文流畅度
 constraints:
   - read_only
   - no_filesystem_mutation

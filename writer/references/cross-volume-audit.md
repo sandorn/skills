@@ -31,18 +31,18 @@
 
 ### Step 2: 角色修为/状态一致性检查
 
-1. 从 `state-files/characters.json` 读前卷末的角色修为数据
+1. 从 `.writer/state/characters.json` 读前卷末的角色修为数据（`cultivation` 字段）
 2. 用 Python 扫描当前卷各章，抽取角色修为/等级的关键词
-3. 比对：林尘修为是否延续？配角修为是否延续？
+3. 比对：主角修为是否延续？配角修为是否延续？
 
 ### Step 2B: 术语/命名体系一致性检查（新增）
 
 跨卷设置名称漂移是长篇中最隐蔽也最致命的断裂。不同卷之间对同一角色的称呼必须一致。
 
 **检查方法：**
-1. 从 vol1 的 state-files 或第一卷正文中提取关键命名锚点（势力名、人物称号、地名）
+1. 从 `.writer/state/world_setting.json` 或第一卷正文中提取关键命名锚点（势力名、人物称号、地名）
 2. 用 `search_files` 扫描当前卷各章，比对命名是否一致
-3. 关注：五帝/七宗/三殿类体系名称、人物尊称（仙帝/大帝/尊者）、地名（天元城/中天帝朝/九天灵域）
+3. 关注：势力体系名称、人物尊称、地名
 
 **典型问题：** 卷4建五帝体系为「天元仙帝/玄冥仙帝/苍炎仙帝/白帝/轮回仙帝」，但卷5出现了「苍龙帝/九苍玄女/秦无锋/黄帝」等多套不兼容命名 → 各章各自使用不同的命名体系，互不匹配。
 
@@ -90,7 +90,7 @@
 
 ### Step 3: 伏笔跨卷追踪
 
-1. 从 `state-files/foreshadowing.json` 读取 active 伏笔列表
+1. 从 `.writer/state/foreshadowing.json` 读取 active 伏笔列表
 2. 对每条 `status: "unresolved"` 的伏笔：
    - 用 `search_files` 在全卷搜索伏笔关键词
    - 记录该伏笔"连续未出现的卷数"
@@ -98,16 +98,14 @@
    - 连续 ≥3 卷未出现 → ⚠️ S2 建议
    - 连续 ≥4 卷未出现 → ⛔ S1 阻塞
 
-**关键词示例：** 碎月印记→`碎月`+`三瓣弯月`；血渊组织→`血渊`+`灵根种子`；段长老→`段长老`
-
 ### Step 4: 断裂伏笔修复策略
 
 发现断裂伏笔后：
 - **有自然插入点**: 在当前卷插入回调场景（旁观者法/回想法/对话法/战利品法）
-- **无自然插入点**: 在下一卷开头安排回收，更新 foreshadowing.json 的 payoff_window
+- **无自然插入点**: 在下一卷开头安排回收，更新 `.writer/state/foreshadowing.json` 中该 active 项的 `expected_payoff_window`
 
 回调场景插入技巧：人群加神秘观察者、角色心理活动提及、角色对话带回线索、从敌人身上搜出伏笔物品
 
 ### Step 5: 归档
 
-修复完成后更新 `state-files/foreshadowing.json`：新增回调标记为新伏笔、已回收移至 resolved。运行 `archive_state.py` 同步 memory-novel。
+修复完成后调用 `archive_facts.py` 写入 `.writer/state/foreshadowing.json`：新增回调 payload 里带 `"foreshadowing": {"new": [...]}`；已回收带 `"resolved_ids": [...]`；然后跑 `render_tracking.py` 刷新 `tracking/hooks.md`。

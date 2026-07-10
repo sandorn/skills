@@ -7,8 +7,6 @@ tools:
   - read_files
   - pattern_search
   - list_directory
-  - mcp__uno           # analyze_text 叙事节奏评估
-  - mcp__publishready  # 可读性 + 风格漂移检测
 constraints:
   - read_only
   - no_filesystem_mutation
@@ -156,7 +154,7 @@ VERDICT: APPROVE / CONCERNS / REJECT
 | 38 场景分配合理性 | 本章场景数是否≥2？单一场景从头到尾 → S3 | S3 = 场景单一 |
 | 39 描写vs叙述比例 | 纯叙述段（无感官细节）占比 >70% → S3 | S3 = 描写不足 |
 | 40 章节结构完整性 | 是否有开篇钩子 + 中段爽点 + 章末钩子的三段式？缺失任一段 → S2 | S2 = 结构不完整 |
-| 41 角色声音一致性 | 从 memory-novel MCP search_nodes 对比本章与前 50 章的角色对话句长偏差，>30% → S2 | S2 = 声音漂移 |
+| 41 角色声音一致性 | 主 Agent 读本章角色对话 + 前 5 章同角色对话，对比句长/口头禅/语气偏差，>30% → S2 | S2 = 声音漂移 |
 | 42 同人维度 | 同人作品：角色还原/世界规则/正典事件一致性。非同人 → 跳过 | S1 = 正典违背 |
 | 43 跨卷连贯性 | 本章系新卷首章？检查与上卷末章的 7 项衔接指标（→ deploy.md B10） | S2 = 衔接断裂 |
 

@@ -1,8 +1,12 @@
 """
-Hook 共享工具
-项目隔离查找：优先使用当前项目目录下的 state-files，回退到 Skill 模板。
+Hook 共享工具（v3.4 精简版）
 
-MCP 调用基类：统一初始化协议、错误处理、资源管理。
+职责收窄：novel-pipeline 只做生成/润色，不再持有状态。
+本模块只保留：
+  - 环境变量加载 (load_dotenv / get_path)
+  - 章节文件命名 (chapter_filename)
+  - 项目根查找 (find_project_root，只识别，不管 state)
+  - MCP 调用基类 (BaseMCPClient)
 """
 import sys
 import os
@@ -17,7 +21,6 @@ from typing import Any, Optional, Dict, List, Union
 
 # ==================== 基础配置 ====================
 SKILL_DIR = Path(__file__).resolve().parent.parent
-SKILL_STATE_DIR = SKILL_DIR / "state-files"
 
 # 日志配置
 logging.basicConfig(
@@ -51,9 +54,6 @@ def load_dotenv(key: str) -> str:
 def get_path(key: str, default: str) -> Path:
     """
     获取配置路径，优先级：skill本地.env → 系统环境变量 → 默认值
-    :param key: 环境变量名
-    :param default: 默认路径字符串
-    :return: Path 对象
     """
     val = load_dotenv(key)
     if val:
@@ -92,6 +92,9 @@ def find_project_root() -> Optional[Path]:
     """
     从当前工作目录向上查找项目标记文件（最多 5 层）。
     命中任一 PROJECT_MARKERS 即视为项目根，返回该目录；未命中返回 None。
+
+    v3.4 起本 skill 不再维护项目状态（writer skill 负责），因此不再提供
+    find_state_dir() / SKILL_STATE_DIR 等 API。
     """
     cwd = Path.cwd()
     for parent in [cwd] + list(cwd.parents)[:5]:
@@ -99,21 +102,6 @@ def find_project_root() -> Optional[Path]:
             if (parent / marker).exists():
                 return parent
     return None
-
-
-def find_state_dir() -> Path:
-    """
-    定位状态文件目录。
-    找到项目根 → 返回 <root>/state-files/（不存在则创建）
-    未找到 → 返回 Skill 模板目录（只读回退）
-    """
-    root = find_project_root()
-    if root is None:
-        return SKILL_STATE_DIR
-    proj_state = root / "state-files"
-    if not proj_state.exists():
-        proj_state.mkdir(parents=True, exist_ok=True)
-    return proj_state
 
 
 # ==================== MCP 调用基类 ====================

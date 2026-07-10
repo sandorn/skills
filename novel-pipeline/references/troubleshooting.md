@@ -22,28 +22,13 @@
 - 运行 `python scripts/verify_env.py` 诊断缺失包
 - 手动补充：`pip install httpx mcp`
 
-## state-files 加载失败
-- 确认 `state-files/` 目录存在且 JSON 格式有效
-- 运行 `python hooks/load_state.py` 查看具体错误
+## 项目根识别失败
+- 三种 marker 优先级：`novel.json` > `writer.json` > `novel-pipeline.json`
+- 都不存在时：不阻断，但 git 快照钩子会打印警告；`--force` 可放行
 
-## archive_state.py JSON 解析失败（UTF-8 BOM）
-
-- **现象**：用 PowerShell `Get-Content file.json -Raw | python archive_state.py` 时返回 `JSON 解析失败: Unexpected UTF-8 BOM`
-- **根因**：PowerShell 5.1 管道会自动给 JSON 添加 UTF-8 BOM，Python `json.loads` 默认拒收 BOM 前缀
-- **解决**：不用管道，改用临时文件 + Python subprocess 方式：
-
-  ```python
-  # 在 Agent 会话中调用
-  import subprocess, sys
-  with open('payload.json', 'rb') as f:
-      payload = f.read()
-  proc = subprocess.Popen(
-      [sys.executable, r'<Skill路径>\hooks\archive_state.py'],
-      stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-  )
-  stdout, stderr = proc.communicate(input=payload, timeout=30)
-  print(stdout.decode('utf-8'))
-  ```
+## 状态归档相关
+- **本 skill v3.4 起不再持有状态**——所有状态归档由 writer skill 的 `scripts/archive_facts.py` 负责
+- 若发现 `.writer/state/*.json` 有问题，请查 writer skill 的 troubleshooting 或直接跑 `python <writer>/scripts/archive_facts.py --dry-run` 诊断
 
 ## patch 工具在中文 .md 章节文件上失败
 - **现象**：`patch` 在 `.md` 文件上持续返回 "Could not find a match"，即使文本肉眼可见匹配

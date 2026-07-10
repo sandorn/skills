@@ -69,12 +69,18 @@
 ---
 
 ## 四、项目初始化
-1. 新建小说项目目录（任意路径）
-2. 从 skill 复制配置模板：
-   ```powershell
-   Copy-Item <Skill路径>\state-files\config.example.json .\novel.json
-   New-Item -ItemType Directory -Force .\state-files, .\chapters, .\outline
-   Copy-Item <Skill路径>\state-files\*.json .\state-files\
-   ```
-3. 编辑 `novel.json` 填入书名/作者/体裁（旧 `novel-pipeline.json` 仍可读入）
-4. `python <Skill路径>\hooks\load_state.py` 验证状态加载正常
+
+**本 skill v3.4 起不再负责项目初始化**——请使用 `writer` skill 的 `project-init`：
+
+```
+writer skill 会话 → "开新书" → 交互创建标准目录 + novel.json
+```
+
+生成的目录结构（含 `.writer/state/*.json` 四层写权限架构）可直接被本 skill 的 `polish_chapter.py` 识别使用。
+
+若只是独立运行 novel-pipeline 做纯润色，只需：
+1. 有 `chapters/ch_NNN.md` 一批
+2. `polish_chapter.py --range 1-N <chapters_dir> [--force]`
+
+不需要 novel.json，也不需要任何 setting/state 目录。
+
