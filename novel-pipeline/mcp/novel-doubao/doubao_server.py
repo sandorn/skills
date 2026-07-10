@@ -9,34 +9,41 @@ from pathlib import Path
 import httpx
 from mcp.server.fastmcp import FastMCP
 
-# ── .env 加载 ──────────────────────────────────────────────
-# 路径调整：读取Skill根目录的.env
+# ── 直接读取.env文件，完全绕开环境变量问题 ──────────────────────────────────────────────
 SKILL_DIR = Path(__file__).resolve().parent.parent
 DOTENV_PATH = SKILL_DIR / ".env"
 
-# 先读取.env配置，优先级最高
+config = {}
 if DOTENV_PATH.exists():
     for line in DOTENV_PATH.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line and not line.startswith("#") and "=" in line:
             k, v = line.split("=", 1)
-            k = k.strip(); v = v.strip().strip("\\\"'")
-            os.environ[k] = v
+            k = k.strip()
+            v = v.strip().strip("\"'")
+            config[k] = v
 
-# 再从环境变量读取
-DOUBAO_API_KEY=os.env...Y", "")
-DOUBAO_BASE_URL = os.environ.get("DOUBAO_BASE_URL", os.environ.get("DOUBAO_BASIC_URL", "https://ark.cn-beijing.volces.com/api/v3"))
-DOUBAO_MODEL = os.environ.get("DOUBAO_MODEL", os.environ.get("DOUBAO_NODEL", "doubao-seed-evolving"))
+# 直接从config字典取值，不需要环境变量
+DOUBAO_API_KEY = config.get("DOUBAO_API_KEY", "")
+DOUBAO_BASE_URL = config.get("DOUBAO_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3")
+DOUBAO_MODEL = config.get("DOUBAO_MODEL", "doubao-seed-evolving")
 
-# ── System Prompt（发给豆包 的 system message）──────────────
+# 直接校验
+if not DOUBAO_API_KEY:
+    print(json.dumps({
+        "jsonrpc": "2.0",
+        "id": None,
+        "error": {"code": -32000, "message": f"ERROR: DOUBAO_API_KEY 未找到，已读取.env内容：{list(config.keys())}"}
+    }))
+    sys.exit(1)
+
+# ── System Prompt ──────────────────────────────────────────────
 POLISH_SYSTEM_PROMPT = """你是网文润色师。你收到的正文剧情已锁定，你只能做文字层面的优化。
-
 【最高优先级红线——违反即失败】
 1. 绝对不能修改剧情、人设、伏笔、战力体系、世界观设定，所有修改仅针对文字表达、流畅度、节奏感、爽感
 2. 不能增减剧情内容，原文的对话、动作、场景、情节必须100%保留
 3. 不能修改原文的专有名词、人名、地名、功法名、物品名等
 4. 绝对不能出现AI写作的生硬套话、空洞描写
-
 【润色规则】
 1. 保持原文的叙事风格、语气、节奏不变
 2. 优化语句通顺度，修正错别字、语病、不通顺的句子
@@ -46,7 +53,6 @@ POLISH_SYSTEM_PROMPT = """你是网文润色师。你收到的正文剧情已锁
 6. 提升爽点的感染力，强化情绪表达
 7. 删除冗余的修饰词、重复的表述
 8. 调整语序让读起来更流畅，符合中文阅读习惯
-
 【输出要求】
 1. 只输出润色后的完整正文，不需要任何解释、说明、标记
 2. 保持原文的段落结构，不要合并或拆分大的段落
@@ -57,52 +63,35 @@ mcp = FastMCP("novel-doubao")
 
 @mcp.tool()
 def polish_chapter(draft_text: str, chapter_characters: str = "", chapter_mood_tone: str = "中性") -> str:
-    """
-    润色小说章节，严格遵守润色规则，不修改剧情
-    Args:
-        draft_text: 待润色的章节原文
-        chapter_characters: 章节人物设定/上下文参考
-        chapter_mood_tone: 章节情绪基调（默认中性）
-    Returns:
-        润色后的完整正文
-    """
     try:
         headers = {
             "Authorization": f"Bearer {DOUBAO_API_KEY}",
             "Content-Type": "application/json"
         }
-        
         messages = [
             {"role": "system", "content": POLISH_SYSTEM_PROMPT},
+            {"role": "user", "content": f"请严格遵守润色规则，润色以下章节正文，只输出润色后的内容：\n\n{draft_text}"}
         ]
-        
-        if chapter_characters:
-            messages.append({"role": "user", "content": f"章节上下文参考：{chapter_characters}"})
-        
-        messages.append({"role": "user", "content": f"请严格遵守润色规则，润色以下章节正文，只输出润色后的内容：\n\n{draft_text}"})
-        
         payload = {
             "model": DOUBAO_MODEL,
             "messages": messages,
             "temperature": 0.3,
             "max_tokens": 16000
         }
-        
         response = httpx.post(
             f"{DOUBAO_BASE_URL.rstrip('/')}/chat/completions",
             headers=headers,
             json=payload,
             timeout=300
         )
-        
         if response.status_code == 200:
             result = response.json()
             return result["choices"][0]["message"]["content"].strip()
         else:
-            return f"ERROR: API请求失败，状态码：{response.status_code}，错误：{response.text[:500]}"
-    
+            return f"ERROR: API返回错误，状态码：{response.status_code}，内容：{response.text[:300]}"
     except Exception as e:
-        return f"ERROR: 润色过程出错：{str(e)}"
+        import traceback
+        return f"ERROR: 异常：{str(e)}\n{traceback.format_exc()[:300]}"
 
 if __name__ == "__main__":
     mcp.run()
