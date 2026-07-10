@@ -75,7 +75,7 @@ Agent 从 state-files 和用户输入中提取:
   └─ 其他 → SKIP_POLISH=false → 进入润色链路
 ```
 
-用户可通过 `novel-pipeline.json` 中的 `auto_skip_transition_chapters: false` 全局关闭自动跳过。
+用户可通过 `novel.json` 中的 `auto_skip_transition_chapters: false` 全局关闭自动跳过。
 
 ---
 
@@ -86,7 +86,7 @@ Agent 从 state-files 和用户输入中提取:
 | 初稿模型 API 超时 | 重试 1 次 → 仍失败则提示用户检查网络/API配置 |
 | 润色模型 API 超时 | 跳过润色 → 输出初稿 + 标注 "未润色" |
 | 3 轮自检连续 2 次失败 | 选最优版本 + 标注未解决问题 → 用户决策 |
-| 未配置 API Key | 提示用户配置 `~/.litellm/servers/.env` 文件 → 提供配置模板 |
+| 未配置 API Key | 提示用户配置 Skill 本地 `.env`（`<Skill路径>\.env`）→ 提供 6 个必需 KEY 模板 |
 | state-files 不存在 | 提示用户先执行【初始化设定】→ 提供填写指南 |
 | 初稿返回非正文（含分析说明） | Hook 检测 → 在 check_draft_quality Round 3 中标记 → 重生成 |
 

@@ -97,19 +97,28 @@ def run():
         hpath = HOOKS_DIR / h
         results.append(check("hook: " + h, hpath.exists(), str(hpath) if hpath.exists() else "missing"))
 
-    # 项目检测
+    # 项目检测（识别 novel.json / writer.json / novel-pipeline.json 任一）
     project_root = None
+    project_marker = None
+    marker_names = ("novel.json", "writer.json", "novel-pipeline.json")
     if len(sys.argv) > 1:
         project_root = Path(sys.argv[1])
+        for name in marker_names:
+            if (project_root / name).exists():
+                project_marker = project_root / name
+                break
     else:
         cwd = Path.cwd()
         for p in [cwd] + list(cwd.parents)[:5]:
-            if (p / "novel-pipeline.json").exists():
-                project_root = p
+            for name in marker_names:
+                if (p / name).exists():
+                    project_root = p
+                    project_marker = p / name
+                    break
+            if project_marker:
                 break
-    if project_root and project_root.exists():
-        marker = project_root / "novel-pipeline.json"
-        results.append(check("Project marker", marker.exists(), str(marker)))
+    if project_root and project_marker:
+        results.append(check("Project marker", True, str(project_marker)))
         state_dir = project_root / "state-files"
         results.append(check("Project state-files", state_dir.exists(), str(state_dir)))
         chapters_dir = project_root / "chapters"
@@ -119,12 +128,14 @@ def run():
         else:
             results.append(check("Chapters dir", False, f"{chapters_dir} (will be created on first write)"))
         try:
-            cfg = json.loads(marker.read_text(encoding="utf-8"))
-            results.append(check("Config parse", True, f"Work: {cfg.get('project_name','?')} / Ch: {cfg.get('current_chapter','?')}"))
+            cfg = json.loads(project_marker.read_text(encoding="utf-8"))
+            name = cfg.get("project_name") or cfg.get("project") or "?"
+            ch = cfg.get("current_chapter") or cfg.get("chapters_done") or "?"
+            results.append(check("Config parse", True, f"Work: {name} / Ch: {ch}"))
         except Exception as e:
             results.append(check("Config parse", False, str(e)))
     else:
-        results.append(check("Project root", False, "novel-pipeline.json not found (searched CWD + 5 parents) — create a new project first"))
+        results.append(check("Project root", False, "no marker found (looked for novel.json / writer.json / novel-pipeline.json in CWD + 5 parents)"))
 
     # 模板 JSON 合法性
     for tf in STATE_TEMPLATE.glob("*.json"):

@@ -7,7 +7,7 @@
 ## 适配方法
 1. 初始化项目时，根据题材修改`state-files/power_system.json`，保留对应字段，删除不需要的字段
 2. 人物档案`state-files/characters.json`中，根据题材替换能力字段名称
-3. 在`novel-pipeline.json`的`genre`字段填入对应题材标识
+3. 在`novel.json`的`genre`字段填入对应题材标识
 
 ---
 

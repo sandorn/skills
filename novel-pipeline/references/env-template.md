@@ -16,12 +16,8 @@ DEEPSEEK_API_KEY=ark-your-key-here
 DEEPSEEK_MODEL=deepseek-v4-pro
 
 # ==================== 路径配置（可选，供 hooks 使用） ====================
-# Hermes Python 解释器路径
-HERMES_PYTHON=C:\Users\Administrator\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
-# Node.js 可执行文件路径（可选）
-NODE_EXE=C:\Program Files\nodejs\node.exe
-# NPX 可执行文件路径（可选）
-NPX_CMD=C:\Program Files\nodejs\npx.cmd
+# MCP 子进程 Python 解释器（缺省则用当前 sys.executable；旧变量名 HERMES_PYTHON 仍向后兼容）
+PIPELINE_PYTHON=C:\Users\Administrator\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
 # 默认小说项目章节目录
 CHAPTERS_DIR=D:\Writer\novel-project\chapters
 ```
@@ -31,4 +27,4 @@ CHAPTERS_DIR=D:\Writer\novel-project\chapters
 - 全部 6 个必需项：`DEEPSEEK_{API_KEY,BASE_URL,MODEL}`、`DOUBAO_{API_KEY,BASE_URL,MODEL}`。
 - server 端不提供任何兜底默认，缺一项 → `sys.exit(1)`。
 - 已移除：`MCP_FIRSTORY_ENDPOINT`、`MCP_MEMORY_NOVEL_ENDPOINT`、`publishready` 相关变量（对应 MCP 均已下线）。
-- 章节文件名统一为三位数补零：`ch001.md`、`ch010.md`、`ch101.md`。
+- 章节文件名统一为三位数补零：`ch_001.md`、`ch_010.md`、`ch_101.md`（下划线分隔，与 writer skill 一致）。

@@ -95,7 +95,7 @@ SQLite 文件位于 `{project}/novel_memory_db/`（由 MEMORY_DB_DIR 环境变�
 
 ---
 
-## 五、脚本 (10个)
+## 五、脚本 (9个)
 
 ```
 READONLY (4) — 只读分析
@@ -104,19 +104,21 @@ READONLY (4) — 只读分析
   report_panorama     全景报告 ← 章节文件 + tracking/
   report_graph        关系图谱 ← 章节文件 + tracking/
 
-SAFE_WRITE (1) — 仅操作独立数据文件
+SAFE_WRITE (2) — 幂等/可回滚
   split_paragraphs    段落拆分 (.bak备份)
+  fix_dashes          B02 破折号四类上下文修复 (.bak备份)
 
 EXPORT_ONLY (1)
   export              多平台导出
 
-CAUTION (2)
-  audit               统一审计 (默认--verify只读)
-  polish              AI润色 (独立输出目录)
+CAUTION (1)
+  audit               统一审计 (默认 --verify 只读)
 
 INFRA (1)
-  lib                 共享工具
+  lib                 共享工具（含 ensure_git_snapshot 快照钩子）
 ```
+
+> 润色能力（原 `polish.py`）自 v8.3 起由 **novel-pipeline** skill 提供（`scripts/polish_chapter.py` + `novel-doubao` MCP）。writer 通过 `references/style-transfer.md` 调用；文风预设仍在 writer 侧 `references/presets/`。
 
 ---
 

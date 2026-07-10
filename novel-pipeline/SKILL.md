@@ -1,15 +1,28 @@
 ---
 name: novel-pipeline
-version: "3.0.0-lean"
-description: "网文写作流水线-精简版：本地 state-files + 两个 stdio MCP（novel-deepseek 初稿 / novel-doubao 润色），逐章顺序执行，无批量后台"
+version: "3.3.0-lean"
+description: "网文批量生产线：DeepSeek 初稿 + 豆包润色两个 stdio MCP，前置 git 快照 + 断点续传 + 字数循环。可独立运行，也可作为 writer skill 的子服务"
 category: writing
-tags: [网文, 写作, pipeline, MCP, 逐章润色]
+tags: [网文, 写作, pipeline, MCP, 逐章润色, writer 协作]
 ---
 
 # novel-pipeline: 网文写作流水线（精简版）
 
 > 🔴 所有润色请求默认走逐章顺序模式，禁止任何批量/后台运行逻辑
 > 📌 详细规则/模板/示例请查看末尾「详细参考」对应跳转文档
+
+---
+
+## 定位
+
+本 skill 只做两件事：
+
+1. **批量初稿生成** — `novel-deepseek` MCP `generate_draft`
+2. **章节润色** — `novel-doubao` MCP `polish_chapter`（支持字数循环 + 文风预设 override）
+
+配合 `scripts/polish_chapter.py` 提供的**前置 git 快照 + 断点续传 + 批量 CLI**，可独立运行。
+
+**大纲规划 / 状态追踪 / 审查体系 / 发布导出** 这些流程编排能力**不由本 skill 提供**——请配合 `writer` skill 使用。见末尾「协作模式」。
 
 ---
 
@@ -32,7 +45,7 @@ tags: [网文, 写作, pipeline, MCP, 逐章润色]
 | novel-deepseek generate_draft | 300s | 一般 30–90s |
 
 ### 章节文件命名（强制）
-统一三位数补零：`chapters/ch001.md`、`ch010.md`、`ch101.md`。
+统一三位数补零：`chapters/ch_001.md`、`ch_010.md`、`ch_101.md`（下划线分隔，与 writer skill 一致）。
 唯一入口：`hooks/utils.py::chapter_filename(n)`。禁止硬编码 `f"ch{n:02d}.md"`。
 
 ### 润色结果处理规则
@@ -53,8 +66,8 @@ tags: [网文, 写作, pipeline, MCP, 逐章润色]
 ### 状态持久化说明
 **本流水线不接任何外部记忆库/知识图谱**。所有跨章上下文（人物、伏笔、战力、世界观）都存 `state-files/*.json` 一份，`load_state.py` 在会话开始读取，`archive_state.py` 在章末写回。若需要多端同步，请自行 git 或云盘同步项目目录。
 
-### 辅助模板（可选，非流水线必需）
-`templates/draft_request.py`、`templates/polish_request.py` 是纯请求构建器，供**外部脚本**直接打 API 时参考。**流水线自身不使用**（system prompt 已内嵌在 MCP server），因此改 templates 不影响 pipeline 行为。
+### 覆盖原文行为
+`scripts/polish_chapter.py` 完成润色后**原地覆盖** `chapters/chNNN.md`，不生成备份文件。因此润色前脚本会自动在项目目录做 git 快照（详见「润色前置：git 快照」）。若项目未做 git 初始化，脚本会打印警告并要求用户确认后继续。
 
 ---
 
@@ -173,9 +186,58 @@ tags: [网文, 写作, pipeline, MCP, 逐章润色]
 | MCP 集成详细说明 | `references/mcp-integration-guide.md` |
 | 旧版本升级指南 | `references/legacy-project-upgrade.md` |
 | 流派适配写作技巧 | `references/genre-adaptation.md` |
-| 卷审查完整协议 | `references/volume-audit-protocol.md` |
-| 卷审查抽样策略 | `references/volume-review-sampling.md` |
-| 批量章节编辑工作流 | `references/mass-edit-workflow.md` |
+| 卷审查完整协议（含抽样策略） | `references/volume-audit-protocol.md` |
+| 批量章节编辑（剧情/修为跨章统一） | `references/mass-edit-workflow.md` |
 | 润色管线详细规则 | `references/polish-pipeline.md` |
-| 批量格式修复指南 | `references/batch-format-fix.md` |
+| 批量格式修复（引号/破折号/AI 词） | `references/batch-format-fix.md` |
 | 网文写作技巧汇总 | `references/webnovel_triggers.md` |
+
+---
+
+## 协作模式：与 writer skill 配合
+
+`writer` skill 提供大纲规划、状态追踪、43 维审查、多平台发布等编排能力。本 skill 是它的"批量生产"驱动器。
+
+### 项目结构约定
+两个 skill 均识别 `novel.json` / `writer.json` / `novel-pipeline.json` 任一标记（优先 `novel.json`）。章节文件统一命名 `chapters/ch_NNN.md`。
+
+### 三种协作模式
+
+**A. writer 主导 + 本 skill 出稿/润色**（推荐大批量场景）
+
+```powershell
+# 1. writer 侧规划
+# （在 writer skill 会话中）plan → outline/chapter_outline/ch_NNN.md
+
+# 2. 本 skill 批量出稿（DeepSeek）
+# 通过主 Agent 调用 novel-deepseek MCP.generate_draft 逐章生成
+
+# 3. 本 skill 批量润色（豆包 + writer 番茄预设）
+python <novel-pipeline>/scripts/polish_chapter.py --range 1-30 <project>/chapters `
+    --style-file <writer>/references/presets/fanqie-quick-anti.md `
+    --min-words 2500 --max-words 3000
+
+# 4. writer 侧审查
+python <writer>/scripts/audit.py <project>/chapters
+# 或 writer 会话中执行 review --daily / --solo / --full
+```
+
+**B. 完全独立**（不装 writer 也能用）
+
+```powershell
+python <novel-pipeline>/scripts/polish_chapter.py --range 1-30 <project>/chapters
+# 走 MCP 内嵌通用锁定式 prompt；无字数循环、无风格约束
+```
+
+**C. writer 独立**（不用本 skill）
+
+writer 内所有写章由主 Agent 直写，不涉及豆包/DeepSeek MCP。审查/发布走 writer 自己的 43 维管线。
+
+### 边界
+
+本 skill **不** 提供：
+- 大纲/章纲规划 → 用 writer `references/plan.md`
+- 硬禁令 B01-B10 / 43 维审查 → 用 writer `references/review.md` / `hard-bans.md`
+- 状态追踪 (`tracking/*.md`) → 用 writer 或自持 `state-files/*.json`
+- 多平台导出 / 封面 → 用 writer `scripts/export.py` / `references/cover.md`
+

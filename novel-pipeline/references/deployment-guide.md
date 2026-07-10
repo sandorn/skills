@@ -72,9 +72,9 @@
 1. 新建小说项目目录（任意路径）
 2. 从 skill 复制配置模板：
    ```powershell
-   Copy-Item <Skill路径>\state-files\config.example.json .\novel-pipeline.json
+   Copy-Item <Skill路径>\state-files\config.example.json .\novel.json
    New-Item -ItemType Directory -Force .\state-files, .\chapters, .\outline
    Copy-Item <Skill路径>\state-files\*.json .\state-files\
    ```
-3. 编辑 `novel-pipeline.json` 填入书名/作者/体裁
+3. 编辑 `novel.json` 填入书名/作者/体裁（旧 `novel-pipeline.json` 仍可读入）
 4. `python <Skill路径>\hooks\load_state.py` 验证状态加载正常

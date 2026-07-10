@@ -107,10 +107,11 @@
 ## 阶段八：润色
 
 ```
-用户:「转成番茄风」        → style-transfer.md → polish.py（API批量）
+用户:「转成番茄风」        → style-transfer.md → novel-pipeline polish_chapter.py（豆包 MCP，前置 git 快照）
 用户:「纯手动润色」        → manual-polish.md（三零原则）
 ```
 > 自动: 润色后 → mirror+version → **自动 daily 审查**（润色可能引入新问题）
+> 前置: novel-pipeline 自带 git 快照钩子；批量写章/修复类操作 writer 侧调用 `lib.ensure_git_snapshot()`
 
 ---
 

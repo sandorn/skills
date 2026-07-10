@@ -6,18 +6,18 @@
 ## 关键变更
 1. 移除 firstory / uno / publishready / memory-novel 依赖，仅保留 novel-deepseek + novel-doubao
 2. 状态存储只走本地 `state-files/*.json`
-3. 章节文件名统一 `ch001.md` 三位数补零
+3. 章节文件名统一 `ch_001.md` 三位数补零（下划线分隔）
 4. 环境变量集中在 Skill 本地 `.env`
 
 ## 升级步骤
 1. **目录结构**
-   - 根目录仅保留 `novel-pipeline.json`
+   - 根目录保留 `novel.json`（旧 `novel-pipeline.json` 仍可自动识别）
    - 大纲移入 `outline/`
    - 状态文件统一存入 `state-files/`
    - 章节保持在 `chapters/`
 
 2. **配置文件精简**
-   `novel-pipeline.json` 只保留：
+   `novel.json` 只保留：
    ```json
    {
      "author": "作者名",

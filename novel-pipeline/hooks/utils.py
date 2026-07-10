@@ -62,39 +62,58 @@ def get_path(key: str, default: str) -> Path:
 
 
 # ==================== 共享路径配置 ====================
-# Hermes Python 解释器路径 (优先环境变量，回退当前解释器)
-HERMES_PYTHON = get_path("HERMES_PYTHON", str(Path(sys.executable)))
+# MCP 子进程 Python 解释器（优先 PIPELINE_PYTHON，兼容旧变量名 HERMES_PYTHON，最后回退当前解释器）
+_python_env = load_dotenv("PIPELINE_PYTHON") or load_dotenv("HERMES_PYTHON") or sys.executable
+PIPELINE_PYTHON = Path(_python_env)
 # 默认小说项目章节目录
 DEFAULT_CHAPTERS_DIR = get_path("CHAPTERS_DIR", str(Path.cwd() / "chapters"))
 
 
 # ==================== 章节文件命名 ====================
-# 统一使用三位数补零格式：ch001.md, ch010.md, ch101.md
-CHAPTER_FILENAME_FORMAT = "ch{:03d}.md"
+# 统一使用三位数补零 + 下划线格式：ch_001.md, ch_010.md, ch_101.md
+# （与 writer skill 一致，两个 skill 可读写同一 chapters/ 目录）
+CHAPTER_FILENAME_FORMAT = "ch_{:03d}.md"
 
 
 def chapter_filename(chap_num: int) -> str:
-    """返回统一的三位数补零章节文件名。"""
+    """返回统一的三位数补零章节文件名（ch_NNN.md）。"""
     return CHAPTER_FILENAME_FORMAT.format(int(chap_num))
 
 
-# ==================== 项目状态目录查找 ====================
-def find_state_dir() -> Path:
+# ==================== 项目根目录查找 ====================
+# 项目根标识优先级：
+#   1. novel.json          — 新版统一标识（推荐）
+#   2. writer.json         — writer skill 项目（协作场景）
+#   3. novel-pipeline.json — 老版兼容
+PROJECT_MARKERS = ("novel.json", "writer.json", "novel-pipeline.json")
+
+
+def find_project_root() -> Optional[Path]:
     """
-    从当前工作目录向上查找 novel-pipeline.json 项目标记文件。
-    找到 → 返回项目的 state-files/ 目录
-    未找到 → 返回 Skill 模板目录（只读回退）
+    从当前工作目录向上查找项目标记文件（最多 5 层）。
+    命中任一 PROJECT_MARKERS 即视为项目根，返回该目录；未命中返回 None。
     """
     cwd = Path.cwd()
     for parent in [cwd] + list(cwd.parents)[:5]:
-        marker = parent / "novel-pipeline.json"
-        if marker.exists():
-            proj_state = parent / "state-files"
-            if proj_state.exists():
-                return proj_state
-            proj_state.mkdir(parents=True, exist_ok=True)
-            return proj_state
-    return SKILL_STATE_DIR
+        for marker in PROJECT_MARKERS:
+            if (parent / marker).exists():
+                return parent
+    return None
+
+
+def find_state_dir() -> Path:
+    """
+    定位状态文件目录。
+    找到项目根 → 返回 <root>/state-files/（不存在则创建）
+    未找到 → 返回 Skill 模板目录（只读回退）
+    """
+    root = find_project_root()
+    if root is None:
+        return SKILL_STATE_DIR
+    proj_state = root / "state-files"
+    if not proj_state.exists():
+        proj_state.mkdir(parents=True, exist_ok=True)
+    return proj_state
 
 
 # ==================== MCP 调用基类 ====================

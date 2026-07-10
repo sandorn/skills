@@ -1,7 +1,9 @@
 # 批量格式修复工作流
 
-> 适用于：全卷禁令修复（B01-B06）、AI高频词精修、段落拆分
-> 与 `mass-edit-workflow.md` 互补——前者管剧情/修为统一，本文管格式/文风修复
+> **适用范围**：全卷格式禁令修复（B01-B06）、AI 高频词精修、段落拆分（**格式/文风层**的批量修改）
+> **与 `mass-edit-workflow.md` 的分工**：
+> - 本文 → 引号/破折号/AI 高频词/超长段等**格式层**修复
+> - mass-edit-workflow.md → 修为/称呼/伏笔/名词等**剧情/设定层**跨章统一
 
 ## 修复执行顺序
 
@@ -245,7 +247,7 @@ for ch in range(31, 81):
 
 ## 常见陷阱：机械修复 ≠ 审查完成
 
-批量修复只解决**格式层问题**。格式清零后**必须补做 Step 2 深筛**（见 novel-pipeline Skill 的 Mode B 步骤），否则会漏掉剧情层的 S1 级矛盾。
+批量修复只解决**格式层问题**。格式清零后**必须补做剧情/设定层深筛**（参见 `volume-audit-protocol.md` 的 Round 1-3 检查），否则会漏掉剧情层的 S1 级矛盾。
 
 ### 本会话实际发现的 S1 漏检案例
 
@@ -259,7 +261,7 @@ for ch in range(31, 81):
 
 每次新卷审查时，用 outline + state-files 对前 5 章做三向校验：
 
-1. **人物修为**：chracters.json 中 cultivation_level vs 本卷开头正文 — 是否对齐？
+1. **人物修为**：characters.json 中 cultivation_level vs 本卷开头正文 — 是否对齐？
 2. **地理位置**：world_setting.json 中 geography vs 正文开头场景 — 是否一致？
 3. **时间线延续**：vol_N 结尾事件时间与 vol_N+1 开头时间 — 有无断裂？
 4. **已获物品**：power_system.json 中 equipment vs 正文中角色持有的物品 — 有无丢失/遗忘？

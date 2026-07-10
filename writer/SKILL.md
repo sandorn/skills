@@ -1,7 +1,7 @@
 ---
 name: writer
-version: "8.2"
-description: "网文写作全流程引擎：扫榜/拆文/大纲/写章/审查/质检/发布/文风转换。v8.2 内置审查管线，MCP 工具为可选增强。"
+version: "8.3"
+description: "网文写作全流程引擎：扫榜/拆文/大纲/写章/审查/质检/发布/文风转换。v8.3 与 novel-pipeline 协作，批量润色/初稿由后者提供。"
 category: writing
 tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 ---
@@ -24,7 +24,7 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 
 ```
 {project}/
-├── writer.json                  # 项目状态（唯一状态文件）
+├── writer.json                  # 项目状态（writer 主状态；也可命名 novel.json 与 novel-pipeline 共用）
 ├── setting/
 │   ├── story_bible.md           # 世界观设定总纲
 │   ├── characters.md            # 角色卡 + 关系矩阵
@@ -56,7 +56,7 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 └── cover/                       # 封面输出
 ```
 
-项目根识别：当前目录含 `writer.json` 或 `setting/` + `chapters/` 即视为项目根。
+项目根识别：当前目录含 `novel.json` / `writer.json` / `novel-pipeline.json` 任一（优先 `novel.json`），或含 `setting/` + `chapters/` 即视为项目根。writer 侧默认读写 `writer.json`；新项目也可写 `novel.json`（与 novel-pipeline 共用）。
 
 ---
 
@@ -80,7 +80,7 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 | 质检 | 质检、全线检查 | `references/quality.md` |
 | 去AI味 | 去AI味、太AI了 | `references/quality.md`（deslop 模式） |
 | 纯手动润色 | 纯手动润色、逐章逐段润色、手工打磨 | `references/manual-polish.md` |
-| 文风转换/批量润色 | 文风转换、转写、润色、批量润色 | `references/style-transfer.md` → `scripts/polish.py` |
+| 文风转换/批量润色 | 文风转换、转写、润色、批量润色 | `references/style-transfer.md` → **novel-pipeline** `scripts/polish_chapter.py` |
 | 文风规范 | 文风SOP、文风参数、禁令清单 | `references/style-sop.md` |
 | 钩子/爽点分析 | 钩子强度、爽点分析 | `scripts/analyze_hook.py`（出报告）→ 手工修改参照 `references/manual-polish.md` |
 | 修复 | 修一下、修复、帮我修、有问题 | `references/post-review-fix.md`（问题定位）→ `references/quality.md`（执行修复） |
@@ -443,7 +443,7 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 
 | 文件 | 功能 | 安全 |
 |------|------|------|
-| `scripts/lib.py` | 共享工具模块 | INFRA |
+| `scripts/lib.py` | 共享工具模块（含 `ensure_git_snapshot` 快照钩子） | INFRA |
 | `scripts/analyze_hook.py` | 追读力分析 | READONLY |
 | `scripts/analyze_rhythm.py` | 节奏状态查询 | READONLY |
 | `scripts/report_panorama.py` | 项目全景报告 | READONLY |
@@ -452,7 +452,8 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 | `scripts/split_paragraphs.py` | 段落拆分（.bak备份，不涉及文本替换） | SAFE_WRITE |
 | `scripts/fix_dashes.py` | B02破折号四类上下文批量修复（预览/--apply两模式） | SAFE_WRITE |
 | `scripts/audit.py` | 统一审计（默认 --verify 只读） | CAUTION |
-| `scripts/polish.py` | AI 润色（输出到独立目录） | CAUTION |
+
+> **润色/文风转换脚本已迁移**：`polish.py` 于 v8.3 移除。批量润色请调用 novel-pipeline skill 的 `scripts/polish_chapter.py`（见路由「文风转换/批量润色」条目及 `references/style-transfer.md`）。
 
 ### Agent 模板（4 个 — full 审查模式调用）
 
@@ -508,7 +509,78 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 4. **段落拆分只能用 `split_paragraphs.py`** — 按句号断段，≤42 汉字，自动 .bak。
 5. **修改文件的脚本必须在输出中报告修改内容** — 静默修改视为 bug。
 
+### Git 快照前置钩子
+
+批量写章、批量修复、批量润色**在覆盖章节文件前必须先调用 `lib.ensure_git_snapshot()`**：
+
+```python
+from lib import ensure_git_snapshot
+if not ensure_git_snapshot(chapters_dir, tag="pre-batch-write"):
+    sys.exit(2)  # 用户未初始化 git 且未加 --force
+```
+
+行为：
+- 项目非 git repo → 打印警告并返回 False（除非 `force=True`）
+- 有未提交变更 → 自动 `git add -A && git commit -m "chore: <tag> snapshot <ts>"`
+- 工作区干净 → 跳过
+
+批量润色由 novel-pipeline `polish_chapter.py` 已自带快照，writer 侧无需重复调用。writer 侧需要加钩子的位置：`write --batch`、`quality`（修复阶段）、`post-review-fix`。
+
 ---
+
+## 协作 Skill：novel-pipeline
+
+writer 是"编辑/审查/发布" orchestrator；**novel-pipeline** 是"批量出稿/润色"生产线。两者各自可独立使用，也可组合。
+
+### 分工
+
+| 能力 | writer | novel-pipeline |
+|---|---|---|
+| 大纲规划、状态追踪、审查、发布、封面 | ✅ | — |
+| 初稿写章（主 Agent 直写） | ✅ 5/9 步管线 | — |
+| 批量豆包润色（`DOUBAO_MODEL`） | 不再自持 | ✅ `polish_chapter.py` |
+| DeepSeek MCP 批量出稿 | — | ✅ `generate_draft` |
+| 硬禁令 B01-B10、43 维审查 | ✅ | — |
+| Git 前置快照、断点续传 | ✅ 自持一份（`lib.ensure_git_snapshot`） | ✅ 内置于 `polish_chapter.py` |
+
+### 项目结构统一
+
+两个 skill 都能识别以下三种项目标记（优先级 novel.json > writer.json > novel-pipeline.json）：
+
+| 标记 | 场景 |
+|---|---|
+| `novel.json` | 新项目推荐 |
+| `writer.json` | 已有 writer 项目 |
+| `novel-pipeline.json` | 已有 novel-pipeline 项目（向后兼容） |
+
+章节文件名统一为 `chapters/ch_NNN.md`（三位数补零 + 下划线）。
+
+### 三种协作模式
+
+**A. writer 主导 + novel-pipeline 做润色/出稿**（推荐大批量场景）
+
+```
+writer.plan()  → outline/chapter_outline/ch_NNN.md
+      ↓
+novel-pipeline generate_draft  → chapters/ch_NNN.md（初稿）
+      ↓
+writer review --daily  (8 维发布闸)
+      ↓
+novel-pipeline polish_chapter --range 1-30 --style-file <writer>/references/presets/fanqie-quick-anti.md
+      ↓
+writer review --daily  (确认润色未引入新问题)
+```
+
+**B. writer 独立**（默认日更场景）
+
+主 Agent 亲写正文 + writer 审查/发布，不调用 novel-pipeline。
+
+**C. novel-pipeline 独立**（脱离 writer 的纯润色/出稿场景）
+
+直接跑 `polish_chapter.py --range N-M chapters/`；不需要 writer.json、也不需要 preset override，走 MCP 默认锁定式润色。
+
+---
+
 
 ## 变更记录
 

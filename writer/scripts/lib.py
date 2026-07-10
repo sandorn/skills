@@ -250,3 +250,85 @@ def load_character_names(project_root: str) -> dict[str, dict]:
                     }
 
     return chars
+
+
+# ============================================================================
+# Git 快照前置钩子（与 novel-pipeline 保持功能一致的独立实现）
+# ============================================================================
+
+def _run_git(args, cwd):
+    """薄封装：返回 (returncode, stdout, stderr)。"""
+    import subprocess
+    r = subprocess.run(
+        ["git", *args],
+        cwd=str(cwd),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    return r.returncode, r.stdout.strip(), r.stderr.strip()
+
+
+def find_git_root(start):
+    """从 start 向上找 .git 目录（最多 5 层）。找不到返回 None。"""
+    start = Path(start).resolve()
+    for p in [start, *start.parents][:6]:
+        if (p / ".git").exists():
+            return p
+    return None
+
+
+def ensure_git_snapshot(target_dir, force=False, tag="pre-op"):
+    """
+    覆盖类操作前的 git 快照：
+    - 非 git repo → 除非 force=True，否则返回 False 阻断
+    - 有未提交变更 → 自动 `git add -A && git commit`
+    - 工作区干净 → 跳过
+
+    使用场景：
+      - 批量写章前  (tag="pre-write")
+      - 修复管线前  (tag="pre-fix")
+      - 润色替换前  (tag="pre-polish")
+
+    :param target_dir: 项目内任意目录（会向上找 .git）
+    :param force: 非 repo 时是否放行
+    :param tag: 快照 commit message 前缀
+    :return: True 可继续，False 应中止
+    """
+    import sys
+    from datetime import datetime
+
+    target_dir = Path(target_dir).resolve()
+    git_root = find_git_root(target_dir)
+
+    if git_root is None:
+        print("⚠️  项目目录不是 git 仓库，无法自动快照。", file=sys.stderr)
+        if force:
+            print("   已指定 force=True，跳过快照继续执行。", file=sys.stderr)
+            return True
+        print("   建议：先在项目根执行 `git init && git add . && git commit -m init`", file=sys.stderr)
+        return False
+
+    code, out, err = _run_git(["status", "--porcelain"], git_root)
+    if code != 0:
+        print(f"⚠️  git status 失败: {err[:200]}", file=sys.stderr)
+        return force
+
+    if not out:
+        print(f"✅ git 工作区干净（{git_root.name}），跳过快照")
+        return True
+
+    print(f"🗂️  发现未提交变更，创建 {tag} 快照...")
+    code, _, err = _run_git(["add", "-A"], git_root)
+    if code != 0:
+        print(f"⚠️  git add 失败: {err[:200]}", file=sys.stderr)
+        return force
+    stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    msg = f"chore: {tag} snapshot {stamp}"
+    code, _, err = _run_git(["commit", "-m", msg], git_root)
+    if code != 0:
+        print(f"⚠️  git commit 失败（不阻断）: {err[:200]}", file=sys.stderr)
+        return True
+    print(f"✅ 快照已提交：{msg}")
+    return True

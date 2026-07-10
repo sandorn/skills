@@ -90,4 +90,4 @@
 - 纯信息章节: 大纲中仅含说明性内容（设定讲解/回忆杀/背景交代）
 - 当前章节 < 第 3 章（开头章节建议先积累设定，后期统一润色）
 
-用户可随时通过 `novel-pipeline.json` 中的 `auto_skip_transition_chapters: false` 覆盖此行为。
+用户可随时通过 `novel.json` 中的 `auto_skip_transition_chapters: false` 覆盖此行为。

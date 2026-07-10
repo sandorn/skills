@@ -56,4 +56,4 @@ DOUBAO_MODEL=...
 
 state-files 全部为本地 JSON（`state-files/{world_setting,characters,foreshadowing,power_system}.json`），由 `load_state.py` / `archive_state.py` 读写。**不依赖任何外部知识图谱或 memory MCP**。
 
-多项目隔离：`hooks/utils.py::find_state_dir()` 从 CWD 向上找 `novel-pipeline.json` 标记，命中则用项目自己的 `state-files/`，未命中回退 Skill 模板（只读）。
+多项目隔离：`hooks/utils.py::find_project_root()` 从 CWD 向上找 `novel.json` / `writer.json` / `novel-pipeline.json` 任一标记（优先 `novel.json`），命中则用项目自己的 `state-files/`，未命中回退 Skill 模板（只读）。

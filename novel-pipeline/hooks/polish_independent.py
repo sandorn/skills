@@ -18,29 +18,42 @@ SKILL_ROOT = HOOKS_DIR.parent
 
 # 从共享工具加载
 sys.path.insert(0, str(HOOKS_DIR))
-from utils import HERMES_PYTHON, DEFAULT_CHAPTERS_DIR, BaseMCPClient, chapter_filename, logger
+from utils import PIPELINE_PYTHON, DEFAULT_CHAPTERS_DIR, BaseMCPClient, chapter_filename, logger
 
 # 指向 Skill 内的 MCP 目录
 DOUBAO = SKILL_ROOT / "mcp" / "novel-doubao" / "doubao_server.py"
 DOUBAO_CWD = SKILL_ROOT / "mcp" / "novel-doubao"
 
 
-def doubao_polish(text: str) -> Dict[str, Any]:
+def doubao_polish(
+    text: str,
+    style_prompt: str = "",
+    min_words: int = 0,
+    max_words: int = 0,
+    max_wc_retries: int = 2,
+) -> Dict[str, Any]:
     """
     调用 novel-doubao MCP 进行润色
     :param text: 要润色的原文
+    :param style_prompt: 可选文风预设覆盖（如 writer 的 fanqie-quick-anti 内容）
+    :param min_words / max_words: 字数循环阈值（0 = 禁用）
+    :param max_wc_retries: 字数不达标最多重试次数
     :return: 包含 success/data 或 error 的结果字典
     """
     if not DOUBAO.exists():
         return {"success": False, "error": f"doubao server not found: {DOUBAO}"}
 
-    python = str(HERMES_PYTHON) if HERMES_PYTHON.exists() else sys.executable
+    python = str(PIPELINE_PYTHON) if PIPELINE_PYTHON.exists() else sys.executable
 
-    with BaseMCPClient([python, str(DOUBAO)], timeout=300, cwd=DOUBAO_CWD) as client:
+    with BaseMCPClient([python, str(DOUBAO)], timeout=600, cwd=DOUBAO_CWD) as client:
         return client.call_tool("polish_chapter", {
-            "chapter_characters": "",
             "draft_text": text,
-            "chapter_mood_tone": "中性"
+            "style_prompt_override": style_prompt,
+            "min_words": min_words,
+            "max_words": max_words,
+            "max_wc_retries": max_wc_retries,
+            "chapter_characters": "",
+            "chapter_mood_tone": "中性",
         })
 
 
@@ -88,6 +101,10 @@ def main() -> None:
 
     text = inp.get("text", inp.get("output", ""))
     ch = inp.get("chapter", inp.get("ch", 0))
+    style_prompt = inp.get("style_prompt", "")
+    min_words = int(inp.get("min_words", 0) or 0)
+    max_words = int(inp.get("max_words", 0) or 0)
+    max_wc_retries = int(inp.get("max_wc_retries", 2) or 2)
 
     # 如果没有提供文本，尝试从文件读取
     if not text and ch:
@@ -104,7 +121,13 @@ def main() -> None:
     issues: List[str] = []
 
     print("[1/3] 调用 novel-doubao 润色...", file=sys.stderr)
-    result = doubao_polish(text)
+    result = doubao_polish(
+        text,
+        style_prompt=style_prompt,
+        min_words=min_words,
+        max_words=max_words,
+        max_wc_retries=max_wc_retries,
+    )
 
     if result.get("success"):
         polished = result.get("data", "")

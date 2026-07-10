@@ -1,5 +1,5 @@
 {
-  "_comment": "复制此文件到你的小说项目根目录，改名为 novel-pipeline.json",
+  "_comment": "复制此文件到你的小说项目根目录，改名为 novel.json（旧 novel-pipeline.json 仍可读入）",
   "project_name": "未命名作品",
   "author": "作者",
   "genre": "",
@@ -7,19 +7,17 @@
   "total_planned_chapters": 0,
   "polish_toggle": true,
   "auto_skip_transition_chapters": true,
-  "state_storage_mode": "local_file",
-  "local_state_dir": "./state-files/",
-  "mcp_memory_novel_endpoint": "http://127.0.0.1:4000/mcp/memory_novel",
   "chapter_dir": "./chapters/",
   "outline_dir": "./outline/",
+  "state_dir": "./state-files/",
   "draft_settings": {
     "max_tokens": 8192,
     "temperature": 0.75,
     "max_retries": 2
   },
   "polish_settings": {
-    "max_tokens": 8192,
-    "temperature": 0.6,
+    "max_tokens": 16000,
+    "temperature": 0.3,
     "max_retries": 1
   }
 }

@@ -15,7 +15,7 @@
 - `DOUBAO_BASE_URL` 允许含或不含 `/chat/completions`，代码自动判断，不会双拼路径
 
 ## 章节文件路径解析失败
-- 统一命名格式：`ch001.md`、`ch010.md`、`ch101.md`（三位数补零）
+- 统一命名格式：`ch_001.md`、`ch_010.md`、`ch_101.md`（三位数补零 + 下划线，与 writer skill 一致）
 - `hooks/utils.py::chapter_filename(n)` 是唯一入口，禁止硬编码 `f"ch{n:02d}.md"` 类字符串
 
 ## 检查点脚本报错（ImportError）
