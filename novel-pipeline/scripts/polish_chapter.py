@@ -9,9 +9,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-# 导入新版MCP工具
+# 导入新版MCP工具与章节命名工具
 sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / "hooks"))
 from mcp_utils import ensure_mcps_ready
+from utils import chapter_filename
 
 # 自动适配Skill路径
 SKILL_ROOT = Path(__file__).parent.parent
@@ -32,8 +34,8 @@ def polish_single_chapter(chap_num, chapters_dir, python_path=None):
     if not python_path:
         python_path = sys.executable
     
-    # 适配两位数字文件名格式 ch01.md
-    chap_path = Path(chapters_dir) / f"ch{int(chap_num):02d}.md"
+    # 统一三位数补零文件名格式 ch001.md / ch010.md / ch101.md
+    chap_path = Path(chapters_dir) / chapter_filename(chap_num)
     if not chap_path.exists():
         return False, f"❌ 章节文件不存在：{chap_path.name}"
     

@@ -4,15 +4,16 @@ SessionStart Hook: load_state
 自动加载持久化存档文件（Layer 1 自动化）
 触发: 会话启动，novel-pipeline skill 激活时
 
-扫描 state-files/ 目录 + 查询 memory-novel 知识图谱，
-输出摘要供 Agent 加载为会话上下文。
+扫描 state-files/ 目录，输出摘要供 Agent 加载为会话上下文。
 """
-import sys, json, os
+import sys, json
 from pathlib import Path
 from datetime import datetime
 
 # 项目隔离：优先当前项目 state-files/，回退 Skill 模板
-from utils import find_state_dir, memory_search
+sys.path.insert(0, str(Path(__file__).parent))
+from utils import find_state_dir
+
 STATE_DIR = find_state_dir()
 
 STATE_FILES = [
@@ -27,7 +28,6 @@ def main():
     try:
         loaded = {}
         summary_parts = []
-        memory_notes = []
         total_entries = 0
 
         for fname in STATE_FILES:
@@ -45,15 +45,6 @@ def main():
             except (json.JSONDecodeError, IOError) as e:
                 loaded[fname] = (0, f"读取失败: {str(e)}")
 
-        # 补充 memory-novel 知识图谱查询
-        try:
-            for entity_type in ["主角", "反派", "势力", "世界观"]:
-                nodes = memory_search(entity_type)
-                if nodes:
-                    memory_notes.append(f"[memory] {entity_type}: {len(nodes)} 条")
-        except Exception:
-            pass  # memory-novel 不可用时静默跳过
-
         summary = "\n".join(summary_parts) if summary_parts else "（状态文件为空或不存在——请先创建世界观设定）"
 
         result = {
@@ -62,7 +53,6 @@ def main():
             "files_loaded": list(loaded.keys()),
             "total_entries": total_entries,
             "summary": summary,
-            "memory_notes": memory_notes,
             "hook": "load_state",
             "instruction": "以上状态已加载至会话上下文。续写时自动携带最新人物/伏笔/世界观信息。",
         }

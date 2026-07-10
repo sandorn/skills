@@ -3,177 +3,144 @@
 独立润色管线：直接调用 novel-doubao 润色
 流程:
   1. 读文本
-  2. 综合评估（默认配置）
-  3. novel-doubao 润色
-  4. 完整性检查
-  5. 完成输出
-关键实现: mcp_call 使用线程读取 stdout, 保持 stdin 开着直到收到目标响应,
-        避免 communicate() 提前关闭 stdin 导致 MCP 服务器 anyio.ClosedResourceError
+  2. novel-doubao 润色
+  3. 完整性检查
+  4. 完成输出
 """
-import sys, json, subprocess, time, threading, queue, re
+import sys
+import json
+import re
 from pathlib import Path
+from typing import Dict, Any, Tuple, List
 
 HOOKS_DIR = Path(__file__).parent
 SKILL_ROOT = HOOKS_DIR.parent
-PYTHON = Path(r"C:\Users\Administrator\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe")
-# 路径修正：指向Skill内的MCP目录
+
+# 从共享工具加载
+sys.path.insert(0, str(HOOKS_DIR))
+from utils import HERMES_PYTHON, DEFAULT_CHAPTERS_DIR, BaseMCPClient, chapter_filename, logger
+
+# 指向 Skill 内的 MCP 目录
 DOUBAO = SKILL_ROOT / "mcp" / "novel-doubao" / "doubao_server.py"
 DOUBAO_CWD = SKILL_ROOT / "mcp" / "novel-doubao"
-CHAPTERS = Path("D:\\Writer\\novel-project\\chapters")
 
 
-def mcp_call(command, tool_name, arguments, timeout=90, cwd=None):
-    """长响应友好的 MCP 调用: 用队列 + 线程读, 收到 id=2 后再关 stdin"""
-    proc = subprocess.Popen(
-        command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE, text=True, bufsize=1,
-        cwd=str(cwd) if cwd else None,
-        encoding='utf-8', errors='replace',
-    )
-    q = queue.Queue()
-
-    def reader():
-        try:
-            for line in proc.stdout:
-                q.put(line)
-        except: pass
-
-    t = threading.Thread(target=reader, daemon=True); t.start()
-
-    try:
-        proc.stdin.write(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize",
-                                     "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                                                "clientInfo": {"name": "novel-pipeline", "version": "2.5"}}}) + "\n")
-        proc.stdin.flush()
-
-        # 等 initialize 响应
-        deadline = time.time() + 15
-        while time.time() < deadline:
-            try:
-                line = q.get(timeout=1)
-                if line.strip():
-                    msg = json.loads(line)
-                    if msg.get("id") == 1: break
-            except queue.Empty: continue
-            except: continue
-
-        proc.stdin.write(json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}) + "\n")
-        proc.stdin.flush()
-
-        req = json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
-                          "params": {"name": tool_name, "arguments": arguments}})
-        proc.stdin.write(req + "\n"); proc.stdin.flush()
-
-        # 等 id=2 响应
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            try:
-                line = q.get(timeout=1)
-                if not line.strip(): continue
-                try:
-                    msg = json.loads(line)
-                except: continue
-                if msg.get("id") != 2: continue
-                if "result" in msg and "content" in msg["result"]:
-                    for c in msg["result"]["content"]:
-                        if c.get("type") == "text":
-                            return {"ok": True, "data": c["text"]}
-                if "error" in msg: return {"ok": False, "error": str(msg["error"])}
-            except queue.Empty: continue
-
-        return {"ok": False, "error": f"timeout waiting id=2 ({timeout}s)"}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-    finally:
-        try: proc.stdin.close()
-        except: pass
-        try: proc.kill()
-        except: pass
-
-
-def doubao_polish(text, report_summary):
+def doubao_polish(text: str) -> Dict[str, Any]:
+    """
+    调用 novel-doubao MCP 进行润色
+    :param text: 要润色的原文
+    :return: 包含 success/data 或 error 的结果字典
+    """
     if not DOUBAO.exists():
-        return {"ok": False, "error": f"doubao not found: {DOUBAO}"}
-    python = str(PYTHON) if PYTHON.exists() else sys.executable
-    ctx = f"审计参考: {json.dumps(report_summary, ensure_ascii=False)}"
-    return mcp_call(
-        [python, str(DOUBAO)], "polish_chapter",
-        {"chapter_characters": ctx, "draft_text": text, "chapter_mood_tone": "中性"},
-        timeout=300, cwd=DOUBAO_CWD,
-    )
+        return {"success": False, "error": f"doubao server not found: {DOUBAO}"}
+
+    python = str(HERMES_PYTHON) if HERMES_PYTHON.exists() else sys.executable
+
+    with BaseMCPClient([python, str(DOUBAO)], timeout=300, cwd=DOUBAO_CWD) as client:
+        return client.call_tool("polish_chapter", {
+            "chapter_characters": "",
+            "draft_text": text,
+            "chapter_mood_tone": "中性"
+        })
 
 
-def main():
+def check_integrity(original: str, polished: str) -> Tuple[bool, List[str]]:
+    """
+    完整性检查：检查润色后的内容是否符合预期
+    :param original: 原文
+    :param polished: 润色后的文本
+    :return: (是否通过, 问题列表)
+    """
+    issues: List[str] = []
+
+    # 检查结尾是否有终结标点（中英文标点通用）
+    END_OK = re.compile(r'[。！？…"”」\)）】\]]\s*$')
+    polished_stripped = polished.rstrip()
+    if not END_OK.search(polished_stripped):
+        issues.append("结尾无终结标点(可能截断)")
+
+    # 检查篇幅变化比例
+    ratio = len(polished) / len(original) if original else 0
+    if ratio < 0.7:
+        issues.append(f"篇幅缩水{(1-ratio)*100:.0f}%")
+    elif ratio > 1.5:
+        issues.append(f"篇幅暴涨{(ratio-1)*100:.0f}%")
+
+    return len(issues) == 0, issues
+
+
+def output(data: Dict[str, Any]) -> None:
+    """输出 JSON 结果并退出"""
+    print(json.dumps(data, ensure_ascii=False))
+    sys.exit(0)
+
+
+def main() -> None:
     raw = sys.stdin.read().strip()
-    if not raw: return output({"error": "stdin 为空"})
+    if not raw:
+        output({"error": "stdin 为空"})
 
-    inp = json.loads(raw) if raw.startswith("{") else {"text": raw}
+    # 解析输入
+    try:
+        inp = json.loads(raw) if raw.startswith("{") else {"text": raw}
+    except json.JSONDecodeError:
+        inp = {"text": raw}
+
     text = inp.get("text", inp.get("output", ""))
     ch = inp.get("chapter", inp.get("ch", 0))
+
+    # 如果没有提供文本，尝试从文件读取
     if not text and ch:
-        p = CHAPTERS / f"ch{ch:02d}.md"
-        if p.exists(): text = p.read_text(encoding="utf-8")
-        else: return output({"error": f"章节不存在: {p}"})
-    if len(text.strip()) < 500: return output({"error": "正文字数不足"})
+        p = DEFAULT_CHAPTERS_DIR / chapter_filename(ch)
+        if p.exists():
+            text = p.read_text(encoding="utf-8")
+        else:
+            output({"error": f"章节不存在: {p}"})
 
-    report = {}; issues = []
+    if len(text.strip()) < 500:
+        output({"error": "正文字数不足"})
 
-    print("[2/4] 综合评估...", file=sys.stderr)
-    summary = {
-        "publishready": {
-            "ai_risk": "low",
-            "suggestion": "",
-        },
-        "uno": {
-            "scene_type": "mixed",
-            "sensory_richness": "adequate",
-        },
-    }
-    report["assessment"] = summary
+    report: Dict[str, Any] = {}
+    issues: List[str] = []
 
-    print("[3/4] novel-doubao 润色中...", file=sys.stderr)
-    r = doubao_polish(text, summary)
-    if r["ok"]:
-        polished = r["data"]
+    print("[1/3] 调用 novel-doubao 润色...", file=sys.stderr)
+    result = doubao_polish(text)
+
+    if result.get("success"):
+        polished = result.get("data", "")
         if polished.startswith("ERROR_TRUNCATED:") or polished.startswith("ERROR:"):
             issues.append(f"doubao 返回错误: {polished[:100]}")
-            report["doubao_result"] = f"错误, 保留原文"
+            report["doubao_result"] = "错误，保留原文"
             polished = text
         else:
-            report["doubao_result"] = f"成功, {len(polished)}字"
+            report["doubao_result"] = f"成功，{len(polished)}字"
     else:
         polished = text
-        issues.append(f"doubao 失败: {r.get('error', '')[:100]}")
-        report["doubao_result"] = f"失败, 保留原文: {r.get('error', '')[:100]}"
+        error_msg = result.get("error", "未知错误")
+        issues.append(f"doubao 调用失败: {error_msg[:100]}")
+        report["doubao_result"] = f"失败，保留原文: {error_msg[:100]}"
 
-    # 完整性检查: 字数、结尾、篇幅比
+    # 完整性检查
     if polished != text:
-        END_OK = re.compile(r'[。！？…\"\\u201d」\\)）】\\]]\\s*$')
-        polished_stripped = polished.rstrip()
-        integrity_issues = []
-        if not END_OK.search(polished_stripped):
-            integrity_issues.append(f"结尾无终结标点(可能截断): ...{polished_stripped[-30:]}")
-        ratio = len(polished) / len(text)
-        if ratio < 0.7:
-            integrity_issues.append(f"篇幅缩水{(1-ratio)*100:.0f}% (原{len(text)}→润{len(polished)})")
-        if ratio > 1.5:
-            integrity_issues.append(f"篇幅暴涨{(ratio-1)*100:.0f}% (原{len(text)}→润{len(polished)})")
-        if integrity_issues:
+        print("[2/3] 执行完整性检查...", file=sys.stderr)
+        integrity_ok, integrity_issues = check_integrity(text, polished)
+        if not integrity_ok:
             issues.extend(integrity_issues)
             report["integrity_check"] = "FAIL: " + "; ".join(integrity_issues)
-            report["doubao_result"] += " [完整性检查失败, 保留原文]"
+            report["doubao_result"] += " [完整性检查失败，保留原文]"
             polished = text
         else:
             report["integrity_check"] = "PASS"
 
-    print("[4/4] 完成", file=sys.stderr)
-    output({"polished": polished, "report": report, "issues": issues,
-            "passed": len(issues) == 0, "hook": "polish_independent"})
+    print("[3/3] 完成", file=sys.stderr)
 
-
-def output(data):
-    print(json.dumps(data, ensure_ascii=False))
-    sys.exit(0)
+    output({
+        "polished": polished,
+        "report": report,
+        "issues": issues,
+        "passed": len(issues) == 0,
+        "hook": "polish_independent"
+    })
 
 
 if __name__ == "__main__":

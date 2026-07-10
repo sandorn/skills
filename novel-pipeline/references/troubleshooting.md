@@ -1,17 +1,22 @@
 # novel-pipeline 故障排查
 
-## MCP 工具未发现
-- 执行 `/reload-mcp` 或 `/new` 新会话
+## MCP 服务未加载
+1. 执行 `python <Skill路径>/scripts/verify_env.py` 检查环境
+2. 手动注册：进入 hermes 会话后执行 `python <Skill路径>/scripts/polish_chapter.py 1 ./chapters` 触发首次自动注册
+3. `hermes mcp list` 应能看到 `novel-doubao` / `novel-deepseek`
 
-## generate_draft 返回错误
-- 检查 `~/.litellm/servers/.env` 中对应模型 API Key 是否有效
-- 确认 LiteLLM 网关已启动（`http://127.0.0.1:4000/health`）
+## generate_draft / polish_chapter 报 "环境变量未配置" 退出
+- 检查 Skill 本地 `.env`（`<Skill路径>\.env`）是否存在
+- 检查 6 个必需 KEY：`DEEPSEEK_{API_KEY,BASE_URL,MODEL}` + `DOUBAO_{API_KEY,BASE_URL,MODEL}`
+- server 无内置默认值，缺一即报错
 
-## polish_chapter 返回错误
-- 检查 `.env` 中润色模型 API Key 是否有效
-- 如果 DOUBAO_BASE_URL 包含完整路径（如 `/api/plan/v3/chat/completions`），doubao_server.py 的代码会额外追加 `/chat/completions` 导致双路径（`.../chat/completions/chat/completions` → 404）。
-  - **修复**：在 `doubao_server.py` 第136行改为 `f"{DOUBAO_BASE_URL}" if DOUBAO_BASE_URL.endswith("chat/completions") else f"{DOUBAO_BASE_URL}/chat/completions"`
-  - 或确保 `.env` 中 `DOUBAO_BASE_URL` 为基础URL（不含 `chat/completions` 后缀）
+## polish_chapter 返回 API 错误
+- 检查 `.env` 中 `DOUBAO_API_KEY` 是否有效
+- `DOUBAO_BASE_URL` 允许含或不含 `/chat/completions`，代码自动判断，不会双拼路径
+
+## 章节文件路径解析失败
+- 统一命名格式：`ch001.md`、`ch010.md`、`ch101.md`（三位数补零）
+- `hooks/utils.py::chapter_filename(n)` 是唯一入口，禁止硬编码 `f"ch{n:02d}.md"` 类字符串
 
 ## 检查点脚本报错（ImportError）
 - 运行 `python scripts/verify_env.py` 诊断缺失包
@@ -33,22 +38,12 @@
   with open('payload.json', 'rb') as f:
       payload = f.read()
   proc = subprocess.Popen(
-      [sys.executable, r'C:\...\hooks\archive_state.py'],
+      [sys.executable, r'<Skill路径>\hooks\archive_state.py'],
       stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
   )
   stdout, stderr = proc.communicate(input=payload, timeout=30)
   print(stdout.decode('utf-8'))
   ```
-
-  或写入临时文件后直接重定向：
-  ```powershell
-  Get-Content payload.json | python hooks\archive_state.py
-  ```
-  但注意 `Get-Content` 的 `-Raw` 参数会产生 BOM，去掉 `-Raw` 则无 BOM。
-
-## publishready 首次调用慢
-- `npx -y @veldica/publishready-mcp` 首次运行需下载数百 MB 包
-- 提前预热：终端执行 `npx -y @veldica/publishready-mcp --version`
 
 ## patch 工具在中文 .md 章节文件上失败
 - **现象**：`patch` 在 `.md` 文件上持续返回 "Could not find a match"，即使文本肉眼可见匹配
@@ -56,7 +51,6 @@
 - **可靠替代**：Python 临时脚本原地替换
 
   ```python
-  # .tmp_fix.py 模板
   with open('target.md', 'r', encoding='utf-8') as f:
       c = f.read()
   assert old_text in c
@@ -64,6 +58,3 @@
   with open('target.md', 'w', encoding='utf-8') as f:
       f.write(c)
   ```
-  工作流：write_file写.tmp_fix.py → python执行 → Remove-Item清理
-
-- **替代方案 B**：write_file 整体重写（适合大段改动）

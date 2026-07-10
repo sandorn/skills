@@ -29,7 +29,7 @@
 
 ## Step 2: 批量读章
 
-- 按章节编号顺序读取全部 `ch{N}.md` 文件
+- 按章节编号顺序读取全部 `ch{N:03d}.md` 文件（如 `ch001.md`、`ch010.md`）
 - 每章标注：章号、标题（# 开头第一行）、字符数、行数
 - 记录异常：空章节、格式错误、标题缺失
 
@@ -224,7 +224,7 @@ delegate_task(
 
 ```python
 # ❌ 错误模式：所有修改在内存中累积，一个 assert 失败就全丢
-fix_file('ch06.md')
+fix_file('ch006.md')
 fix_file('ch10.md')  # 此处 assert 失败 → 脚本 exit(1)
 fix_file('ch16.md')  # 永远不会执行，ch06 的修改也未写入
 ```
@@ -257,7 +257,7 @@ fix_file('ch16.md')  # 永远不会执行，ch06 的修改也未写入
    - terminal 执行脚本
    - Remove-Item 清理
    - 二次验证：Python 检查所有标记是否命中
-4. **伏笔/人物更新**：构建 JSON payload → `python hooks/archive_state.py` 写入 state-files + memory-novel
+4. **伏笔/人物更新**：构建 JSON payload → `python hooks/archive_state.py` 写入 state-files
 5. **跨卷伏笔延续检查**：见下方独立章节
 6. **修为级联问题**：如果中间某章将主角修为提前突破，后续所有提到修为的段落在批量修正时需统一处理——不能只改一处。修复流程：确定基准修为→搜索全卷"练气X层"→批量替换为"筑基X层"→处理冗余突破剧情→归档到state-files。改后必须二次验证所有标记章节。
 

@@ -37,15 +37,15 @@ my-novel/
 └── outline/                  ← 分卷大纲/章纲
 ```
 
-## 存储模式切换
-| 模式 | 配置值 | 说明 |
-|------|--------|------|
-| 本地文件（默认） | `state_storage_mode: "local_file"` | 纯本地JSON存储，无需额外服务 |
-| MCP记忆体 | `state_storage_mode: "mcp_memory"` | 同步到分布式记忆库，支持多端同步、版本回溯 |
+## 存储模式
+所有状态存本地 JSON（`state-files/*.json`），由 `load_state.py` / `archive_state.py` 读写。不依赖任何外部知识图谱或 memory MCP。
+
+## 章节命名规范
+统一使用三位数补零：`chapters/ch001.md`、`ch010.md`、`ch101.md`。工具入口 `hooks/utils.py::chapter_filename(n)`。
 
 ## 老版本升级（v1→v2）
 1. 根目录执行 `mkdir outline, state-files`
 2. 大纲文件移入 `outline/`，辅助脚本移入 `scripts/`
-3. 更新 `novel-pipeline.json`：新增 `state_storage_mode`/`local_state_dir`/`mcp_memory_novel_endpoint`/`outline_dir`
-4. 复制新版状态模板：`Copy-Item <Skill路径>\state-files\*.json .\state-files\`
+3. 复制新版状态模板：`Copy-Item <Skill路径>\state-files\*.json .\state-files\`
+4. 批量重命名章节：`ch1.md` → `ch001.md`、`ch01.md` → `ch001.md` 等
 5. 验证：`python hooks/load_state.py` → `loaded: true`

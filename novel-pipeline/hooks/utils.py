@@ -1,14 +1,84 @@
 """
 Hook 共享工具
 项目隔离查找：优先使用当前项目目录下的 state-files，回退到 Skill 模板。
-"""
-import os, json, subprocess, time
-from pathlib import Path
 
+MCP 调用基类：统一初始化协议、错误处理、资源管理。
+"""
+import sys
+import os
+import json
+import subprocess
+import time
+import logging
+import queue
+import threading
+from pathlib import Path
+from typing import Any, Optional, Dict, List, Union
+
+# ==================== 基础配置 ====================
 SKILL_DIR = Path(__file__).resolve().parent.parent
 SKILL_STATE_DIR = SKILL_DIR / "state-files"
 
+# 日志配置
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger("novel-pipeline")
 
+
+# ==================== 环境变量加载 ====================
+def load_dotenv(key: str) -> str:
+    """
+    读取环境变量，优先级：skill本地.env → 系统环境变量
+    :param key: 环境变量名
+    :return: 环境变量值，不存在则返回空字符串
+    """
+    # 优先级 1: Skill 本地 .env
+    skill_dotenv = SKILL_DIR / ".env"
+    if skill_dotenv.exists():
+        for line in skill_dotenv.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                if k.strip() == key:
+                    return v.strip().strip("\"'")
+
+    # 优先级 2: 系统环境变量（兜底）
+    return os.environ.get(key, "")
+
+
+def get_path(key: str, default: str) -> Path:
+    """
+    获取配置路径，优先级：skill本地.env → 系统环境变量 → 默认值
+    :param key: 环境变量名
+    :param default: 默认路径字符串
+    :return: Path 对象
+    """
+    val = load_dotenv(key)
+    if val:
+        return Path(val)
+    return Path(default)
+
+
+# ==================== 共享路径配置 ====================
+# Hermes Python 解释器路径 (优先环境变量，回退当前解释器)
+HERMES_PYTHON = get_path("HERMES_PYTHON", str(Path(sys.executable)))
+# 默认小说项目章节目录
+DEFAULT_CHAPTERS_DIR = get_path("CHAPTERS_DIR", str(Path.cwd() / "chapters"))
+
+
+# ==================== 章节文件命名 ====================
+# 统一使用三位数补零格式：ch001.md, ch010.md, ch101.md
+CHAPTER_FILENAME_FORMAT = "ch{:03d}.md"
+
+
+def chapter_filename(chap_num: int) -> str:
+    """返回统一的三位数补零章节文件名。"""
+    return CHAPTER_FILENAME_FORMAT.format(int(chap_num))
+
+
+# ==================== 项目状态目录查找 ====================
 def find_state_dir() -> Path:
     """
     从当前工作目录向上查找 novel-pipeline.json 项目标记文件。
@@ -27,141 +97,204 @@ def find_state_dir() -> Path:
     return SKILL_STATE_DIR
 
 
-def load_dotenv(key: str) -> str:
-    """读取环境变量优先级：系统环境变量 → 全局.env → skill本地.env"""
-    val = os.environ.get(key, "")
-    if val:
-        return val
-    global_dotenv = Path.home() / ".litellm" / "servers" / ".env"
-    if global_dotenv.exists():
-        for line in global_dotenv.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                if k.strip() == key:
-                    return v.strip().strip("\"'")
-    skill_dotenv = SKILL_DIR / ".env"
-    if skill_dotenv.exists():
-        for line in skill_dotenv.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                if k.strip() == key:
-                    return v.strip().strip("\"'")
-    return ""
+# ==================== MCP 调用基类 ====================
+class BaseMCPClient:
+    """
+    MCP 客户端基类，统一处理初始化协议、错误处理、资源管理。
+    所有 MCP 调用都应该使用这个基类，避免代码重复。
 
+    使用示例:
+        with BaseMCPClient(["python", "server.py"], timeout=60) as client:
+            result = client.call_tool("tool_name", {"arg": "value"})
+    """
 
-# ── memory-novel MCP 调用封装 ─────────────────────────────────
+    def __init__(
+        self,
+        command: List[Union[str, Path]],
+        timeout: int = 60,
+        cwd: Optional[Path] = None,
+        client_name: str = "novel-pipeline",
+        client_version: str = "2.0"
+    ):
+        self.command = [str(c) for c in command]
+        self.timeout = timeout
+        self.cwd = str(cwd) if cwd else None
+        self.client_name = client_name
+        self.client_version = client_version
+        self.proc: Optional[subprocess.Popen] = None
+        self._initialized = False
 
-NPX = r"C:\Program Files\nodejs\npx.cmd"
-MEMORY_FILE_PATH = load_dotenv("MEMORY_FILE_PATH") or r"D:\Writer\novel-project\.memory\knowledge.jsonl"
+    def _read_line_with_timeout(self, timeout: float) -> Optional[str]:
+        """带超时读取一行输出，使用队列+线程避免死锁"""
+        if not self.proc or not self.proc.stdout:
+            return None
 
+        q: queue.Queue[Optional[str]] = queue.Queue(maxsize=1)
 
-def _start_memory_mcp():
-    """启动 memory-novel MCP 子进程"""
-    env = {**os.environ, "MEMORY_FILE_PATH": MEMORY_FILE_PATH}
-    proc = subprocess.Popen(
-        [NPX, "-y", "@modelcontextprotocol/server-memory"],
-        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        text=True, bufsize=1,
-    )
-    time.sleep(1.5)
-    return proc
-
-
-def _mcp_call(proc, method, params=None):
-    """发送 MCP 请求并返回响应"""
-    req = json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params or {}})
-    proc.stdin.write(req + "\n")
-    proc.stdin.flush()
-    time.sleep(0.5)
-    return proc
-
-
-def _read_response(proc, timeout=5):
-    """读取子进程所有 stdout"""
-    try:
-        stdout, stderr = proc.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        stdout, stderr = proc.communicate(timeout=3)
-    for line in stdout.strip().split("\n"):
-        line = line.strip()
-        if line.startswith("{"):
+        def _reader():
             try:
-                return json.loads(line)
+                line = self.proc.stdout.readline()
+                q.put(line)
+            except Exception:
+                q.put(None)
+
+        t = threading.Thread(target=_reader, daemon=True)
+        t.start()
+        t.join(timeout=timeout)
+
+        if not q.empty():
+            return q.get()
+        return None
+
+    def _wait_for_response(self, request_id: int, timeout: Optional[int] = None) -> Dict[str, Any]:
+        """等待指定 ID 的 JSON-RPC 响应"""
+        deadline = time.time() + (timeout or self.timeout)
+        while time.time() < deadline:
+            line = self._read_line_with_timeout(0.5)
+            if not line:
+                continue
+            line = line.strip()
+            if not line or not line.startswith("{"):
+                continue
+            try:
+                msg = json.loads(line)
+                if msg.get("id") == request_id:
+                    return msg
             except json.JSONDecodeError:
                 continue
-    return {"error": f"No JSON response. stderr: {stderr[:200]}"}
+        return {"error": {"code": -32000, "message": f"Timeout waiting for response id={request_id}"}}
 
+    def start(self) -> bool:
+        """
+        启动 MCP 服务并执行初始化握手。
+        :return: 初始化成功返回 True，失败返回 False
+        """
+        if self.proc is not None:
+            return True
 
-def memory_search(query: str) -> list:
-    """搜索 memory-novel 知识图谱"""
-    try:
-        proc = _start_memory_mcp()
-        _mcp_call(proc, "initialize", {
-            "protocolVersion": "2024-11-05", "capabilities": {},
-            "clientInfo": {"name": "novel-pipeline", "version": "2.0"}
-        })
-        _mcp_call(proc, "notifications/initialized")
-        time.sleep(0.3)
+        try:
+            self.proc = subprocess.Popen(
+                self.command,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+                cwd=self.cwd,
+                encoding="utf-8",
+                errors="replace"
+            )
 
-        # 发送 search_nodes 请求
-        req = json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
-                          "params": {"name": "search_nodes", "arguments": {"query": query}}})
-        proc.stdin.write(req + "\n")
-        proc.stdin.flush()
+            # 发送 initialize 请求
+            init_req = {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "clientInfo": {"name": self.client_name, "version": self.client_version}
+                }
+            }
+            self.proc.stdin.write(json.dumps(init_req) + "\n")
+            self.proc.stdin.flush()
 
-        resp = _read_response(proc)
-        result = resp.get("result", {})
-        content = result.get("content", [])
-        for c in content:
-            if c.get("type") == "text":
-                return json.loads(c["text"]) if isinstance(c["text"], str) else c["text"]
-        return []
-    except Exception as e:
-        return []
+            # 等待 initialize 响应
+            init_resp = self._wait_for_response(1, timeout=15)
+            if "error" in init_resp:
+                logger.error(f"MCP initialize failed: {init_resp['error']}")
+                self.close()
+                return False
 
+            # 发送 initialized 通知
+            initialized = {
+                "jsonrpc": "2.0",
+                "method": "notifications/initialized"
+            }
+            self.proc.stdin.write(json.dumps(initialized) + "\n")
+            self.proc.stdin.flush()
 
-def memory_store_entities(entities: list) -> bool:
-    """存储实体到 memory-novel 知识图谱"""
-    try:
-        proc = _start_memory_mcp()
-        _mcp_call(proc, "initialize", {
-            "protocolVersion": "2024-11-05", "capabilities": {},
-            "clientInfo": {"name": "novel-pipeline", "version": "2.0"}
-        })
-        _mcp_call(proc, "notifications/initialized")
-        time.sleep(0.3)
+            time.sleep(0.3)  # 给服务一点时间准备
+            self._initialized = True
+            return True
 
-        req = json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
-                          "params": {"name": "create_entities", "arguments": {"entities": entities}}})
-        proc.stdin.write(req + "\n")
-        proc.stdin.flush()
+        except Exception as e:
+            logger.error(f"MCP start exception: {e}")
+            self.close()
+            return False
 
-        resp = _read_response(proc)
-        return "result" in resp
-    except Exception as e:
-        return False
+    def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        调用 MCP 工具
+        :param tool_name: 工具名称
+        :param arguments: 工具参数字典
+        :return: 响应字典，包含 success/data 或 error
+        """
+        if not self._initialized and not self.start():
+            return {"success": False, "error": "MCP initialization failed"}
 
+        if not self.proc or not self.proc.stdin:
+            return {"success": False, "error": "MCP process not running"}
 
-def memory_store_relations(relations: list) -> bool:
-    """存储关系到 memory-novel 知识图谱"""
-    try:
-        proc = _start_memory_mcp()
-        _mcp_call(proc, "initialize", {
-            "protocolVersion": "2024-11-05", "capabilities": {},
-            "clientInfo": {"name": "novel-pipeline", "version": "2.0"}
-        })
-        _mcp_call(proc, "notifications/initialized")
-        time.sleep(0.3)
+        try:
+            call_req = {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {"name": tool_name, "arguments": arguments}
+            }
+            self.proc.stdin.write(json.dumps(call_req) + "\n")
+            self.proc.stdin.flush()
 
-        req = json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
-                          "params": {"name": "create_relations", "arguments": {"relations": relations}}})
-        proc.stdin.write(req + "\n")
-        proc.stdin.flush()
+            resp = self._wait_for_response(2, timeout=self.timeout)
 
-        resp = _read_response(proc)
-        return "result" in resp
-    except Exception as e:
+            if "error" in resp:
+                return {"success": False, "error": str(resp["error"])}
+
+            if "result" in resp and "content" in resp["result"]:
+                for c in resp["result"]["content"]:
+                    if c.get("type") == "text":
+                        return {"success": True, "data": c["text"]}
+                return {"success": True, "data": resp["result"]}
+
+            return {"success": False, "error": "Unexpected response format", "raw": resp}
+
+        except Exception as e:
+            logger.error(f"MCP call_tool exception: {e}")
+            return {"success": False, "error": str(e)}
+
+    def close(self) -> None:
+        """
+        关闭 MCP 进程，确保资源正确释放。
+        总是可以安全调用，即使进程已经关闭。
+        """
+        if self.proc is None:
+            return
+
+        try:
+            if self.proc.stdin:
+                try:
+                    self.proc.stdin.close()
+                except Exception:
+                    pass
+
+            if self.proc.poll() is None:
+                self.proc.terminate()
+                try:
+                    self.proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    self.proc.kill()
+                    self.proc.wait(timeout=2)
+        except Exception as e:
+            logger.debug(f"Error closing MCP process (harmless): {e}")
+        finally:
+            self.proc = None
+            self._initialized = False
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
         return False

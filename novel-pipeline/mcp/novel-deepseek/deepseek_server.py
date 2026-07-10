@@ -1,33 +1,71 @@
 #!/usr/bin/env python3
 """
 DeepSeek Draft Generator MCP Server (stdio transport)
-模块2: DeepSeek-V4-PRO 专属初稿生成
+模块2: DeepSeek 专属初稿生成
 Tool Description = 模块2全部规则，Claude CLI 读取即加载规则
+
+配置来源（无内置默认值）：
+  1. Skill 本地 .env（SKILL_DIR/.env）
+  2. 系统环境变量
+两级读取均缺失时，立刻报错退出，避免打错误端点。
 """
-import os, sys, json, asyncio
+import os
+import sys
+import json
 from pathlib import Path
+
 import httpx
 from mcp.server.fastmcp import FastMCP
 
-# ── .env 加载 ──────────────────────────────────────────────
-SKILL_DIR = Path(__file__).resolve().parent.parent
-DOTENV_PATH = SKILL_DIR / ".env"
-DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
-DEEPSEEK_BASE_URL = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", os.environ.get("DEEPSEEK_NODEL", "deepseek-v4-pro"))
+# Skill 根目录
+SKILL_DIR = Path(__file__).resolve().parent.parent.parent
 
-if DOTENV_PATH.exists():
-    for line in DOTENV_PATH.read_text(encoding="utf-8").splitlines():
+
+def _read_skill_env() -> dict[str, str]:
+    """一次性读取 Skill 本地 .env，返回 dict；文件不存在则返回空 dict。"""
+    env_path = SKILL_DIR / ".env"
+    if not env_path.exists():
+        return {}
+    result: dict[str, str] = {}
+    for line in env_path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            k, v = line.split("=", 1)
-            k = k.strip(); v = v.strip().strip("\"'")
-            if k == "DEEPSEEK_API_KEY" and not DEEPSEEK_API_KEY:
-                DEEPSEEK_API_KEY = v
-            elif k == "DEEPSEEK_BASE_URL":
-                DEEPSEEK_BASE_URL = v
-            elif k in ("DEEPSEEK_MODEL", "DEEPSEEK_NODEL"):
-                DEEPSEEK_MODEL = v
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        result[k.strip()] = v.strip().strip("\"'")
+    return result
+
+
+def require_env(key: str, skill_env: dict[str, str]) -> str:
+    """
+    读取环境变量，优先级：skill .env → 系统环境变量。
+    两级都缺或值为空 → 立刻退出，不允许使用兜底默认。
+    """
+    val = skill_env.get(key, "").strip()
+    if not val:
+        val = os.environ.get(key, "").strip()
+    if not val:
+        msg = (
+            f"ERROR: 环境变量 {key} 未配置。\n"
+            f"请在以下任一位置提供该值（优先 skill .env）：\n"
+            f"  1) {SKILL_DIR / '.env'}\n"
+            f"  2) 系统环境变量"
+        )
+        print(json.dumps({
+            "jsonrpc": "2.0",
+            "id": None,
+            "error": {"code": -32000, "message": msg}
+        }), file=sys.stderr)
+        sys.exit(1)
+    return val
+
+
+# ── 加载配置 ──────────────────────────────────────────────
+_skill_env = _read_skill_env()
+DEEPSEEK_API_KEY = require_env("DEEPSEEK_API_KEY", _skill_env)
+DEEPSEEK_BASE_URL = require_env("DEEPSEEK_BASE_URL", _skill_env).rstrip("/")
+DEEPSEEK_MODEL = require_env("DEEPSEEK_MODEL", _skill_env)
+
 
 # ── System Prompt（发给 DeepSeek 的 system message）─────────
 DRAFT_SYSTEM_PROMPT = """你是网文章节草稿生成器。你只产出剧情骨架，不做任何文字润色。
@@ -57,13 +95,13 @@ DRAFT_SYSTEM_PROMPT = """你是网文章节草稿生成器。你只产出剧情�
 # ── MCP Server ─────────────────────────────────────────────
 server = FastMCP(
     name="novel-deepseek",
-    instructions="DeepSeek-V4-PRO webnovel draft generator. Tool description contains full generation constraints.",
+    instructions="DeepSeek webnovel draft generator. Tool description contains full generation constraints.",
 )
 
 
 @server.tool(
     name="generate_draft",
-    description="""[DRAFT GENERATOR — DeepSeek-V4-PRO 专属初稿生成]
+    description="""[DRAFT GENERATOR — DeepSeek 专属初稿生成]
 
 ## 模型定位
 你是剧情骨架生成器，不是小说家。产出平铺直白的剧情初稿，所有文笔优化交给后置润色模型。
@@ -103,12 +141,7 @@ async def generate_draft(
     chapter_number: int,
     revision_instructions: str = "",
 ) -> str:
-    """Generate a webnovel chapter draft using DeepSeek-V4-PRO."""
-
-    if not DEEPSEEK_API_KEY:
-        return "ERROR: DEEPSEEK_API_KEY 未配置。请在 novel-pipeline/.env 中设置。"
-
-    # 构建用户消息
+    """Generate a webnovel chapter draft."""
     revision_section = ""
     if revision_instructions.strip():
         revision_section = f"\n\n【修改指示——必须逐条执行】\n{revision_instructions}\n"
@@ -126,10 +159,11 @@ async def generate_draft(
 严格遵循大纲情节线，不自行添加新情节。
 纯章节文本，不要任何分析或说明。"""
 
+    endpoint = DEEPSEEK_BASE_URL if DEEPSEEK_BASE_URL.endswith("chat/completions") else f"{DEEPSEEK_BASE_URL}/chat/completions"
     try:
         async with httpx.AsyncClient(timeout=300.0) as client:
             resp = await client.post(
-                f"{DEEPSEEK_BASE_URL}/chat/completions",
+                endpoint,
                 headers={
                     "Content-Type": "application/json",
                     "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
@@ -147,9 +181,7 @@ async def generate_draft(
             )
             resp.raise_for_status()
             data = resp.json()
-            content = data["choices"][0]["message"]["content"]
-            return content
-
+            return data["choices"][0]["message"]["content"]
     except httpx.HTTPStatusError as e:
         return f"ERROR: DeepSeek API 返回错误 {e.response.status_code}: {e.response.text[:500]}"
     except httpx.RequestError as e:
