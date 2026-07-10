@@ -40,6 +40,27 @@
 - **保真优先**：宁可少改一处，不可改错一处。不确定的改动 → 保留原文
 - **润色 ≠ 只修禁令**：画面感、节奏、对话、信息密度四个维度必须全部覆盖。不能把「纯手动润色」降级为「禁令扫描 + 污染修复」——那样等于没做润色。
 
+### 润色后的状态归档
+
+如果润色**改变了角色状态/伏笔进度/世界观描述**（比如原文写"苏白拔剑"改为"苏白掌握了新剑法"），需要在润色完成后：
+
+1. 构造 `archive_facts.py` payload 归档新事实到 `.writer/state/*.json`（见 `write.md` Step 3 完整示例）
+2. `python <writer>/scripts/render_tracking.py` 刷新 `tracking/*.md`
+
+**如果润色只是文字层面（不改情节/角色/伏笔）**：不需要归档，`.writer/state/` 保持不变。
+
+### 留规划意图给下一次
+
+润色过程中如果发现某处**当前不改但未来需改**（比如"这章的老周太扁平，但要在 ch_030 才自然铺开"），可以在 `tracking/hooks.md` 或 `tracking/current_state.md` 相应 `##` 标题下方追加：
+
+```markdown
+<!-- user-edit -->
+ch_030 前需要给老周补两条动机线索
+<!-- /user-edit -->
+```
+
+下次 write 或 review 时主 Agent 会读到这段规划意图；`render_tracking.py` 重跑时保留此块不动。
+
 ---
 
 ## 常见陷阱与教训
@@ -118,9 +139,11 @@
 
 ### Step 0：启动前检查
 
-1. 确认项目根目录（检测 `writer.json` + `setting/` + `chapters/`）
-2. 读取 `writer.json` 获取当前写作状态
+1. 确认项目根目录（检测 `novel.json` / `writer.json` + `setting/` + `chapters/`）
+2. 读取项目根 JSON 获取当前写作状态
 3. 检查 `.writer/runtime/` 是否存在上次未完成的润色进度文件
+4. 读取 `tracking/*.md` 内的 `<!-- user-edit -->` 块 —— 用户可能在这里留了本轮润色相关的规划意图（如"ch_030 前要暴露老周的双面"）
+5. 检查 `setting/writing_rules.md` —— 项目专属声音卡，润色时必须遵守
 
 ```
 检查清单：

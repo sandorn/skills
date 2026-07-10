@@ -215,6 +215,8 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 | 更新角色状态 | 更新角色状态、角色追踪 | `references/track-character-state.md` |
 | 实体关系图谱 | 关系、图谱、谁和谁 | `scripts/report_graph.py` |
 | 项目全景报告 | 全景、概览、项目状态 | `scripts/report_panorama.py` |
+| 事实归档（手动）| 归档事实、写入状态、补事实 | `scripts/archive_facts.py`（写章后 Agent 自动跑；用户也可手动构造 payload 跑）|
+| tracking 刷新 | 刷新追踪、渲染 tracking、状态导出 | `scripts/render_tracking.py`（写章后 Agent 自动跑；用户也可手动跑）|
 | 番茄投稿检查 | 番茄投稿、格式兼容 | `references/fanqie-submission.md` |
 | 多平台导出 | 导出、起点格式、番茄格式 | `scripts/export.py` |
 | 封面 | 封面、生成封面 | `references/cover.md` |

@@ -9,7 +9,8 @@
 | **默认模式** | `write 第5章` | 5 步日更管线：Plan → Architect → Write+Reflect → Audit+Normalize → Revise |
 | **完整模式** | `write 第5章 --full` | 展开 9 步完整管线 |
 | **轻量模式** | `write 第5章 --fast` | 跳过 Observer/Reflector/Normalizer |
-| **批量模式** | `write --batch 3` | 一次性规划，批量写入 |
+| **批量模式** | `write --batch 3` | 一次性规划，主 Agent 亲写批量写入 |
+| **DeepSeek 出稿** | `write --batch 30 --use-deepseek` | 委托 novel-pipeline `novel-deepseek MCP` 生成骨架（30+ 章大批量适用）|
 | **短篇模式** | `write --short` | 短篇小说写作 |
 | **快速短篇** | `write --short --fast` | 情绪驱动 + 快速出稿 |
 
@@ -94,14 +95,64 @@ if not os.path.exists(ch_outline) and state.get("stage") != "planning":
 # 3. 派生人读快照：
 #    python <writer>/scripts/render_tracking.py
 #    → 从 .writer/state/*.json 重新生成 tracking/characters.md / hooks.md / current_state.md
-#    → 保留用户在 `<!-- user-edit -->` 块内的手写规划
-#
-# 4. 更新 novel.json / writer.json：
-#    chapters_done += 1
-#    current_chapter = {NNN}
-#    last_action = "write"
-#    updated_at = <now>
 ```
+
+#### archive_facts.py payload 完整示例
+
+主 Agent 写完 ch_012 后，如果本章发生了「苏白突破练气四层 + 埋新伏笔"神秘老者身份"+ 首次揭示血刃门」，payload 应长这样：
+
+```json
+{
+  "chapter_number": 12,
+  "changes": {
+    "characters": [
+      {
+        "name": "苏白",
+        "cultivation": "练气四层",
+        "current_location": "青云门后山",
+        "emotional_state": "紧张但兴奋",
+        "recent_changes": ["突破练气四层", "初见神秘老者"]
+      }
+    ],
+    "foreshadowing": {
+      "new": [
+        {
+          "description": "神秘老者身份未知",
+          "hints_placed": ["ch012 结尾对视片段"],
+          "expected_payoff_window": "ch025-030"
+        }
+      ],
+      "resolved_ids": []
+    },
+    "world_setting": {
+      "factions": [
+        {"name": "血刃门", "type": "邪修", "current_leader": "未知"}
+      ]
+    },
+    "power_system": {}
+  }
+}
+```
+
+调用方式（在主 Agent 会话内）：
+
+```bash
+cat <<'EOF' | python <writer>/scripts/archive_facts.py
+{...上面的 JSON...}
+EOF
+```
+
+archive_facts 返回：
+```json
+{"archived": true, "chapter": 12, "changes_applied": ["characters", "foreshadowing", "world_setting"], "counts": {...}, "message": "章 12 事实已归档"}
+```
+
+字段规则：
+- `characters[].name` 是主键，已存在则合并字段（`recent_changes` 追加，其他字段覆盖）；不存在则新增
+- `foreshadowing.new[]` 自动生成 `id` 与 `planted_chapter`（无需主 Agent 填）
+- `foreshadowing.resolved_ids` 会把对应 active 项迁到 resolved
+- `world_setting.factions[].name` 是去重键；已存在则跳过
+- `power_system.realms/equipment/*` 同上
 
 > 适用禁令：B01（对话「」）/ B02（禁止 ——）/ B03（禁止「不是…而是…」）/ B05（AI高频词）/ B06（每段 ≤42 汉字）
 
@@ -311,6 +362,82 @@ python scripts/audit.py chapters/
 [批量写作] 第 N 章完成 ✓
 [进度: {done}/{total}] 字数: {N} 字 | 用时: {N}m
 ```
+
+---
+
+## DeepSeek 出稿模式（--use-deepseek）
+
+适用于：**大批量初稿生成**（30+ 章一次性出稿）。委托 novel-pipeline 的 `novel-deepseek` MCP 生成剧情骨架，主 Agent 只负责编排 payload + 落盘 + 归档。
+
+### 使用场景
+
+- 已有完整章纲（`outline/chapter_outline/ch_NNN.md`），只需机械转成正文骨架
+- 主 Agent 上下文预算紧张，不适合亲写
+- 后续会走 novel-pipeline 的 `polish_chapter.py` 做番茄风润色（三段流水线）
+
+### 前置
+
+1. novel-pipeline skill 已装好，`.env` 已配 `DEEPSEEK_{API_KEY,BASE_URL,MODEL}` 三项
+2. 运行环境已注册 `novel-deepseek` MCP（Hermes 会话自动，Claude Desktop 需手动配置 `.mcp.json`）
+3. 项目已跑过 `pre-write-alignment` 检查
+
+### 单章调用流程
+
+主 Agent 在会话内构造：
+
+```python
+# Step 1: 从 .writer/state/*.json 读全局设定 + 本章章纲
+setting_summary = <从 setting/*.md 抽取本章相关的世界观/角色>
+chapter_outline = <读 outline/chapter_outline/ch_NNN.md>
+
+# Step 2: 调 novel-deepseek MCP generate_draft
+draft_text = mcp__novel_deepseek__generate_draft(
+    global_setting=setting_summary,       # 本章世界观摘要（约 500-1000 字）
+    chapter_outline=chapter_outline,      # 本章细纲全文
+    chapter_number=NNN,                   # 章号 int
+    revision_instructions="",             # 首次生成留空；重生成时填自检反馈
+)
+
+# Step 3: 检查 draft_text 首字符
+#   若以 "ERROR:" 开头 → 打印错误，中止本章
+#   否则 → 写入 chapters/ch_NNN.md
+
+# Step 4: 触发 write.md Step 4 Audit + Step 5 归档（同亲写路径）
+```
+
+### 批量调用流程
+
+```
+for ch in range(start, end+1):
+    outline = read(outline/chapter_outline/ch_{ch:03d}.md)
+    setting = <从 .writer/state/*.json 组装本章相关切片>
+    draft   = mcp__novel_deepseek__generate_draft(setting, outline, ch)
+    write(chapters/ch_{ch:03d}.md, draft)
+    run audit.py + archive_facts.py + render_tracking.py
+```
+
+**批次上限**：与 `--batch` 一致（≤5 章一批）。DeepSeek 单次调用约 30-90s，5 章约 5-8 分钟。
+
+### 与主 Agent 亲写的差异
+
+| 维度 | 主 Agent 亲写 | DeepSeek 出稿 |
+|---|---|---|
+| 输入 | outline + setting + tracking + user-edit 块 | outline + setting（切片）|
+| 文笔 | 主模型语调（Claude/主项目风格）| DeepSeek 骨架风格（平铺直白）|
+| 声音一致性 | ✅ 从 `writing_rules.md` 拿 | ❌ 需后续 polish_chapter.py 用番茄预设润色 |
+| 字数控制 | 主 Agent 判断 | MCP prompt 硬约束 2500-4500 |
+| 上下文成本 | 每章 5-15k tokens | 每章 0.5k tokens |
+| 适用规模 | 日更（≤5 章/次）| 大批量（30-100 章一波）|
+
+**推荐用法**：DeepSeek 出稿 → 走一遍 `polish_chapter.py --style-file fanqie-quick-anti.md` 上番茄风 → daily 审查 → 发布。三段流水线一次跑完 30 章约 60-90 分钟。
+
+### 错误处理
+
+MCP 返回以 `ERROR:` 开头的字符串时：
+- `ERROR: DEEPSEEK_API_KEY 未配置` → 查 novel-pipeline `.env`
+- `ERROR: API 返回错误 4xx/5xx` → API 端 rate limit 或余额，暂停 60s 重试
+- `ERROR: 网络请求失败` → 检查 `DEEPSEEK_BASE_URL` 连通性
+
 
 ---
 
