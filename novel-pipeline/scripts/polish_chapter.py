@@ -149,7 +149,13 @@ def polish_single_chapter(
         polished_text = result.get("polished", "")
         issues = result.get("issues", [])
 
-        # 保存结果（原地覆盖）
+        if result.get("passed") is False:
+            reason = "、".join(issues[:3]) if issues else result.get("report", {}).get("doubao_result", "未知原因")
+            return False, f"❌ 第{chap_num}章润色未通过：{reason}", original_len, len(polished_text), issues
+
+        # 保存结果（原地覆盖前保留单文件备份，覆盖 git 快照不可用的 --force 场景）
+        if polished_text != text:
+            chap_path.with_suffix(chap_path.suffix + ".bak").write_text(text, encoding="utf-8")
         chap_path.write_text(polished_text, encoding="utf-8")
 
         # 对比报告（可选）
@@ -379,8 +385,8 @@ def main():
         style_prompt = style_path.read_text(encoding="utf-8").strip()
         print(f"📖 文风预设已加载：{style_path.name}（{len(style_prompt)} 字符）")
 
-    # 前置 1：MCP 就绪
-    if not ensure_mcps_ready():
+    # 前置 1：MCP 就绪（润色只依赖 Doubao；DeepSeek 仅出稿时需要）
+    if not ensure_mcps_ready([("novel-doubao", "novel-doubao", "doubao_server.py")]):
         sys.exit(1)
 
     # 前置 2：git 快照

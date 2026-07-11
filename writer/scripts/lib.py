@@ -163,12 +163,16 @@ def scan_chapter_files(
 # 项目状态
 # ============================================================================
 
+PROJECT_JSON_MARKERS = ('novel.json', 'writer.json', 'novel-pipeline.json')
+
+
 def load_writer_json(project_root: str) -> Optional[dict]:
-    """加载 writer.json 项目状态文件。"""
-    path = os.path.join(project_root, 'writer.json')
-    if os.path.exists(path):
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+    """加载项目状态文件，优先 novel.json，兼容 writer.json / novel-pipeline.json。"""
+    for marker in PROJECT_JSON_MARKERS:
+        path = os.path.join(project_root, marker)
+        if os.path.exists(path):
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
     return None
 
 
@@ -216,7 +220,7 @@ def load_character_names(project_root: str) -> dict[str, dict]:
 
     加载优先级：
       1. setting/characters.md 或 设定/characters.md 中 ## 角色列表 节
-      2. writer.json 中 characters 字段
+      2. novel.json / writer.json 中 characters 字段
       3. 空字典
 
     返回格式：{角色名: {"type": "主角", "faction": "主角方", "aliases": []}}
@@ -236,7 +240,7 @@ def load_character_names(project_root: str) -> dict[str, dict]:
                 if name and len(name) >= 2:
                     chars[name] = {'type': '其他', 'faction': '其他', 'aliases': [name]}
 
-    # 回退：从 writer.json 加载
+    # 回退：从项目 JSON 加载
     if not chars:
         state = load_writer_json(project_root)
         if state and 'characters' in state:

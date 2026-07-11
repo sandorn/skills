@@ -18,7 +18,7 @@ from lib import (count_chinese, find_chapters_dir, find_setting_dir,
                  find_tracking_dir, load_writer_json)
 
 
-# load_writer_json 已从 lib.py 导入
+# load_writer_json 兼容 novel.json / writer.json / novel-pipeline.json
 
 
 def load_project_stats(project_root):
@@ -217,7 +217,7 @@ def generate_report(project_root, stats, chapters, setting, tracking, state, fac
             }
             lines.append(f'| {labels.get(key, key)} | {val} |')
     else:
-        lines.append('> writer.json 未找到')
+        lines.append('> 项目 JSON 未找到（novel.json / writer.json / novel-pipeline.json）')
     lines.append('')
 
     # ===== 章节统计 =====
