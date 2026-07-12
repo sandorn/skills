@@ -1,7 +1,7 @@
 ---
 name: ai-infra-manual
 description: "本地 AI 基础架构运维手册：Hermes 环境、Skill 管理、模型配置、MCP 网关"
-version: 2.3.1
+version: 2.3.2
 ---
 
 # 本地 AI 基础架构运维手册

@@ -29,13 +29,78 @@ python -m pip install python-certifi-win32
 | 停止服务 | `.\start.ps1 -Stop` | 三路兜底（PID→端口→命令行） |
 | 重启 | `.\start.ps1 -Restart` | 停旧启新 + 健康检查 |
 
-**部署至开机自启**（VBS + Startup 文件夹）：
+### 部署至开机自启（VBS + Startup 文件夹）
+
+**脚本位置：** `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\LiteLLM_Gateway.vbs`
+
+**VBS 模板（加固版，含自启审计日志 + 子进程生命周期解耦）：**
 ```vbscript
-' LiteLLM autostart — silent, 30s delay
+' LiteLLM Gateway autostart - silent, delayed
+Option Explicit
+Dim ws, fso, logDir, logFile, ts
+Set ws  = CreateObject("WScript.Shell")
+Set fso = CreateObject("Scripting.FileSystemObject")
+
+logDir  = "C:\Users\Administrator\.litellm\logs"
+logFile = logDir & "\autostart.log"
+If Not fso.FolderExists(logDir) Then fso.CreateFolder(logDir)
+
+' 记录触发时刻
+On Error Resume Next
+Set ts = fso.OpenTextFile(logFile, 8, True)
+ts.WriteLine Now & "  [VBS] triggered by Startup"
+ts.Close
+On Error Goto 0
+
 WScript.Sleep 30000
-Set ws = CreateObject("WScript.Shell")
-ws.Run "powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File ""C:\Users\Administrator\.litellm\start.ps1""", 0, False
+
+' cmd /c start 解耦子进程生命周期：wscript 退出后 powershell 继续运行
+ws.Run "cmd /c start """" /min powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File ""C:\Users\Administrator\.litellm\start.ps1""", 0, False
+
+' 再记一次成功派发
+On Error Resume Next
+Set ts = fso.OpenTextFile(logFile, 8, True)
+ts.WriteLine Now & "  [VBS] dispatched start.ps1"
+ts.Close
 ```
+
+**关键改动对比旧版：**
+1. 增加 `autostart.log` 写入：每次开机在 `logs\` 下留痕，排查是否被 Startup 触发
+2. 改用 `cmd /c start """" /min powershell.exe ...`：wscript.exe 退出后子进程不会跟着终结
+3. start.ps1 内 `chcp` / `[Console]::OutputEncoding` 等调用已加 try/catch 兜底，避免无控制台场景中止
+
+### 桌面手动重启文件
+
+**位置：** `C:\Users\Administrator\Desktop\重启LiteLLM网关.vbs`
+
+**用途：** 双击即可重启 LiteLLM 网关（无窗口、气泡提示结果）
+
+**行为：**
+1. 记录 `[MANUAL] restart requested` 到 `logs\manual.log`
+2. 隐藏窗口调用 `start.ps1 -Restart`（停旧启新 + 健康检查）
+3. 等待完成后记录退出码到 `logs\manual.log`
+4. 弹出 5 秒自动消失的气泡通知结果
+
+**AI 等效重启命令：**
+```powershell
+Start-Process wscript.exe -ArgumentList '"C:\Users\Administrator\Desktop\重启LiteLLM网关.vbs"'
+```
+或直接：
+```powershell
+Start-Process -WindowStyle Hidden powershell.exe -ArgumentList '-ExecutionPolicy Bypass -File "C:\Users\Administrator\.litellm\start.ps1" -Restart'
+```
+
+### 开机自启故障排查
+
+1. 开机 1 分钟后检查 `logs\autostart.log` 是否有新时间戳
+2. 若无日志 → VBS 未被 Startup 触发（Defender / SmartScreen / 快速启动干扰）
+3. 有日志但无 4000 端口 → 检查 `logs\litellm-stderr.log` 是否有启动错误
+4. 后备：手动执行 `Start-Process -WindowStyle Hidden powershell.exe -ArgumentList '-ExecutionPolicy Bypass -File "C:\Users\Administrator\.litellm\start.ps1"'`
+
+### 注意事项
+
+- **VBS 文件必须以 GBK 编码保存**（Windows Script Host 按系统 ANSI 解析）。`write_file` 默认 UTF-8 会导致 VBS 中文注释乱码。正确做法：`write_file` 写 UTF-8 到中间路径 → Python 转 GBK 写到目标路径。
+- **start.ps1 无控制台场景**：VBS → Hidden PowerShell 时，`[Console]::OutputEncoding` / `chcp` 会抛异常，必须用 `try/catch` 包裹（否则 `$ErrorActionPreference="Stop"` 会让脚本提前中止）。
 
 ## 各客户端 Key 配置速查
 
