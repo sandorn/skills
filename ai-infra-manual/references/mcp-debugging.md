@@ -122,15 +122,42 @@ for s in servers:
 
 ## better-sqlite3 原生编译失败（Windows 无 VS Build Tools）
 
-**症状**：`npm install` 包 → `gyp ERR!` 编译失败。常见于依赖 `better-sqlite3` 的 npm 包（如 `@pepk/mcp-memory-sqlite`）。
+**症状**：`hermes mcp test <name>` → `Connection closed`；`npx -y <package>` 立即退出 code 1，stdout/stderr 全空——**这是关键的陷阱信号**。
 
-**根因**：`better-sqlite3` 是 C++ 原生模块，需要 Visual Studio C++ Build Tools 编译。无 VS 环境时 `npm install` 和 `npx` 均失败。
+**根因**：`better-sqlite3` 是 C++ 原生模块，需要 Visual Studio C++ Build Tools 编译。无 VS 环境时 `npm install` 和 `npx` 均失败。Node v26 尤其容易触发，因为 prebuild 预编译产物仅覆盖到 v22/v24。
+
+**诊断流程**（三步锁定）：
+
+1. 确认 npx 返回值：`npx -y <package>` → 立即退出 code 1 且无输出
+2. 翻 npm 调试日志确认：
+   ```powershell
+   Get-ChildItem "$env:LOCALAPPDATA\npm-cache\_logs" -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1 | ForEach-Object { Select-String -Path $_.FullName -Pattern 'better-sqlite3|install script|exit|failed' }
+   ```
+3. 关键日志信号：`info run better-sqlite3@<version> install ... prebuild-install || node-gyp rebuild --release` 后跟 `{ code: 1, signal: null }` → 确认原生编译失败
+
+**影响包**（所有依赖 better-sqlite3 的 npm 包）：
+
+| 包名 | 维护者 | 场景 |
+|------|--------|------|
+| `mcp-memory-sqlite` | spences10 | 小说项目 novel_project MCP |
+| `@pepk/mcp-memory-sqlite` | pepk | 通用 SQLite 记忆 MCP |
 
 **替代方案**——换用纯 JS 实现的同类包：
 
 | 需要的功能 | 有原生依赖（不可用） | 无原生依赖（可用） |
 |-----------|-------------------|-----------------|
-| SQLite 存储 MCP | `@pepk/mcp-memory-sqlite` (better-sqlite3) | `@modelcontextprotocol/server-memory` (纯 JS) |
+| SQLite 存储 MCP | `mcp-memory-sqlite` (better-sqlite3) | `@modelcontextprotocol/server-memory` (纯 JS) |
+|  | `@pepk/mcp-memory-sqlite` (better-sqlite3) | |
+
+**替代方案 B（保留 mcp-memory-sqlite）**：nvm 切到 Node LTS（v22.x），better-sqlite3 有官方 prebuilt，不需要本地编译：
+
+```powershell
+nvm install 22.20.0
+nvm use 22.20.0        # C:\nvm4w\nodejs symlink 会自动指向 v22
+hermes mcp test novel_project   # 期望：Tools discovered: 7
+```
+
+**升 Node 前必查**：[`better-sqlite3` releases](https://github.com/WiseLibs/better-sqlite3/releases) 是否已发对应 Node 版本的 prebuilt。当前（2026-07）v12.11.1 仅覆盖到 Node v24。
 
 **memory server 切换方法**：
 ```yaml
