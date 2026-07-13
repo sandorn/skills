@@ -1,7 +1,7 @@
 ---
 name: writer
-version: "8.3"
-description: "网文写作全流程引擎：扫榜/拆文/大纲/写章/审查/质检/发布/文风转换。v8.3 与 novel-pipeline 协作，批量润色/初稿由后者提供。"
+version: "8.4"
+description: "网文写作全流程引擎：扫榜/拆文/大纲/写章/审查/质检/发布/文风转换。v8.4 起小说记忆统一由 novel_project MCP 管理，禁用本地 JSON 状态；v8.3 起与 novel-pipeline 协作，批量润色/初稿由后者提供。"
 category: writing
 tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 ---
@@ -20,15 +20,15 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 
 ---
 
-## 项目目录结构（唯一标准 · v8.3）
+## 项目目录结构（唯一标准 · v8.4）
 
 ```
 {project}/
-├── novel.json                   # 项目根标识（首选，与 novel-pipeline 共用）
+├── novel.json                   # 项目根标识 + 元数据（stage/chapters_done/current_chapter）
 │   └── 或 writer.json / novel-pipeline.json（都被识别，novel.json 优先）
-├── setting/                     # 【用户领地】静态约束
+├── setting/                     # 【用户领地】静态设定原稿（开局约束）
 │   ├── story_bible.md           # 世界观设定总纲
-│   ├── characters.md            # 角色卡 + 关系矩阵
+│   ├── characters.md            # 角色卡 + 关系矩阵（首批 seed MCP 的原始出处）
 │   ├── power_system.md          # 力量/等级/权限体系
 │   ├── factions.md              # 势力/门派/阵营
 │   └── writing_rules.md         # 可选：项目声音卡（写章前自动加载）
@@ -41,28 +41,31 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 ├── chapters/                    # 【Agent 主写】正文
 │   ├── ch_001.md                # 命名格式：ch_NNN.md（三位数补零 + 下划线）
 │   └── ...
-├── tracking/                    # 【Agent 派生渲染】人读快照
-│   ├── characters.md            # 从 .writer/state/characters.json 派生
-│   ├── hooks.md                 # 从 .writer/state/foreshadowing.json 派生
-│   ├── current_state.md         # 当前状态快照（派生）
-│   └── 用户可在任意 md 里插入 <!-- user-edit -->...<!-- /user-edit --> 块保留规划意图
-└── .writer/                     # 【skill 领地】不入 git 主线（runtime 除外）
-    ├── state/                   # 【Agent 独写】原子事实源（机读）
-    │   ├── characters.json      # {"version": N, "characters": [...]}
-    │   ├── foreshadowing.json   # {"version": N, "active": [], "resolved": []}
-    │   ├── power_system.json
-    │   └── world_setting.json
-    ├── project_memory.json      # skill 学到的项目习惯（可选）
+└── .writer/                     # 【skill 领地】不入 git 主线
     └── runtime/                 # 临时文件（.gitignore）
 ```
+
+### v8.4 关键变化：**记忆迁到 MCP，废除 .writer/state/ 与 tracking/**
+
+| 数据 | v8.3 及以前 | **v8.4** |
+|---|---|---|
+| 人物当前状态 | `.writer/state/characters.json` | ✅ `novel_project` MCP（`entityType="人物"`） |
+| 伏笔进度 | `.writer/state/foreshadowing.json` | ✅ MCP（`entityType="伏笔"` + 关系） |
+| 势力/世界观 | `.writer/state/world_setting.json` | ✅ MCP（`势力`/`地点`/`世界规则`） |
+| 力量体系 | `.writer/state/power_system.json` | ✅ MCP（`境界`/`功法`） |
+| 人读快照 | `tracking/*.md`（`render_tracking.py` 派生） | ⚠️ 已废；用 `report_graph.py` 按需从 MCP 生成 |
+| 用户规划意图 | `tracking/*.md` 里 `<!-- user-edit -->` 块 | 挪到 `setting/*.md` 对应文件末尾 |
+| 项目元数据 | `novel.json` | `novel.json`（不变） |
+
+**MCP 记忆的权威规范**：`references/memory-mcp.md`（工具目录 + 命名规范 + 调用契约）
+**治理规则/禁令**：`references/memory-governance.md`
 
 ### 四层写权限（从严到松）
 
 | 层 | 谁写 | 谁改 | 用途 |
 |---|---|---|---|
-| `.writer/state/*.json` | Agent 独写（`archive_facts.py`）| 只 Agent | 原子事实源，写章后归档 |
-| `tracking/*.md` | Agent 派生（`render_tracking.py`）| 用户可在 user-edit 块内增补 | 人读快照 |
-| `setting/*.md` | Agent 初始化 + 用户手改 | 用户为主 | 静态约束 |
+| **`novel_project` MCP** | Agent 独写（`archive_facts.py` 生成 payload）| 只 Agent | **原子事实源，写章后归档 + 续写前查询** |
+| `setting/*.md` | Agent 初始化 + 用户手改 | 用户为主 | 静态约束（seed MCP 的原稿） |
 | `chapters/*.md` | Agent 主写 | 用户可修 | 正文 |
 | `outline/*.md` | Agent 生成 + 用户改 | 双方 | 大纲 |
 
@@ -79,7 +82,7 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 ### 场景 0 · 开新书
 - **用户说**：「帮我开本都市重生文，主角回到 2001 年开网吧」
 - **skill**：writer（`project-init`），novel-pipeline 不介入
-- **产物**：`novel.json` + 5 段目录骨架 + `.writer/state/*.json` 空骨架
+- **产物**：`novel.json` + 5 段目录骨架 + **首批 seed 到 `novel_project` MCP**（人物/势力/境界/功法/世界规则）
 
 ### 场景 1 · 规划大纲
 - **用户说**：「规划大纲，写三卷每卷 60 章」
@@ -91,10 +94,10 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 - **skill**：writer 5 步管线
 - **文件流**：
   ```
-  读 .writer/state/*.json + setting/*.md + outline/ch_NNN.md + tracking/*.md（含用户 user-edit 块）
+  【读】novel_project MCP（本章相关人物/势力/伏笔 get_entity_with_relations + search_nodes）
+       + setting/*.md + outline/ch_NNN.md
     → 主 Agent 亲写 → chapters/ch_NNN.md
-    → archive_facts.py 追加事实到 .writer/state/*.json
-    → render_tracking.py 派生 tracking/*.md（保留用户块）
+    → archive_facts.py 生成 MCP payload → Agent 调 create_entities / create_relations 归档
     → daily 审查 8 维
   ```
 
@@ -108,10 +111,10 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 - **skill**：writer + **novel-pipeline**（`novel-deepseek MCP`）
 - **文件流**：
   ```
-  writer 主 Agent 拿章纲 + .writer/state/*.json 状态
+  writer 主 Agent 拿章纲 + novel_project MCP 记忆（get_entity_with_relations）
     → 调 novel-pipeline 的 novel-deepseek MCP.generate_draft（返回文本）
     → writer 主 Agent 把初稿写入 chapters/ch_NNN.md
-    → archive_facts.py + render_tracking.py（同 Step 5）
+    → archive_facts.py 生成归档 payload → Agent 调 MCP 落库
     → writer 跑 review
   ```
 
@@ -135,25 +138,25 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
         覆写 chapters/ch_NNN.md
     输出 .polish_progress.json + polish_compare/*.md
   ```
-- **skill 边界**：novel-pipeline **不动** `.writer/state/*.json` / `tracking/*.md` / `setting/*.md`
+- **skill 边界**：novel-pipeline **不动** `novel_project` MCP / `setting/*.md`
 - **用户后续**：writer 跑 daily 审查确认润色未引入禁令
 
-### 场景 5 · 用户手补 tracking 内容
+### 场景 5 · 用户手补设定/规划意图
 - **场景**：读到 ch_010 突然想给某伏笔留回收线索
 - **做法**：
   ```markdown
-  在 tracking/hooks.md 相应 ## 标题下方追加：
+  在 setting/factions.md 或 setting/characters.md 对应角色下方追加：
   <!-- user-edit -->
   老周暴露规划：ch_028-030 用刘强作证；先让张远在 ch_020 起疑
   <!-- /user-edit -->
   ```
-- **保护**：下次 render_tracking.py 重跑时**保留此块不动**
-- **注入**：下次写章时 Agent 读 tracking/hooks.md → user-edit 块作为规划意图进 context
+- **注入**：下次写章时 Agent 读 setting/*.md → user-edit 块作为规划意图进 context
+- **可选**：Agent 也可以把这条意图作为 observation 补进 MCP `伏笔:老周身份` 实体，例如 `"用户规划: ch_028-030 用刘强作证"`
 
 ### 场景 6 · 审查已写章节
 - **用户说**：「全面审查前 20 章」
 - **skill**：writer（`review-cycle` 5 步 + 4 Agent full 模式 43 维）
-- **交叉源**：`.writer/state/*.json`（当前事实）+ `setting/*.md`（原始设定）+ `chapters/*.md`（正文）
+- **交叉源**：`novel_project` MCP（当前事实）+ `setting/*.md`（原始设定）+ `chapters/*.md`（正文）
 - **产物**：S1-S4 分级报告到 `.writer/runtime/audit_<date>.md`
 
 ### 场景 7 · 导入旧稿（老 novel-pipeline / 老 writer 项目）
@@ -162,9 +165,13 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 - **迁移映射**：
   ```
   novel-pipeline.json / writer.json → 保留（三种 marker 都被识别）或 mv 为 novel.json
-  state-files/*.json → git mv 到 .writer/state/*.json
   chXX.md / chXXX.md → git mv 为 ch_NNN.md
   chapters_polished/ → 删除（新架构原地覆盖）
+
+  # v8.4 关键迁移：老 .writer/state/*.json → novel_project MCP
+  python scripts/import_state_to_mcp.py --project-root D:/OLD/wanjie
+    → 生成 create_entities / create_relations payload → Agent 逐条调 MCP 落库
+    → 完成后手动删除 .writer/state/ 与 tracking/
   ```
 
 ### 场景 8 · novel-pipeline 独立运行
@@ -208,15 +215,15 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 | 追读力分析 | 追读力、钩子强度、爽点分析 | `scripts/analyze_hook.py` |
 | 节奏查询 | 升级节奏、金币趋势、感情线 | `scripts/analyze_rhythm.py` |
 | 长篇质量监控 | 声音漂移、风格指纹、情绪单调 | `references/longform-quality-monitor.md` |
-| 查询 | 查角色、查伏笔、等级查询、什么状态 | `search_nodes / open_nodes` MCP（语义搜索知识图谱） |
+| 查询 | 查角色、查伏笔、等级查询、什么状态 | `novel_project` MCP：`get_entity_with_relations` / `search_nodes`（见 `references/memory-mcp.md`） |
 | 设定一致性审计 | 设定审查、交叉审查 | `references/setting-consistency-audit.md` |
 | 跨卷一致性审查 | 跨卷审查、连续性、伏笔追踪、卷间断裂 | `references/cross-volume-audit.md`（卷间时间线/修为/伏笔追踪/修复策略/归档 5步） |
 | 总纲暗线检查 | 暗线审查、总纲对齐、大纲一致性、大纲有没有问题、总纲和卷纲对得上吗、暗线都落地了吗 | `references/master-outline-audit.md` |
-| 更新角色状态 | 更新角色状态、角色追踪 | `references/track-character-state.md` |
-| 实体关系图谱 | 关系、图谱、谁和谁 | `scripts/report_graph.py` |
+| 更新角色状态 | 更新角色状态、角色追踪 | `references/track-character-state.md`（v8.4 起改写 MCP） |
+| 实体关系图谱 | 关系、图谱、谁和谁 | `scripts/report_graph.py`（从 MCP 派生） |
 | 项目全景报告 | 全景、概览、项目状态 | `scripts/report_panorama.py` |
-| 事实归档（手动）| 归档事实、写入状态、补事实 | `scripts/archive_facts.py`（写章后 Agent 自动跑；用户也可手动构造 payload 跑）|
-| tracking 刷新 | 刷新追踪、渲染 tracking、状态导出 | `scripts/render_tracking.py`（写章后 Agent 自动跑；用户也可手动跑）|
+| 事实归档（手动）| 归档事实、写入状态、补事实 | `scripts/archive_facts.py`（生成 MCP payload；写章后 Agent 自动调用；用户也可手动构造 payload）|
+| 记忆治理 | 记忆规则、MCP 用法、怎么存人物 | `references/memory-mcp.md` / `references/memory-governance.md` |
 | 番茄投稿检查 | 番茄投稿、格式兼容 | `references/fanqie-submission.md` |
 | 多平台导出 | 导出、起点格式、番茄格式 | `scripts/export.py` |
 | 封面 | 封面、生成封面 | `references/cover.md` |
@@ -256,15 +263,15 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 2. **读取状态**：stage、chapters_done、current_chapter
 3. **检测缺口**（仅发现问题时提示）：
    - 章节 > 10 但设定文件 < 3 → 建议补充 setting/
-   - `.writer/state/*.json` 缺失或版本号异常 → 提示跑 `archive_facts.py --dry-run` 诊断
-   - `.writer/runtime/` 缺失 → 提示重建
-   - `tracking/` 缺失或长时间未更新 → 提示 `render_tracking.py` 重生成
+   - `novel_project` MCP 不可达 → 提示检查 `claude mcp list`，见 `references/memory-mcp.md`
+   - MCP 里主要角色实体缺失（章节 > 3 但 `read_graph` 空）→ 提示跑首批 seed
+   - `.writer/state/` 或 `tracking/` 目录残留（老项目）→ 提示跑 `import_state_to_mcp.py` 后手动删除
    - `setting/writing_rules.md` 存在 → 自动加载声音指引
 4. **无信息时完全静默**
 
-已有项目时：从项目根 JSON 读取状态；写章时自动检查上一章进度；批量写章前强制预写对齐检查。
+已有项目时：从 `novel.json` 读取元数据；写章前先 `search_nodes` + `get_entity_with_relations` 拉记忆；批量写章前强制预写对齐检查。
 
-**新架构变化**：老 writer 项目里 `.writer/` 下只有 `state.json` + `runtime/`；v8.3 新项目 `.writer/` 下有 `state/*.json`（4 份原子事实）+ `project_memory.json` + `runtime/`。老项目通过 `project-init` 的 import 模式自动补建。
+**新架构变化**：v8.4 起废除 `.writer/state/*.json` 与 `tracking/*.md`——所有当前状态改由 `novel_project` MCP 管理。老项目通过 `import_state_to_mcp.py` 一次性迁移。
 
 ---
 
@@ -301,7 +308,7 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 
 | Step | 名称 | 核心动作 |
 |------|------|---------|
-| 0 | 项目体检 | 目录完整性 + memory-novel MCP 可用性声明 |
+| 0 | 项目体检 | 目录完整性 + `novel_project` MCP 可用性校验 |
 | 1 | 粗筛 | 禁令扫描 + 字数 + 段落 + 5维提取 |
 | 2 | 深筛 | 43维审计(Triage优先) + 交叉校验 + 追读力 |
 | 3 | 终验 | 节奏趋势 + 事实库增量校验 + 阻塞清零 |
@@ -505,7 +512,7 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 {
   "project_name": "书名",
   "author": "作者",
-  "skill_version": "8.3",
+  "skill_version": "8.4",
   "stage": "scaffold|planning|writing|reviewing|completed",
   "genre": "xuanhuan|urban|xianxia|horror|other",
   "platform": "fanqie|feilu|qidian|zhihu|other",
@@ -517,8 +524,7 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
   "chapter_dir": "./chapters/",
   "setting_dir": "./setting/",
   "outline_dir": "./outline/",
-  "tracking_dir": "./tracking/",
-  "state_dir": "./.writer/state/",
+  "memory_mcp": "novel_project",
   "polish_toggle": true,
   "auto_skip_transition_chapters": true,
   "last_action": "scan|analyze|init|plan|write|review|quality|learn",
@@ -563,9 +569,10 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 | `references/master-outline-audit.md` | 总纲暗线对齐检查 |
 | `references/fanqie-submission.md` | 番茄投稿格式兼容检查 |
 | `references/cover.md` | 封面生成 |
-| `references/track-character-state.md` | 角色状态追踪更新 |
+| `references/track-character-state.md` | 角色状态追踪更新（v8.4 起改写 MCP） |
 | `references/longform-quality-monitor.md` | 长篇质量趋势监控（声音漂移/情绪/风格指纹） |
-| `references/memory-governance.md` | 记忆体治理规则（仅 memory_official，小说数据由 tracking/ 文件管理） |
+| `references/memory-mcp.md` | **MCP 记忆层权威规范**（工具目录 + 命名 + 调用契约） |
+| `references/memory-governance.md` | 记忆体治理规则（v8.4：小说数据统一走 `novel_project` MCP） |
 | `references/troubleshooting.md` | 常见故障排除（写章/审查/委派/修复四场景） |
 | `references/tool-pitfalls.md` | 通用工具陷阱参考 |
 | `references/tool-pitfalls-windows.md` | Windows 特有工具陷阱（write_file 换行丢失、PowerShell 引号冲突） |
@@ -576,16 +583,18 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 | 文件 | 功能 | 安全 |
 |------|------|------|
 | `scripts/lib.py` | 共享工具模块（含 `ensure_git_snapshot` 快照钩子） | INFRA |
-| `scripts/archive_facts.py` | 章末事实归档到 `.writer/state/*.json`（Agent 写章 Step 5 调用） | SAFE_WRITE |
-| `scripts/render_tracking.py` | 从 state JSON 派生 tracking md（含 user-edit 块保护） | SAFE_WRITE |
+| `scripts/archive_facts.py` | 章末事实归档：生成 `novel_project` MCP payload（Agent 写章 Step 5 调用） | READONLY（不再写 JSON，只生成 payload） |
+| `scripts/import_state_to_mcp.py` | 老项目 `.writer/state/*.json` 一次性迁移到 MCP（生成 payload） | READONLY |
 | `scripts/analyze_hook.py` | 追读力分析 | READONLY |
 | `scripts/analyze_rhythm.py` | 节奏状态查询 | READONLY |
 | `scripts/report_panorama.py` | 项目全景报告 | READONLY |
-| `scripts/report_graph.py` | 实体关系图谱 | READONLY |
+| `scripts/report_graph.py` | 实体关系图谱（从 MCP 派生） | READONLY |
 | `scripts/export.py` | 多平台格式导出 | EXPORT_ONLY |
 | `scripts/split_paragraphs.py` | 段落拆分（.bak备份，不涉及文本替换） | SAFE_WRITE |
 | `scripts/fix_dashes.py` | B02破折号四类上下文批量修复（预览/--apply两模式） | SAFE_WRITE |
 | `scripts/audit.py` | 统一审计（默认 --verify 只读） | CAUTION |
+
+> ⚠️ **`render_tracking.py` 于 v8.4 停用**：tracking/*.md 派生逻辑已废（小说数据统一走 MCP）。老项目脚本仍保留但不再由写章管线自动调用；如需人读快照，用 `report_graph.py` 或直接查 MCP。
 
 > **润色/文风转换脚本已迁移**：`polish.py` 于 v8.3 移除。批量润色请调用 novel-pipeline skill 的 `scripts/polish_chapter.py`（见路由「文风转换/批量润色」条目及 `references/style-transfer.md`）。
 

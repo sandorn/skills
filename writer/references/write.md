@@ -24,10 +24,16 @@
 import json, os
 
 project_root = "."
-state_path = os.path.join(project_root, "writer.json")
+state_path = os.path.join(project_root, "novel.json")
 if not os.path.exists(state_path):
-    print("ERROR: 没有找到 writer.json，请先运行 project-init")
-    exit(1)
+    # 向后兼容：writer.json / novel-pipeline.json 都识别
+    for alt in ("writer.json", "novel-pipeline.json"):
+        if os.path.exists(os.path.join(project_root, alt)):
+            state_path = os.path.join(project_root, alt)
+            break
+    else:
+        print("ERROR: 没有找到项目根标记（novel.json / writer.json / novel-pipeline.json），请先运行 project-init")
+        exit(1)
 
 with open(state_path, 'r', encoding='utf-8') as f:
     state = json.load(f)
@@ -42,6 +48,13 @@ if not os.path.exists(ch_outline) and state.get("stage") != "planning":
 
 如果 stage 为 `scaffold`（刚初始化），提示先运行 plan。
 
+**同时确认 `novel_project` MCP 可达**（写章前必须先查记忆，见 `references/memory-mcp.md`）：
+
+```bash
+# Agent 通过 tools/list 探测 novel_project 是否连通
+# 不可达 → 提示用户 claude mcp list 检查，或退回 --fast 模式（放弃续写前查询）
+```
+
 ---
 
 ## 默认模式：5 步日更管线
@@ -52,49 +65,59 @@ if not os.path.exists(ch_outline) and state.get("stage") != "planning":
 
 确认章节号、字数目标、核心事件、情绪目标、必须包含、必须避免、章末钩子。加载当前状态：
 
-```bash
-# 读 .writer/state/*.json 获取已归档的原子事实（Agent 上一章后的归档结果）
-# - .writer/state/characters.json  → 主角/配角当前修为/位置/最近变化
-# - .writer/state/foreshadowing.json → 待回收伏笔列表 + 部分回收记录
-# - .writer/state/power_system.json  → 已揭示的境界/装备/系统机制
-# - .writer/state/world_setting.json → 已引入的势力/地理/规则
+**续写前必查（v8.4 硬性要求）**：调 `novel_project` MCP 拉取相关记忆。
+
+```
+# 对本章预计出场的每个角色/势力/伏笔：
+- 主要角色：get_entity_with_relations({name: "苏白"})
+             → 拿到当前修为/位置/最近观测 + 关系网（所属势力/敌友/师承）
+- 主要势力：get_entity_with_relations({name: "青云门"})
+- 未回收伏笔：search_nodes({query: "伏笔:", limit: 50})
+             → 过滤未含"回收于"关系的伏笔实体
+- 章纲提到的新地点/新术法：先 search_nodes 确认是否已存在同名实体
 ```
 
-同时对照以下文件确认一致性：
+同时对照以下**静态文件**确认一致性：
 - `outline/chapter_outline/ch_NNN.md`（本章计划）
 - `novel.json`（项目元数据）
-- `setting/*.md`（世界观/角色的静态约束——用户改过之后的最新版）
-- `tracking/*.md`（人读快照，含用户 `<!-- user-edit -->` 里的规划意图）
+- `setting/*.md`（世界观/角色的静态约束——用户改过之后的最新版；含用户 `<!-- user-edit -->` 里的规划意图）
 
 > 适用禁令：B09（批次上限）/ B10（如是新卷首章，卷间衔接检查）
 
 ### Step 2：Architect
 
-合并 Composer + Architect：整理角色、设定、伏笔、时间锚点，并生成章节结构。以 `.writer/state/*.json` 中的最新数值为基准（这是已写章节的精确事实源，比 tracking/*.md 人读版更可靠）。
+合并 Composer + Architect：整理角色、设定、伏笔、时间锚点，并生成章节结构。**以 Step 1 从 MCP 拉回的最新观测为基准**（这是已写章节的精确事实源，比 `setting/*.md` 的开局设定更贴近"当前"）。
 
 > 适用禁令：B04（避免在结构中使用元叙事标签）
 
 ### Step 3：Write + Reflect
 
-写正文到 `chapters/ch_{NNN}.md`。写完后自动归档事实：
+写正文到 `chapters/ch_{NNN}.md`。写完后自动归档事实到 `novel_project` MCP：
 
 ```bash
-# 1. 读刚写完的章节 → Agent 分析等级/金币/角色/关系/伏笔变更
+# 1. 读刚写完的章节 → Agent 分析人物/势力/伏笔/世界观变更
 # 2. 构造 JSON payload 调用 archive_facts.py：
 #    {
 #      "chapter_number": {NNN},
 #      "changes": {
-#        "characters": [{"name": ..., "cultivation": ..., "recent_changes": [...]}],
-#        "foreshadowing": {"new": [...], "resolved_ids": [...]},
-#        "power_system": {"equipment": [...], "techniques": [...]},
-#        "world_setting": {"factions": [...], "geography": [...]}
+#        "characters": [{"name": ..., "cultivation": ..., "current_location": ...,
+#                        "factions": [...], "recent_changes": [...]}],
+#        "foreshadowing": {"new": [{"name": ..., "description": ...}],
+#                          "resolved": [{"name": ..., "resolution": ...}]},
+#        "factions": [{"name": ..., "type": ...}],
+#        "power":    {"realms": [...], "techniques": [...]},
+#        "world":    {"geography": [...], "special_rules": [...]},
+#        "relations":[{"source": ..., "target": ..., "type": "所属|师承|盟友|敌对|修习"}]
 #      }
 #    }
-#    → 追加到 .writer/state/*.json（自动 .bak 备份 + 版本号自增）
+#    → archive_facts.py 生成 MCP tool-call 序列（read → merge → write 三段式）
 #
-# 3. 派生人读快照：
-#    python <writer>/scripts/render_tracking.py
-#    → 从 .writer/state/*.json 重新生成 tracking/characters.md / hooks.md / current_state.md
+# 3. Agent 按 tool_calls 顺序调 novel_project MCP：
+#    a. 先执行所有 phase=read 的 get_entity_with_relations，拿到旧观测 old_obs
+#    b. 把 create_entities payload 里的 "<merge_with_old>" 占位符替换为对应 old_obs
+#    c. 依次执行 phase=write 的 create_entities → create_relations
+#
+# 4. 无需回写任何本地 JSON（v8.4 起 .writer/state/*.json 已废弃）
 ```
 
 #### archive_facts.py payload 完整示例
@@ -117,19 +140,20 @@ if not os.path.exists(ch_outline) and state.get("stage") != "planning":
     "foreshadowing": {
       "new": [
         {
+          "name": "老周身份",
           "description": "神秘老者身份未知",
-          "hints_placed": ["ch012 结尾对视片段"],
-          "expected_payoff_window": "ch025-030"
+          "hints_placed": ["ch012 结尾对视片段"]
         }
       ],
-      "resolved_ids": []
+      "resolved": []
     },
-    "world_setting": {
-      "factions": [
-        {"name": "血刃门", "type": "邪修", "current_leader": "未知"}
-      ]
-    },
-    "power_system": {}
+    "factions": [
+      {"name": "血刃门", "type": "邪修势力", "note": "首次揭示"}
+    ],
+    "power": {},
+    "relations": [
+      {"source": "苏白", "target": "血刃门", "type": "敌对"}
+    ]
   }
 }
 ```
@@ -144,15 +168,26 @@ EOF
 
 archive_facts 返回：
 ```json
-{"archived": true, "chapter": 12, "changes_applied": ["characters", "foreshadowing", "world_setting"], "counts": {...}, "message": "章 12 事实已归档"}
+{
+  "ok": true,
+  "chapter": 12,
+  "tool_calls": [
+    {"phase":"read","tool":"get_entity_with_relations","args":{"name":"苏白"},"purpose":"..."},
+    {"phase":"write","tool":"create_entities","args":{"entities":[{"name":"苏白","entityType":"人物","observations":["<merge_with_old>","ch012: 修为 练气四层",...]}]}},
+    {"phase":"write","tool":"create_relations","args":{"relations":[{"source":"苏白","target":"血刃门","type":"敌对"}]}}
+  ],
+  "instructions": "..."
+}
 ```
 
 字段规则：
-- `characters[].name` 是主键，已存在则合并字段（`recent_changes` 追加，其他字段覆盖）；不存在则新增
-- `foreshadowing.new[]` 自动生成 `id` 与 `planted_chapter`（无需主 Agent 填）
-- `foreshadowing.resolved_ids` 会把对应 active 项迁到 resolved
-- `world_setting.factions[].name` 是去重键；已存在则跳过
-- `power_system.realms/equipment/*` 同上
+- `characters[].name` 是 MCP 实体名（entityType="人物"）；追加观测需**先 read 后 merge**（archive_facts 已自动生成 read 步骤）
+- `foreshadowing.new[]` 自动加前缀 `伏笔:xxx`；观测强制 `chNNN:` 前缀
+- `foreshadowing.resolved[]` 把 `<merge_with_old> + "ch012: 已回收 - <resolution>"` 追加到伏笔实体；若填了 `resolved_plot` 还会建 `回收于` 边
+- `factions[]` 单独 create_entities（entityType="势力"）
+- `relations[]` 有向边；type 必须在受控词表内（见 `references/memory-mcp.md` §3.3）
+
+> 详细契约：`references/memory-mcp.md`（工具目录 + entityType/relations 受控词表 + 覆盖式陷阱说明）
 
 > 适用禁令：B01（对话「」）/ B02（禁止 ——）/ B03（禁止「不是…而是…」）/ B05（AI高频词）/ B06（每段 ≤42 汉字）
 
@@ -163,12 +198,11 @@ archive_facts 返回：
 python scripts/audit.py chapters/
 ```
 
-**4b. 修复 + 版本更新**：
+**4b. 修复 + 补归档**：
 ```bash
 # 1. 根据 audit.py 结果逐句修复
 # 2. 修复后重跑 audit.py 确认禁令清零
-# 3. archive_facts.py 已在 Step 3 归档过一次；若修复涉及事实变更需再跑一次
-# 4. render_tracking.py 保持派生同步
+# 3. Step 3 已归档一次；若修复涉及事实变更（不只是文字层）需再走一次 archive_facts.py
 ```
 
 > 适用禁令：B01-B07 全部 / AI 痕迹 6 维
@@ -186,16 +220,16 @@ python scripts/audit.py chapters/
 | # | 步骤 | 说明 |
 |---|------|------|
 | ★1 | Planner | 内存生成章节意图（章号/目标/情绪/冲突/伏笔计划） |
-| ★2 | Composer | 整理活跃角色 + 设定约束 + 待回收伏笔 + 时间锚点 |
+| ★2 | Composer | 从 MCP 拉活跃角色 + 关系网 + 待回收伏笔；对照 setting/*.md 与时间锚点 |
 | 3 | Architect | 章节四段结构（开篇→发展→爽点→结尾），60%处检查爽点 |
 | 4 | Writer | 写正文到 `chapters/ch_{NNN}.md`，一句一段≤42 字，「」引号，章末钩子 |
-| ★5 | Observer | 提取事实变更（角色位置/状态/资源/伏笔/时间） |
-| ★6 | Reflector | 更新 `tracking/` 下 4 个追踪文件 |
+| ★5 | Observer | 提取事实变更（角色状态/资源/伏笔/时间/新势力） |
+| ★6 | Reflector | 生成 archive_facts payload → 调 novel_project MCP 落库（含 relations） |
 | 7 | Normalizer | 字数 3000±200，段落变异系数检查 |
 | 8 | Auditor | solo 审查：15 维核心 + AI 痕迹 + 硬禁令 → blocking 则进 Step 9 |
 | 9 | Reviser | 定点修复 blocking；修后重跑 Step 8 |
 
-完成后：`novel.json` / `writer.json` 更新，标记已回收伏笔（`.writer/state/foreshadowing.json` 的 resolved_ids）。验证：`.writer/state/*.json` 各文件版本号已自增。
+完成后：`novel.json` 更新 `chapters_done` / `current_chapter`。验证：调 `get_entity_with_relations` 抽查 Step 6 归档的主角，`observations` 里应能看到 `ch{NNN}:` 前缀的新条目。
 
 ### 写后自动审查（质量闸门，每章必跑）
 
@@ -225,6 +259,8 @@ python scripts/audit.py chapters/
 
 跳过：Observer（Step 5）、Reflector（Step 6）、Normalizer（Step 7）
 
+> ⚠️ 跳过 Reflector 意味着**本章事实不入 MCP**——下一章续写前查询会看不到本章变化。仅用于用户明确不想归档的一次性场景（如实验性草稿）。
+
 审计（Step 8）缩减为 solo 模式：
 - 只检查 AI 痕迹 6 项（段落等长/套话密度/转折重复/句式重复/AI标记词/AI腔红线）
 - 只检查硬性禁令 3 项（破折号/不是而是/元叙事）
@@ -236,9 +272,9 @@ python scripts/audit.py chapters/
 
 适用于：连续写多章，减少上下文消耗。
 
-**⚠️ 批量写前必须先执行预写总线对齐检查**（详见 `references/pre-write-alignment.md`）：加载总纲→卷纲→细纲→追踪，确保总线不偏离、前后能衔接。
+**⚠️ 批量写前必须先执行预写总线对齐检查**（详见 `references/pre-write-alignment.md`）：加载总纲→卷纲→细纲，从 MCP 拉主要角色状态，确保总线不偏离、前后能衔接。
 
-优先使用可用的批量写作 subagent。若当前环境无法调用，主会话按默认 5 步逐章串行执行，每章后更新追踪文件避免状态漂移。
+优先使用可用的批量写作 subagent。若当前环境无法调用，主会话按默认 5 步逐章串行执行，每章后归档 MCP 避免状态漂移。
 
 ### 批量写前：声音内化（Voice Internalization）
 
@@ -302,11 +338,11 @@ python scripts/audit.py chapters/
 - AI高频词禁用：他知道/忽然/突然/似乎/仿佛/眼中闪过一丝/深吸一口气/心中一动
 - 每句≤42 汉字，句号处换行
 
-【当前状态】（写前必须读 .writer/state/*.json 与 setting/*.md 与 tracking/*.md）
-- 主角修为：{level}（来源: .writer/state/characters.json 的 cultivation 字段）
-- 位置/资源：{loc/gold}（来源: .writer/state/characters.json + tracking/current_state.md 用户笔记）
-- 待回收伏笔：{hooks_summary}（来源: .writer/state/foreshadowing.json active 数组）
-- 用户规划意图：{user_planning}（来源: tracking/hooks.md 中 <!-- user-edit --> 块内容）
+【当前状态】（写前必须调 novel_project MCP + 读 setting/*.md）
+- 主角修为：{level}（来源: MCP get_entity_with_relations("苏白") 里最近的 "ch{X}: 修为 xxx" 观测）
+- 位置/资源：{loc/gold}（来源: 同上 + setting/*.md 用户 user-edit 块）
+- 待回收伏笔：{hooks_summary}（来源: MCP search_nodes("伏笔:") 过滤未回收）
+- 用户规划意图：{user_planning}（来源: setting/*.md 中 <!-- user-edit --> 块）
 - 上一章结尾：{prev_chapter_ending}
 
 【章纲摘要】
@@ -330,15 +366,16 @@ python scripts/audit.py chapters/
 ### 流程
 
 ```
-1. 读取当前状态 → 确认起始章节
+1. 读取项目状态（novel.json）→ 确认起始章节
 2. 读取 N 章的章纲
-3. 循环执行（每章对应一次 append）：
+3. 从 novel_project MCP 拉主要角色/势力/未回收伏笔（一次拉全批次上下文，不是每章重拉）
+4. 循环执行（每章对应一次 append）：
    a. Planner（批量版：基于上一章结局自然推断）
    b. Architect → Writer
    c. 文件保存
-4. 循环结束后，统一执行 Auditor（每章独立但共享上下文）
-5. 如有 blocking，标记对应章节编号让用户手动决策
-6. 统一 Reflector（更新状态文件）
+   d. archive_facts.py → 生成 MCP tool_calls → Agent 调 MCP 归档
+5. 循环结束后，统一执行 Auditor（每章独立但共享上下文）
+6. 如有 blocking，标记对应章节编号让用户手动决策
 ```
 
 ### 批量模式 vs 默认模式区别
@@ -346,7 +383,7 @@ python scripts/audit.py chapters/
 | 维度 | 默认模式 | 批量模式 |
 |------|---------|---------|
 | Observer | 每章 | 末尾统一 |
-| Reflector | 每章 | 末尾统一 |
+| Reflector (MCP 归档) | 每章 | **每章仍需归档**（不能延后到末尾——续写会看不到前章状态） |
 | Normalizer | 每章 | 末尾统一 |
 | Auditor | 每章 | 末尾统一，标记 blocker |
 | Reviser | 即时 | 统一标记，用户决策 |
@@ -386,23 +423,24 @@ python scripts/audit.py chapters/
 主 Agent 在会话内构造：
 
 ```python
-# Step 1: 从 .writer/state/*.json 读全局设定 + 本章章纲
+# Step 1: 拉本章上下文
 setting_summary = <从 setting/*.md 抽取本章相关的世界观/角色>
+mcp_context     = <novel_project MCP 拉本章出场角色 get_entity_with_relations 结果的精简版>
 chapter_outline = <读 outline/chapter_outline/ch_NNN.md>
 
 # Step 2: 调 novel-deepseek MCP generate_draft
 draft_text = mcp__novel_deepseek__generate_draft(
-    global_setting=setting_summary,       # 本章世界观摘要（约 500-1000 字）
-    chapter_outline=chapter_outline,      # 本章细纲全文
-    chapter_number=NNN,                   # 章号 int
-    revision_instructions="",             # 首次生成留空；重生成时填自检反馈
+    global_setting=setting_summary + mcp_context,   # 本章世界观 + MCP 当前状态摘要（约 500-1500 字）
+    chapter_outline=chapter_outline,                # 本章细纲全文
+    chapter_number=NNN,                             # 章号 int
+    revision_instructions="",                       # 首次生成留空；重生成时填自检反馈
 )
 
 # Step 3: 检查 draft_text 首字符
 #   若以 "ERROR:" 开头 → 打印错误，中止本章
 #   否则 → 写入 chapters/ch_NNN.md
 
-# Step 4: 触发 write.md Step 4 Audit + Step 5 归档（同亲写路径）
+# Step 4: 触发 write.md Step 4 Audit + Step 3 归档（同亲写路径）
 ```
 
 ### 批量调用流程
@@ -410,10 +448,11 @@ draft_text = mcp__novel_deepseek__generate_draft(
 ```
 for ch in range(start, end+1):
     outline = read(outline/chapter_outline/ch_{ch:03d}.md)
-    setting = <从 .writer/state/*.json 组装本章相关切片>
+    setting = <setting/*.md 相关切片> + <MCP 拉本章角色最新观测>
     draft   = mcp__novel_deepseek__generate_draft(setting, outline, ch)
     write(chapters/ch_{ch:03d}.md, draft)
-    run audit.py + archive_facts.py + render_tracking.py
+    run audit.py
+    run archive_facts.py → 生成 tool_calls → 调 novel_project MCP 落库
 ```
 
 **批次上限**：与 `--batch` 一致（≤5 章一批）。DeepSeek 单次调用约 30-90s，5 章约 5-8 分钟。
@@ -422,7 +461,7 @@ for ch in range(start, end+1):
 
 | 维度 | 主 Agent 亲写 | DeepSeek 出稿 |
 |---|---|---|
-| 输入 | outline + setting + tracking + user-edit 块 | outline + setting（切片）|
+| 输入 | outline + setting + MCP 记忆 + user-edit 块 | outline + setting（切片）+ MCP 精简摘要 |
 | 文笔 | 主模型语调（Claude/主项目风格）| DeepSeek 骨架风格（平铺直白）|
 | 声音一致性 | ✅ 从 `writing_rules.md` 拿 | ❌ 需后续 polish_chapter.py 用番茄预设润色 |
 | 字数控制 | 主 Agent 判断 | MCP prompt 硬约束 2500-4500 |
@@ -475,6 +514,8 @@ MCP 返回以 `ERROR:` 开头的字符串时：
 （余韵/不需要额外小节）
 ```
 
+> 短篇模式**不做 MCP 归档**（一次性作品，无续写需求）。
+
 ---
 
 ---
@@ -488,8 +529,7 @@ MCP 返回以 `ERROR:` 开头的字符串时：
 - [ ] 正文文件保存到 `chapters/ch_{NNN}.md`
 - [ ] 字数在目标范围内
 - [ ] 审计通过（solo 模式无 blocking issue）
-- [ ] 状态文件已更新
-- [ ] 追踪文件已更新
+- [ ] MCP 已归档本章事实（可用 `get_entity_with_relations` 抽查主角）
 - [ ] 章末有钩子
 - [ ] 无硬性禁令违规
 

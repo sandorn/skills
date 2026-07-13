@@ -1,52 +1,106 @@
 #!/usr/bin/env python3
-# SAFETY: SAFE_WRITE — 追加事实到 .writer/state/*.json；每次写入前对目标 JSON 做 .bak。
-"""事实归档：把 Agent 从章节里提取的原子事实变更写入 `.writer/state/*.json`。
+# SAFETY: READONLY — 只从 stdin 读事实变更 payload，输出对应的 novel_project MCP tool call 序列到 stdout。
+#         本脚本不再写 .writer/state/*.json、不再落任何本地状态。
+"""章末事实归档：把 Agent 从章节里提取的原子事实变更转换为 `novel_project` MCP tool call 序列。
 
-接口设计：
-  输入：从 stdin 读 JSON payload，格式：
+接口（v8.4）：
+  输入（stdin，JSON）：
     {
       "chapter_number": 12,
       "changes": {
         "characters": [
-          {"name": "苏白", "cultivation": "练气四层", "current_location": "青云门"},
+          {"name": "苏白", "cultivation": "练气四层", "current_location": "青云门",
+           "recent_changes": ["突破练气四层", "遇到老周"]},
           ...
         ],
         "foreshadowing": {
           "new": [
-            {"description": "神秘老者身份", "hints_placed": ["ch_012结尾"]}
+            {"name": "老周身份", "description": "神秘老者身份存疑",
+             "hints_placed": ["ch012结尾提及腰间玉佩"]}
           ],
-          "resolved_ids": ["f-003"]
+          "resolved": [
+            {"name": "神秘玉佩", "resolution": "揭示为主角外公遗物"}
+          ]
         },
-        "world_setting": {
-          "factions": [{"name": "血刃门", "type": "邪修"}],
-          "geography": [...]
+        "factions": [
+          {"name": "血刃门", "type": "邪修势力", "note": "反派门派首次出场"}
+        ],
+        "power": {
+          "realms": [{"name": "练气", "note": "1-9 层"}],
+          "techniques": [{"name": "破空剑诀", "grade": "黄阶下品"}]
         },
-        "power_system": {
-          "equipment": [{"name": "破空剑", "rank": "灵器"}],
-          ...
-        }
+        "relations": [
+          {"source": "苏白", "target": "青云门", "type": "所属"},
+          {"source": "苏白", "target": "老周", "type": "盟友"}
+        ]
       }
     }
-  输出：stdout 打印 JSON 结果 {archived: bool, changes_applied: [], message: str}
+
+  输出（stdout，JSON）：
+    {
+      "chapter": 12,
+      "tool_calls": [
+        # 【先查】每个已存在人物：先取现有 observations，Agent 应合并后再写回
+        {"phase": "read", "tool": "get_entity_with_relations",
+         "args": {"name": "苏白"},
+         "purpose": "合并旧观测再 create_entities，避免覆盖"},
+
+        # 【后写】create_entities（Agent 需在此把 old_observations + new_observations 合并）
+        {"phase": "write", "tool": "create_entities",
+         "args": {
+           "entities": [
+             {"name": "苏白", "entityType": "人物",
+              "observations": [
+                # 占位：Agent 从上一步 read 结果取出 old obs，追加本条后写回
+                "<merge_with_old>",
+                "ch012: 突破练气四层",
+                "ch012: 当前位置 青云门",
+                "ch012: 突破练气四层",
+                "ch012: 遇到老周"
+              ]}
+           ]
+         }},
+
+        # 关系
+        {"phase": "write", "tool": "create_relations",
+         "args": {"relations": [{"source": "苏白", "target": "青云门", "type": "所属"}]}}
+      ],
+      "instructions": "..."
+    }
+
+Agent 拿到输出后按 phase=read → phase=write 顺序逐条调 MCP；read 阶段拿到 old
+observations 后替换 write payload 里的 <merge_with_old> 占位符。
+
+不再写任何 JSON 文件。旧 `.writer/state/*.json` 已废弃，见 references/memory-mcp.md §8。
 
 用法：
   echo '<payload>' | python archive_facts.py [--project-root <path>]
   cat payload.json | python archive_facts.py
 
 由 writer 的 write.md Step 5 Reflect 阶段自动调用。用户不直接跑。
-
-写入位置（按优先级）：
-  <project>/.writer/state/{characters,foreshadowing,power_system,world_setting}.json
 """
+from __future__ import annotations
 import sys
 import json
 import argparse
-import shutil
-from datetime import datetime
 from pathlib import Path
 
 
 PROJECT_MARKERS = ("novel.json", "writer.json", "novel-pipeline.json")
+
+# entityType 受控词表（与 references/memory-mcp.md §3.1 对齐）
+ENTITY_TYPES = {
+    "characters": "人物",
+    "factions": "势力",
+    "locations": "地点",
+    "realms": "境界",
+    "techniques": "功法",
+    "equipment": "功法",  # 装备也归 功法（法宝/灵器）
+    "foreshadowing_new": "伏笔",
+    "foreshadowing_resolved": "伏笔",
+    "world_rules": "世界规则",
+    "plot": "剧情节点",
+}
 
 
 def find_project_root(start: Path | None = None) -> Path | None:
@@ -59,225 +113,322 @@ def find_project_root(start: Path | None = None) -> Path | None:
     return None
 
 
-def _read_json(path: Path, default: dict) -> dict:
-    if not path.exists():
-        return default
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return default
+def _ch(n: int) -> str:
+    """章节前缀（强制 chNNN: 格式，与 memory-mcp.md §3.2 对齐）。"""
+    return f"ch{n:03d}"
 
 
-def _write_json(path: Path, data: dict) -> None:
-    """写入前先备份到 .bak，防止意外损坏。"""
-    if path.exists():
-        shutil.copyfile(path, path.with_suffix(path.suffix + ".bak"))
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+def build_character_calls(chars: list, chapter: int) -> tuple[list, list]:
+    """人物变更 → (read_calls, write_calls)。
 
-
-def apply_character_changes(state_dir: Path, changes: list, chapter_number: int) -> int:
-    """更新 characters.json。返回受影响条目数。"""
-    fpath = state_dir / "characters.json"
-    data = _read_json(fpath, {"version": 1, "characters": []})
-    n_applied = 0
-
-    for change in changes:
-        name = change.get("name")
+    每个人物先 read 拿旧 obs，Agent 合并后写回；关系单独 emit。
+    """
+    reads, writes, relations = [], [], []
+    entities = []
+    for c in chars:
+        name = c.get("name")
         if not name:
             continue
-        existing = next((c for c in data["characters"] if c.get("name") == name), None)
-        if existing:
-            # 更新指定字段
-            for key in [
-                "cultivation", "cultivation_level", "level",
-                "current_location", "emotional_state", "active_goals",
-                "special_abilities", "personality_traits",
-            ]:
-                if key in change:
-                    existing[key] = change[key]
-            # 追加变更历史
-            if "recent_changes" in change:
-                existing.setdefault("recent_changes", [])
-                for c in change["recent_changes"]:
-                    existing["recent_changes"].append(f"ch{chapter_number:03d}: {c}")
-            existing["last_appearance_chapter"] = chapter_number
-        else:
-            # 新角色
-            new_char = dict(change)
-            new_char.setdefault("role", "supporting")
-            new_char["last_appearance_chapter"] = chapter_number
-            data["characters"].append(new_char)
-        n_applied += 1
 
-    data["version"] = data.get("version", 1) + 1
-    _write_json(fpath, data)
-    return n_applied
-
-
-def apply_foreshadowing_changes(state_dir: Path, changes: dict, chapter_number: int) -> int:
-    """更新 foreshadowing.json。返回受影响条目数。"""
-    fpath = state_dir / "foreshadowing.json"
-    data = _read_json(fpath, {"version": 1, "active": [], "resolved": []})
-    n = 0
-
-    # 新伏笔
-    for item in changes.get("new", []):
-        item.setdefault("id", f"f-{datetime.now().strftime('%Y%m%d%H%M%S')}-{len(data['active'])}")
-        item.setdefault("status", "unresolved")
-        item.setdefault("planted_chapter", chapter_number)
-        data["active"].append(item)
-        n += 1
-
-    # 已回收
-    for rid in changes.get("resolved_ids", []):
-        for item in data["active"][:]:  # copy 避免遍历时修改
-            if item.get("id") == rid:
-                item["status"] = "resolved"
-                item["resolved_chapter"] = chapter_number
-                data["resolved"].append(item)
-                data["active"].remove(item)
-                n += 1
+        # 收集本章观测（原子化，一句一条，强制章节前缀）
+        obs = []
+        for key in ["cultivation", "cultivation_level", "level"]:
+            if key in c:
+                obs.append(f"{_ch(chapter)}: 修为 {c[key]}")
                 break
+        if "current_location" in c:
+            obs.append(f"{_ch(chapter)}: 位于 {c['current_location']}")
+        if "emotional_state" in c:
+            obs.append(f"{_ch(chapter)}: 情绪 {c['emotional_state']}")
+        for goal in c.get("active_goals", []) or []:
+            obs.append(f"{_ch(chapter)}: 目标 {goal}")
+        for skill in c.get("special_abilities", []) or []:
+            obs.append(f"{_ch(chapter)}: 掌握 {skill}")
+        for trait in c.get("personality_traits", []) or []:
+            obs.append(f"{_ch(chapter)}: 性格 {trait}")
+        for change in c.get("recent_changes", []) or []:
+            obs.append(f"{_ch(chapter)}: {change}")
 
-    # 部分回收
-    for pr in changes.get("partial_resolved", []):
-        rid = pr.get("id")
-        for item in data["active"]:
-            if item.get("id") == rid:
-                item.setdefault("partial_resolution", [])
-                item["partial_resolution"].append({
-                    "chapter": chapter_number,
-                    "note": pr.get("note", ""),
-                })
-                n += 1
-                break
+        if not obs:
+            continue
 
-    data["version"] = data.get("version", 1) + 1
-    # 统计
-    data["stats"] = {
-        "total_planted": len(data["active"]) + len(data["resolved"]),
-        "total_resolved": len(data["resolved"]),
-        "active": len(data["active"]),
-    }
-    _write_json(fpath, data)
-    return n
+        reads.append({
+            "phase": "read",
+            "tool": "get_entity_with_relations",
+            "args": {"name": name},
+            "purpose": f"合并旧观测再写回（{name}）",
+        })
+        entities.append({
+            "name": name,
+            "entityType": "人物",
+            "observations": ["<merge_with_old>"] + obs,
+        })
 
+        # 关系
+        for f in c.get("factions", []) or []:
+            relations.append({"source": name, "target": f, "type": "所属"})
+        for master in c.get("masters", []) or []:
+            relations.append({"source": name, "target": master, "type": "师承"})
+        for ally in c.get("allies", []) or []:
+            relations.append({"source": name, "target": ally, "type": "盟友"})
+        for enemy in c.get("enemies", []) or []:
+            relations.append({"source": name, "target": enemy, "type": "敌对"})
+        for tech in c.get("techniques", []) or []:
+            relations.append({"source": name, "target": tech, "type": "修习"})
 
-def apply_world_changes(state_dir: Path, changes: dict, chapter_number: int) -> int:
-    """更新 world_setting.json。"""
-    fpath = state_dir / "world_setting.json"
-    data = _read_json(fpath, {"version": 1, "factions": [], "geography": [], "special_rules": []})
-    n = 0
-    for key in ["factions", "geography", "special_rules", "world_layers"]:
-        if key in changes and isinstance(changes[key], list):
-            existing_names = {
-                (e.get("name") if isinstance(e, dict) else str(e))
-                for e in data.get(key, [])
-            }
-            for item in changes[key]:
-                name = item.get("name") if isinstance(item, dict) else str(item)
-                if name not in existing_names:
-                    data.setdefault(key, []).append(item)
-                    existing_names.add(name)
-                    n += 1
-    data["version"] = data.get("version", 1) + 1
-    _write_json(fpath, data)
-    return n
+    if entities:
+        writes.append({
+            "phase": "write",
+            "tool": "create_entities",
+            "args": {"entities": entities},
+            "purpose": "写回人物观测（Agent 需先合并 read 阶段的旧 observations）",
+        })
+    return reads, writes + ([{
+        "phase": "write",
+        "tool": "create_relations",
+        "args": {"relations": relations},
+        "purpose": "建立人物关系边（幂等）",
+    }] if relations else [])
 
 
-def apply_power_changes(state_dir: Path, changes: dict, chapter_number: int) -> int:
-    """更新 power_system.json。"""
-    fpath = state_dir / "power_system.json"
-    data = _read_json(fpath, {
-        "version": 1, "realms": [], "equipment": [],
-        "combat_rules": [], "techniques": [],
-    })
-    n = 0
-    for key in ["realms", "power_levels", "equipment_ranks", "equipment", "combat_rules", "techniques", "forbidden_techniques"]:
-        if key in changes and isinstance(changes[key], list):
-            existing_names = {
-                (e.get("name") if isinstance(e, dict) else str(e))
-                for e in data.get(key, [])
-            }
-            for item in changes[key]:
-                name = item.get("name") if isinstance(item, dict) else str(item)
-                if name not in existing_names:
-                    data.setdefault(key, []).append(item)
-                    existing_names.add(name)
-                    n += 1
-    data["version"] = data.get("version", 1) + 1
-    _write_json(fpath, data)
-    return n
+def build_foreshadowing_calls(fore: dict, chapter: int) -> tuple[list, list]:
+    """伏笔变更 → (read_calls, write_calls)。新伏笔为 entity，回收伏笔加 `回收于` 边。"""
+    reads, writes = [], []
+    new_entities = []
+    for item in fore.get("new", []) or []:
+        raw_name = item.get("name") or item.get("id") or item.get("description", "")[:20]
+        if not raw_name:
+            continue
+        name = raw_name if raw_name.startswith("伏笔:") else f"伏笔:{raw_name}"
+        obs = [f"{_ch(chapter)}: 埋设"]
+        if item.get("description"):
+            obs.append(f"{_ch(chapter)}: {item['description']}")
+        for hint in item.get("hints_placed", []) or []:
+            obs.append(f"{_ch(chapter)}: 埋线 {hint}")
+        new_entities.append({
+            "name": name,
+            "entityType": "伏笔",
+            "observations": obs,
+        })
+
+    resolved_relations = []
+    resolved_entities = []
+    for item in fore.get("resolved", []) or []:
+        raw_name = item.get("name") or item.get("id")
+        if not raw_name:
+            continue
+        name = raw_name if raw_name.startswith("伏笔:") else f"伏笔:{raw_name}"
+        resolution = item.get("resolution", "已回收")
+        reads.append({
+            "phase": "read",
+            "tool": "get_entity_with_relations",
+            "args": {"name": name},
+            "purpose": f"合并伏笔旧观测（{name}）",
+        })
+        resolved_entities.append({
+            "name": name,
+            "entityType": "伏笔",
+            "observations": [
+                "<merge_with_old>",
+                f"{_ch(chapter)}: 已回收 - {resolution}",
+            ],
+        })
+        # 若章节里有对应 剧情节点 实体，可建 回收于 边；这里输出占位，Agent 视情况调整
+        plot_node = item.get("resolved_plot")
+        if plot_node:
+            plot_name = plot_node if plot_node.startswith("剧情:") else f"剧情:{plot_node}"
+            resolved_relations.append({
+                "source": name, "target": plot_name, "type": "回收于",
+            })
+
+    if new_entities:
+        writes.append({
+            "phase": "write",
+            "tool": "create_entities",
+            "args": {"entities": new_entities},
+            "purpose": "新伏笔实体（首次创建，无需 merge）",
+        })
+    if resolved_entities:
+        writes.append({
+            "phase": "write",
+            "tool": "create_entities",
+            "args": {"entities": resolved_entities},
+            "purpose": "标记伏笔为已回收（需合并旧观测）",
+        })
+    if resolved_relations:
+        writes.append({
+            "phase": "write",
+            "tool": "create_relations",
+            "args": {"relations": resolved_relations},
+            "purpose": "伏笔回收于剧情节点",
+        })
+    return reads, writes
+
+
+def build_faction_calls(factions: list, chapter: int) -> list:
+    """势力：一次性 create_entities，无需 read（新势力直接建）。"""
+    entities = []
+    for f in factions or []:
+        name = f.get("name")
+        if not name:
+            continue
+        obs = [f"{_ch(chapter)}: 首次登场"]
+        if f.get("type"):
+            obs.append(f"{_ch(chapter)}: 类型 {f['type']}")
+        if f.get("note"):
+            obs.append(f"{_ch(chapter)}: {f['note']}")
+        entities.append({"name": name, "entityType": "势力", "observations": obs})
+    if not entities:
+        return []
+    return [{
+        "phase": "write",
+        "tool": "create_entities",
+        "args": {"entities": entities},
+        "purpose": "新势力实体（若已存在需 Agent 手动合并观测）",
+    }]
+
+
+def build_power_calls(power: dict, chapter: int) -> list:
+    """境界体系与功法。"""
+    entities = []
+    for r in power.get("realms", []) or []:
+        name = r.get("name") if isinstance(r, dict) else str(r)
+        if not name:
+            continue
+        obs = [f"{_ch(chapter)}: 出现在剧情中"]
+        if isinstance(r, dict) and r.get("note"):
+            obs.append(f"{_ch(chapter)}: {r['note']}")
+        entities.append({"name": name, "entityType": "境界", "observations": obs})
+    for t in (power.get("techniques", []) or []) + (power.get("equipment", []) or []):
+        name = t.get("name") if isinstance(t, dict) else str(t)
+        if not name:
+            continue
+        obs = [f"{_ch(chapter)}: 出现"]
+        if isinstance(t, dict):
+            if t.get("grade") or t.get("rank"):
+                obs.append(f"{_ch(chapter)}: 品阶 {t.get('grade') or t.get('rank')}")
+            if t.get("note"):
+                obs.append(f"{_ch(chapter)}: {t['note']}")
+        entities.append({"name": name, "entityType": "功法", "observations": obs})
+    if not entities:
+        return []
+    return [{
+        "phase": "write",
+        "tool": "create_entities",
+        "args": {"entities": entities},
+        "purpose": "境界/功法实体",
+    }]
+
+
+def build_world_calls(world: dict, chapter: int) -> list:
+    """地理/世界规则。"""
+    entities = []
+    for g in world.get("geography", []) or []:
+        name = g.get("name") if isinstance(g, dict) else str(g)
+        if not name:
+            continue
+        obs = [f"{_ch(chapter)}: 首次出现"]
+        if isinstance(g, dict) and g.get("note"):
+            obs.append(f"{_ch(chapter)}: {g['note']}")
+        entities.append({"name": name, "entityType": "地点", "observations": obs})
+    for r in world.get("special_rules", []) or []:
+        name = r.get("name") if isinstance(r, dict) else str(r)
+        if not name:
+            continue
+        raw = name if name.startswith("世界规则:") else f"世界规则:{name}"
+        obs = [f"{_ch(chapter)}: 揭示"]
+        if isinstance(r, dict) and r.get("note"):
+            obs.append(f"{_ch(chapter)}: {r['note']}")
+        entities.append({"name": raw, "entityType": "世界规则", "observations": obs})
+    if not entities:
+        return []
+    return [{
+        "phase": "write",
+        "tool": "create_entities",
+        "args": {"entities": entities},
+        "purpose": "地点/世界规则实体",
+    }]
+
+
+def build_extra_relations(rels: list) -> list:
+    """用户显式声明的关系。"""
+    valid = [r for r in (rels or []) if r.get("source") and r.get("target") and r.get("type")]
+    if not valid:
+        return []
+    return [{
+        "phase": "write",
+        "tool": "create_relations",
+        "args": {"relations": valid},
+        "purpose": "显式关系边（用户 payload 传入）",
+    }]
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Archive per-chapter facts to .writer/state/*.json")
-    parser.add_argument("--project-root", type=Path, help="项目根目录（自动查找 novel.json / writer.json 兜底）")
-    parser.add_argument("--dry-run", action="store_true", help="只打印将写入的内容，不实际写")
+    parser = argparse.ArgumentParser(
+        description="Archive per-chapter facts as novel_project MCP tool-call sequence "
+                    "(v8.4: no local JSON write).",
+    )
+    parser.add_argument("--project-root", type=Path,
+                        help="项目根目录（自动查找 novel.json / writer.json 兜底）")
+    parser.add_argument("--dry-run", action="store_true", help="同 stdout 输出（保留向后兼容）")
     args = parser.parse_args()
 
     raw = sys.stdin.read().strip()
     if not raw:
-        print(json.dumps({"archived": False, "error": "stdin 为空"}, ensure_ascii=False))
+        print(json.dumps({"ok": False, "error": "stdin 为空"}, ensure_ascii=False))
         return 1
 
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError as e:
-        print(json.dumps({"archived": False, "error": f"JSON 解析失败: {e}"}, ensure_ascii=False))
+        print(json.dumps({"ok": False, "error": f"JSON 解析失败: {e}"}, ensure_ascii=False))
         return 1
 
-    chapter_number = payload.get("chapter_number", 0)
+    chapter = payload.get("chapter_number", 0)
     changes = payload.get("changes", {})
     if not changes:
-        print(json.dumps({"archived": True, "changes_applied": [], "message": "变更为空，跳过归档"}, ensure_ascii=False))
+        print(json.dumps({
+            "ok": True, "chapter": chapter, "tool_calls": [],
+            "message": "变更为空，跳过归档",
+        }, ensure_ascii=False))
         return 0
 
     project_root = args.project_root or find_project_root()
-    if project_root is None:
-        print(json.dumps({"archived": False, "error": "未找到项目根（缺 novel.json / writer.json）"}, ensure_ascii=False))
-        return 1
+    # 项目根仅用于 sanity check，不再写文件；缺失也允许（脱离 writer 项目时 novel-pipeline 可能没有 marker）
 
-    state_dir = project_root / ".writer" / "state"
-
-    if args.dry_run:
-        print(json.dumps({
-            "archived": False,
-            "dry_run": True,
-            "state_dir": str(state_dir),
-            "payload": payload,
-        }, ensure_ascii=False, indent=2))
-        return 0
-
-    state_dir.mkdir(parents=True, exist_ok=True)
-    applied = []
-    counts = {}
+    reads: list = []
+    writes: list = []
 
     if changes.get("characters"):
-        n = apply_character_changes(state_dir, changes["characters"], chapter_number)
-        applied.append("characters"); counts["characters"] = n
+        r, w = build_character_calls(changes["characters"], chapter)
+        reads.extend(r); writes.extend(w)
     if changes.get("foreshadowing"):
-        n = apply_foreshadowing_changes(state_dir, changes["foreshadowing"], chapter_number)
-        applied.append("foreshadowing"); counts["foreshadowing"] = n
-    if changes.get("world_setting"):
-        n = apply_world_changes(state_dir, changes["world_setting"], chapter_number)
-        applied.append("world_setting"); counts["world_setting"] = n
-    if changes.get("power_system"):
-        n = apply_power_changes(state_dir, changes["power_system"], chapter_number)
-        applied.append("power_system"); counts["power_system"] = n
+        r, w = build_foreshadowing_calls(changes["foreshadowing"], chapter)
+        reads.extend(r); writes.extend(w)
+    if changes.get("factions"):
+        writes.extend(build_faction_calls(changes["factions"], chapter))
+    if changes.get("power") or changes.get("power_system"):
+        writes.extend(build_power_calls(changes.get("power") or changes.get("power_system"), chapter))
+    if changes.get("world_setting") or changes.get("world"):
+        writes.extend(build_world_calls(changes.get("world_setting") or changes.get("world"), chapter))
+    if changes.get("relations"):
+        writes.extend(build_extra_relations(changes["relations"]))
 
-    print(json.dumps({
-        "archived": True,
-        "chapter": chapter_number,
-        "state_dir": str(state_dir),
-        "changes_applied": applied,
-        "counts": counts,
-        "message": f"章 {chapter_number} 事实已归档",
-    }, ensure_ascii=False))
+    output = {
+        "ok": True,
+        "chapter": chapter,
+        "project_root": str(project_root) if project_root else None,
+        "tool_calls": reads + writes,
+        "instructions": (
+            "按顺序调 novel_project MCP：\n"
+            "1. 先执行所有 phase=read 的 get_entity_with_relations 调用，记录返回的 observations（记为 old_obs）\n"
+            "2. 在 phase=write 的 create_entities 参数中，将占位符 '<merge_with_old>' 替换为对应实体的 old_obs 列表元素\n"
+            "3. 最后执行所有 phase=write 的调用（顺序：create_entities → create_relations）\n"
+            "4. 完成后无需回写任何本地 JSON（v8.4 起 .writer/state/*.json 已废弃）\n"
+            "详见 references/memory-mcp.md §4.1"
+        ),
+    }
+    print(json.dumps(output, ensure_ascii=False, indent=2))
     return 0
 
 

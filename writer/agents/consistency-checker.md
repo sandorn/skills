@@ -70,7 +70,7 @@ VERDICT: APPROVE / CONCERNS / REJECT
 不硬编码任何题材术语。先扫描项目自身的设定文件，动态构建检查词表：
 1. 从 `setting/characters.md` 或 `设定/` 下提取角色名、别名、称号
 2. 从 `setting/` 下提取力量体系名称、关键术语、地名
-3. 如 `tracking/hooks.md` 或 `追踪/伏笔*.md` 存在，提取已埋伏笔及其状态
+3. 调 `novel_project` MCP `search_nodes({query: "伏笔:", limit: 50})` 提取已埋伏笔及其状态（未含 `回收于` 关系的为未回收）
 
 ### 第二步：执行术语+维度检查
 

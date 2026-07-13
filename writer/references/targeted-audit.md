@@ -21,8 +21,8 @@
 - `outline/master_outline.md`
 - 对应卷的详细大纲（如 `outline/volume_outline.md`）
 - `setting/power_system.md`（金手指/世界观规则）
-- `tracking/current_state.md`（角色位置/属性）
-- `tracking/hooks.md`（伏笔埋入/回收状态）
+- `novel_project` MCP：`get_entity_with_relations` 查主要角色（当前位置/属性/关系）
+- `novel_project` MCP：`search_nodes("伏笔:")` 查伏笔埋入/回收状态
 ```
 
 ### Step 1：提取审查维度
@@ -284,6 +284,6 @@ Step E：汇总为结构一致性评分表（5维×加权分）
 ### 终审后必做动作
 
 审查完成后，必须检查并建议更新：
-- `tracking/hooks.md` — 是否有新伏笔已埋入但未登记
-- `tracking/current_state.md` — 角色位置/关系是否与最新章节一致
+- `novel_project` MCP 里的伏笔实体 — 是否有新伏笔已埋入但未登记（`create_entities` 补建）
+- 主角/主要配角实体 — 位置/关系是否与最新章节一致（补 `chXXX:` 观测 + `create_relations`）
 - 大纲中是否有章节号偏移需要标注

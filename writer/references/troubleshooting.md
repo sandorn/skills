@@ -16,7 +16,7 @@
 | 症状 | 原因 | 解决 |
 |------|------|------|
 | audit.py 报 "不是文件也不是目录" | 路径不存在 | 检查 `chapters/` 目录是否存在 |
-| memory-novel MCP search_nodes 返回空 | knowledge graph 未初始化 | MCP 将在首次写章时自动创建知识图谱 |
+| `novel_project` MCP `search_nodes` 返回空 | 老项目未迁移 / 新项目未 seed | 跑 `import_state_to_mcp.py`（老项目）或补 `project-init` 首批 seed（新项目） |
 | 段落超标 | 手工追加内容未拆分 | `python scripts/split_paragraphs.py --batch chapters/` |
 | 字数不足反复出现 | 章末场景单薄 | 手工扩充 1-2 段感官细节/配角反应 |
 
@@ -34,12 +34,14 @@
 |------|------|------|
 | 批量替换导致语句断裂 | 正则替换不精确 | 禁止对正文使用正则批量替换；逐句手工修复 |
 | split_paragraphs 后段落反而更多 | 拆分后未检查连贯性 | 拆分后通读一遍确认 |
-| mirror 命令报文件不存在 | 章节路径错误 | 确认 `chapters/ch_NNN.md` 存在；检查文件名格式 |
 
-## 数据库
+## novel_project MCP
 
 | 症状 | 原因 | 解决 |
 |------|------|------|
-| sync 未提取到等级 | 正则未匹配到 | 检查章节是否含匹配的等级表述（如 `升到5级` `突破10级`） |
-| mirror 跳过（unchanged） | 正文未变化 | 正常行为——hash 相同则跳过 |
-| memory-novel DB 文件损坏 | 写入中断 | 删除 `./novel_memory_db/` 目录 → 重新写章时 MCP 自动重建 |
+| `claude mcp list` 显示 `✘ Failed to connect` | Node ABI 版本不匹配 / npx 缓存失效 | 参见 `references/memory-mcp.md` §7；清 `%LOCALAPPDATA%\npm-cache\_npx` 后重试 |
+| `create_entities` 覆盖了旧观测 | 直接写入而未 merge | 严格走 `archive_facts.py` 生成的 read→merge→write 三段式，见 `memory-mcp.md` §4.1 |
+| `search_nodes` 找不到已建的实体 | 查询词与 name/observations 字面差异大 | 用多同义词并列查询；或直接 `get_entity_with_relations` 走精确名字 |
+| 传入 `embedding` 字段被忽略 | mcp-memory-sqlite@0.0.4 不支持向量 | 已实测确认；用 FTS 多词组合替代，见 `memory-mcp.md` §4.3 |
+| `novel_project.db` 文件损坏 | 写入中断 | 删除 `~/.agents/skills/writer/memory/novel_project.db` → 跑 `import_state_to_mcp.py` 从 setting/*.md 重新 seed |
+| 多本书数据混在同一 db | 单 MCP 实例默认共库 | 用 `import_state_to_mcp.py --project-prefix <书名>` 命名空间隔离，或在 `.claude.json` 里为每本书起独立 SQLITE_DB_PATH |

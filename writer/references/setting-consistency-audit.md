@@ -71,7 +71,7 @@
 | 角色认知 | characters.md | 各卷角色发展追踪 | 认知边界逐步深化 |
 | 势力状态 | factions.md 阶段演化 | 各卷章节事件 | 时间线对齐 |
 | 具现节点 | power_system.md 表格 | 各卷具现节点设计 | 等级/选项数/颜色一致 |
-| 伏笔回收 | tracking/hooks.md | 各卷章节 | 已埋伏笔有预期回收章 |
+| 伏笔回收 | `novel_project` MCP `search_nodes("伏笔:")` | 各卷章节 | 已埋伏笔有预期回收章 |
 
 ## 大型报告输出策略（v7.1 新增）
 

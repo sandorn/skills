@@ -1,15 +1,15 @@
 ---
 name: novel-pipeline
-version: "3.4.0-writer-align"
-description: "网文批量生产线：DeepSeek 初稿 + 豆包润色两个 stdio MCP。专注于章节生成和润色，状态管理由 writer skill 负责。可独立运行，也可作为 writer skill 的子服务"
+version: "3.5.0-mcp-align"
+description: "网文批量生产线：DeepSeek 初稿 + 豆包润色两个 stdio MCP。专注于章节生成和润色，状态管理由 writer skill + novel_project MCP 负责。可独立运行，也可作为 writer skill 的子服务"
 category: writing
 tags: [网文, 写作, pipeline, MCP, 逐章润色, writer 协作]
 ---
 
-# novel-pipeline: 网文批量生产线（精简版 v3.4）
+# novel-pipeline: 网文批量生产线（精简版 v3.5）
 
 > 🔴 所有润色请求走逐章顺序模式，禁止批量/后台运行
-> 📌 状态管理（角色/伏笔/世界观）**不再本 skill 职责**，交给 writer skill
+> 📌 状态管理（角色/伏笔/世界观）**不再本 skill 职责**，交给 writer skill + `novel_project` MCP
 
 ---
 
@@ -66,7 +66,7 @@ tags: [网文, 写作, pipeline, MCP, 逐章润色, writer 协作]
 
 # 2. writer 主 Agent 调 novel-deepseek MCP 出初稿
 #    → chapters/ch_NNN.md
-#    → writer 侧 archive_facts.py 归档事实到 .writer/state/*.json
+#    → writer 侧 archive_facts.py 生成 novel_project MCP payload → Agent 落库
 
 # 3. 本 skill 批量润色（豆包 + writer 番茄预设）
 python <novel-pipeline>/scripts/polish_chapter.py --range 1-30 <project>/chapters `
@@ -101,7 +101,7 @@ python <novel-pipeline>/scripts/polish_chapter.py --range 1-20 <chapters_dir>
 | `writer.json` | writer skill 项目（协作场景）|
 | `novel-pipeline.json` | 老项目（向后兼容） |
 
-**v3.4 起**：识别到项目根后**不再要求 state-files/**——本 skill 只用 `chapters/` 目录 + MCP 生成/润色文本。项目状态由 writer 侧的 `.writer/state/*.json` 管理，本 skill 不读不写。
+**v3.5 起**：识别到项目根后**不再要求 state-files/**——本 skill 只用 `chapters/` 目录 + MCP 生成/润色文本。项目当前状态由 writer 侧的 `novel_project` MCP 管理，本 skill 不读不写。
 
 ---
 
@@ -142,11 +142,12 @@ novel-pipeline/
 
 ## Layer 1 规则（不可违反）
 
-- ⛔ 禁止在本 skill 内做状态归档（伏笔/角色/世界观）——交给 writer
+- ⛔ 禁止在本 skill 内做状态归档（伏笔/角色/世界观）——交给 writer + `novel_project` MCP
 - ⛔ 禁止编写审查/大纲/项目初始化脚本——交给 writer
 - ⛔ 禁止批量/并行/后台润色（前端卡顿）
 - ⛔ 禁止绕过 MCP 工具直接调用模型 API（除 MCP server 内部）
-- ✅ 只做：单章顺序路由 → 调 MCP → 覆写 chapters/*.md → 下一章
+- ⛔ 禁止直接调 `novel_project` MCP（记忆读写只能在 writer 侧发起）
+- ✅ 只做：单章顺序路由 → 调 novel-doubao/deepseek MCP → 覆写 chapters/*.md → 下一章
 
 ---
 
@@ -174,8 +175,8 @@ Hook 脚本（被 polish_chapter.py 调用，无独立入口）：
 | DeepSeek MCP 批量出稿 | 调本 skill MCP | ✅ `generate_draft` |
 | 硬禁令 B01-B10、43 维审查 | ✅ | — |
 | Git 前置快照 | writer 侧有 `lib.ensure_git_snapshot`（供批量写章/修复用） | 本 skill 自持（供批量润色用）|
-| 状态归档（`.writer/state/*.json`）| ✅（`scripts/archive_facts.py`）| ❌ |
-| tracking 派生（`tracking/*.md`）| ✅（`scripts/render_tracking.py`）| ❌ |
+| 状态归档（`novel_project` MCP）| ✅（`scripts/archive_facts.py` 生成 payload → Agent 调 MCP）| ❌ |
+| 记忆治理规范 | ✅（`references/memory-mcp.md`）| ❌ |
 
 ---
 

@@ -51,24 +51,26 @@
 
 **预期**：章纲完整，与卷纲对齐，无缺失章节。
 
-### Layer 4：加载追踪（Tracking Files）
+### Layer 4：加载当前世界快照（novel_project MCP）
 
-读取以下追踪文件，构建「当前世界快照」：
+**v8.4 起，当前状态不再走本地 `tracking/` 文件**——统一从 `novel_project` MCP 拉：
 
-| 文件 | 检查内容 |
-|------|---------|
-| `tracking/current_state.md` / `追踪/角色状态.md` | 主角等级/权限/金币/装备/位置、各配角状态 |
-| `tracking/hooks.md` / `追踪/伏笔.md` | 待回收伏笔列表、已回收状态 |
-| `tracking/chapter_summaries.md` / `追踪/章节摘要.md` | 上一章摘要（确认停靠点） |
-| `tracking/resource_ledger.md` / `追踪/资源账本.md` | 金币余额/资产总额（如有） |
+| 查询 | 工具 | 用途 |
+|---|---|---|
+| 主角当前状态 | `get_entity_with_relations({name: "<主角名>"})` | 修为/位置/最近变化观测 + 势力/敌友关系 |
+| 主要配角 | 对每人调 `get_entity_with_relations` | 状态 + 关系 |
+| 待回收伏笔 | `search_nodes({query: "伏笔:", limit: 50})` | 过滤未含 `回收于` 关系的实体 |
+| 上一章摘要 | 直接读 `chapters/ch_{当前-1:03d}.md` 章末 200 字 | 确认停靠点 |
+
+> 老项目若仍有 `tracking/` 目录，视为**归档数据**只读不改；权威源已迁至 MCP。
 
 **交叉校验**：
 
 | 校验对 | 检查什么 | 不通过处理 |
 |--------|---------|-----------|
-| 追跟踪状态 vs 细纲起始 | 等级/权限/位置是否匹配细纲起始条件 | 修正细纲或追踪 |
-| 追踪伏笔 vs 细纲伏笔操作 | 细纲中要回收的伏笔在追踪中是否标记为「已埋」 | 补充伏笔登记 |
-| 追踪摘要 vs 细纲时间线 | 上一章结束时间点与下一章起始时间点连续 | 修正细纲时间 |
+| MCP 主角观测 vs 细纲起始条件 | 修为/位置/资源是否匹配细纲要求 | 修正细纲，或调 MCP 补漏归档观测 |
+| MCP 伏笔实体 vs 细纲伏笔操作 | 细纲中要回收的伏笔在 MCP 中是否已存在 | 补建伏笔实体（`archive_facts.py` 或直接 `create_entities`） |
+| MCP 观测时间线 vs 细纲时间点 | 上一章结束时间与下一章起始时间连续 | 修正细纲时间 |
 
 ### Layer 5：加载文风预设（Style Preset）
 
@@ -118,9 +120,9 @@
 | 场景 | 处理方式 |
 |------|---------|
 | 细纲与卷纲节拍表不一致 | **以节拍表为准重写细纲**。节拍表是全书节奏的权威来源 |
-| 追踪状态与细纲出入 | 若细纲更准确 → 更新追踪；若追踪更准确 → 更新细纲 |
+| MCP 观测与细纲出入 | 若细纲更准确 → 补 MCP 观测；若 MCP 更准确 → 更新细纲 |
 | 细纲缺失某章 | 先补细纲再动笔，禁止无章纲写章 |
-| 追踪文件完全缺失 | 从最新一章提取状态，重建追踪（至少写 `current_state.md` + 章末摘要） |
+| MCP 主角实体缺失 | 老项目未迁移 → 跑 `import_state_to_mcp.py`；新项目 seed 遗漏 → 补建 |
 | 总纲与卷纲冲突 | 阻断，标记 BLOCKER，等待用户裁决 |
 
 ---
@@ -143,11 +145,14 @@ cat "outline/master_outline.md"
 cat "outline/volume_outline.md"
 ```
 
-### 读追踪（获取当前世界快照）
-```bash
-cat "tracking/current_state.md"
-cat "tracking/hooks.md"
-cat "tracking/chapter_summaries.md"
+### 读当前世界快照（novel_project MCP）
+```
+# 在会话内调 MCP：
+mcp__novel_project__get_entity_with_relations({name: "<主角名>"})
+mcp__novel_project__get_entity_with_relations({name: "<主要势力名>"})
+mcp__novel_project__search_nodes({query: "伏笔:", limit: 50})
+# 上一章摘要仍读文件：
+cat "chapters/ch_$(printf %03d $((current-1))).md" | tail -20
 ```
 
 ### 读细纲（获取批次的章纲）

@@ -35,14 +35,14 @@ Q4: 本章声音对齐了吗？
 
 - 主角当前：等级 / 位置 / 金币 / 情绪状态
 - 本章出场的配角当前状态
-- 方法：扫一眼 `tracking/current_state.md` 或 `追踪/角色状态.md`
+- 方法：调 `novel_project` MCP `get_entity_with_relations({name: "<主角>"})`，看最近观测里的 `chXXX: 修为/位置/资源` 条目
 
 ### 2. 伏笔包袱（有什么要回收/推进/新埋？）
 
 - 待回收伏笔：这一章能不能收一个？
 - 需推进伏笔：这一章能不能暗示一下？
 - 新埋伏笔：这一章要不要埋新坑？
-- 方法：扫一眼 `tracking/hooks.md` 或 `追踪/伏笔.md`
+- 方法：调 `novel_project` MCP `search_nodes({query: "伏笔:", limit: 50})`，过滤未含 `回收于` 关系的实体
 
 ### 3. 大纲锚点（本章在大纲里的位置？）
 

@@ -3,7 +3,7 @@
 > 从一个新选题开始，模拟使用本 skill 的端到端流程。
 > 每个阶段标注激活词、自动行为、状态归档。
 
-**架构版本**：v8.3（协作 novel-pipeline，四层写权限：`.writer/state/*.json` / `tracking/*.md` / `setting/*.md` / `chapters/*.md`）
+**架构版本**：v8.4（协作 novel-pipeline，三层写权限：`novel_project` MCP / `setting/*.md` / `chapters/*.md`）
 
 ---
 
@@ -29,19 +29,19 @@
 用户:「帮我开一本都市重生文，主角回到2001年开网吧」
 ```
 > 路由: `project-init.md`
-> 自动: 交互 4 波次 → 创建目录 → 生成 novel.json → 复制 setting/*.md 模板 → 建 `.writer/state/*.json` 空骨架（4 份 JSON）
+> 自动: 交互 4 波次 → 创建目录 → 生成 novel.json → 复制 setting/*.md 模板 → **seed novel_project MCP**（主角/势力/境界/功法/世界规则 首批实体 + 关系）
 
 **产物**：
 ```
 {project}/
-├── novel.json            # 项目根（首选命名）
+├── novel.json            # 项目根（首选命名，含 memory_mcp: novel_project）
 ├── setting/              # 4 份 md（story_bible/characters/power_system/factions）+ writing_rules.md
 ├── outline/              # 空（等 plan 阶段）
 ├── chapters/             # 空
-├── tracking/             # 空（第一次写章后由 render_tracking.py 生成）
 └── .writer/
-    ├── state/            # 4 份空 JSON（{"version": 1, ...: []}）
-    └── runtime/
+    └── runtime/          # 临时文件
+
++ novel_project MCP       # seed 完成：主角+主要势力+境界体系实体，含首批关系边
 ```
 
 ---
@@ -72,9 +72,9 @@
 用户:「写下一章」
 ```
 > 路由: `write.md`（5步管线）
-> **Step 1**: 读 `.writer/state/*.json`（原子事实）+ `setting/*.md` + `outline/` + `tracking/*.md`（含 user-edit 块）
+> **Step 1**: 调 `novel_project` MCP（`get_entity_with_relations` 拉主要角色/势力当前状态 + `search_nodes("伏笔:")` 拉未回收伏笔）+ 读 `setting/*.md`（含 user-edit 块）+ `outline/`
 > **Step 3**: 写正文 → `chapters/ch_NNN.md`
-> **Step 5**: `archive_facts.py` 追加事实到 `.writer/state/*.json` → `render_tracking.py` 派生 `tracking/*.md` → 更新 `novel.json`
+> **Step 5**: `archive_facts.py` 生成 MCP tool_calls → Agent 依 read→merge→write 顺序调 MCP 归档 → 更新 `novel.json`
 > **审查**: 自动 daily 8 维
 
 ### 批量（writer 主 Agent 直写，≤5 章/批）
@@ -82,14 +82,14 @@
 用户:「批量写3章」
 ```
 > 路由: `write.md`（batch）
-> 自动: ① 预对齐 → ② 子代理并行 → ③ 每章各自跑 Step 5 → ④ 批次末尾 solo 审查
+> 自动: ① 预对齐（含 MCP 拉批次上下文） → ② 子代理并行 → ③ **每章各自跑 Step 5 归档 MCP**（不能延后到批末，否则续写会看不到前章状态） → ④ 批次末尾 solo 审查
 
 ### 批量（novel-pipeline 出初稿）
 ```
 用户:「用 DeepSeek 帮我批量出 30 章初稿」
 ```
 > 路由: `write.md` + **novel-pipeline** `novel-deepseek MCP.generate_draft`
-> 主 Agent 读章纲 + `.writer/state/*.json` → 调 MCP → 收初稿 → 落 `chapters/*.md` → Step 5 归档
+> 主 Agent 读章纲 + 拉 MCP 主要角色摘要 → 调 novel-deepseek MCP → 收初稿 → 落 `chapters/*.md` → Step 5 归档 novel_project MCP
 
 ### 自动审查升级（写后按章节数触发，替代升级）
 ```
@@ -113,7 +113,7 @@
 用户:「暗线都落地了吗」    → master-outline-audit.md（总纲卷纲对齐）
 ```
 
-**交叉源**：审查读 `.writer/state/*.json`（当前事实）+ `setting/*.md`（原始设定）+ `chapters/*.md`（正文）+ `outline/*.md`（大纲计划），四方交叉对比。
+**交叉源**：审查读 `novel_project` MCP（当前事实 + 关系图谱）+ `setting/*.md`（原始设定）+ `chapters/*.md`（正文）+ `outline/*.md`（大纲计划），四方交叉对比。
 
 ---
 
@@ -147,8 +147,8 @@
 >     --min-words 2500 --max-words 3000
 > ```
 > 前置：novel-pipeline 自带 `ensure_git_snapshot()` 快照
-> 边界：novel-pipeline **只碰 chapters/**，不动 state/tracking/setting
-> 后续：writer 跑 daily 审查确认润色无禁令冲入
+> 边界：novel-pipeline **只碰 chapters/**，不动 novel_project MCP / setting
+> 后续：writer 跑 daily 审查确认润色无禁令冲入；润色**不涉及新事实**故无需 MCP 归档
 
 ---
 
@@ -169,26 +169,27 @@
 ```
 用户:「开第二卷」          → deploy.md（卷间衔接 7 维检查）
 用户:「全景报告」          → report_panorama.py
-用户:「查一下主角等级」    → 读 .writer/state/characters.json 或 tracking/current_state.md
+用户:「查一下主角等级」    → 调 novel_project MCP: get_entity_with_relations("主角") 里最近 "chXXX: 修为 xxx" 观测
 用户:「追读力怎么样」      → analyze_hook.py
 用户:「升级是不是太慢了」  → analyze_rhythm.py
-用户:「角色关系图谱」      → report_graph.py
+用户:「角色关系图谱」      → report_graph.py（从 MCP 派生）
 用户:「有没有声音漂移」    → longform-quality-monitor.md（>100章时）
-用户:「更新角色状态」      → 手动编辑 setting/*.md，或让 Agent 归档到 .writer/state/*.json
-用户:「加个规划笔记」      → 在 tracking/*.md 的相应 ## 下方插 `<!-- user-edit -->...<!-- /user-edit -->` 块
+用户:「更新角色状态」      → 修 setting/*.md 静态描述；或让 Agent 通过 archive_facts.py 追加 MCP 观测
+用户:「加个规划笔记」      → 在 setting/*.md 相应 ## 下方插 `<!-- user-edit -->...<!-- /user-edit -->` 块
+用户:「记忆库有什么」      → novel_project MCP: read_graph 或 search_nodes
 用户:「报错了」            → troubleshooting.md
 ```
 
 ---
 
-## 用户手补 tracking 场景（专项说明）
+## 用户手补规划意图场景（专项说明）
 
 **触发**：用户读到 ch_010 突然想给某条伏笔留回收线索规划。
 
-**做法**：
+**做法（v8.4）**：
 ```markdown
-# 打开 tracking/hooks.md
-# 找到 "## 待回收（active）" 下方
+# 打开 setting/factions.md 或 setting/characters.md
+# 找到相关的 ## 标题
 # 追加：
 
 <!-- user-edit -->
@@ -197,22 +198,19 @@
 <!-- /user-edit -->
 ```
 
-**保护规则**：
-- render_tracking.py 每次重跑时**保留 user-edit 块**在原锚点下方
-- 锚点 = user-edit 块前最近的 `##` 或 `###` 标题
-- 找不到锚点的块统一移到文末"# 用户笔记"节
+**注入**：下次写章时 Agent 读 setting/*.md → user-edit 块作为规划意图进入 context，指导剧情走向。
 
-**注入**：下次写章时 Agent 读 tracking/hooks.md → user-edit 块作为规划意图进入 context，指导剧情走向。
+**可选加强**：Agent 也可以把这条意图作为 observation 补进 MCP 对应实体（如 `伏笔:神秘声音`），以便 `search_nodes` 也能查到。
 
 ---
 
 ## 全自动行为总结
 
-| 触发 | 自动行为 | 涉及文件 |
+| 触发 | 自动行为 | 涉及资源 |
 |------|---------|---------|
-| 创建项目 | project-init 生成 8 目录 + 11 文件 + `.writer/state/*.json` 骨架 | 全部 |
-| 每章写前 | 读 `.writer/state/*.json` + `setting/*.md` + `outline/` + `tracking/` | 只读 |
-| 每章写后 Step 5 | `archive_facts.py` 追加事实 + `render_tracking.py` 派生 md + 更新 novel.json | .writer/state/*, tracking/*, novel.json |
+| 创建项目 | project-init 生成 3 层目录 + 6 文件 + seed novel_project MCP 首批实体 | 项目目录 + MCP |
+| 每章写前 | 调 novel_project MCP（get_entity_with_relations + search_nodes）+ 读 setting/*.md + outline/ | 只读 |
+| 每章写后 Step 5 | `archive_facts.py` 生成 tool_calls → Agent 调 novel_project MCP 归档（read→merge→write）+ 更新 novel.json | MCP + novel.json |
 | 每章审计后 | novel.json chapters_done +1 → daily 审查触发 | novel.json + 审查报告 |
 | 每 5/10/卷 | solo/lean/full 审查（替代升级） | 审查报告 |
 | 每 100 章 | full + longform-quality（叠加） | 审查报告 |

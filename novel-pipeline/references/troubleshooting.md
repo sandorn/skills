@@ -27,8 +27,8 @@
 - 都不存在时：不阻断，但 git 快照钩子会打印警告；`--force` 可放行
 
 ## 状态归档相关
-- **本 skill v3.4 起不再持有状态**——所有状态归档由 writer skill 的 `scripts/archive_facts.py` 负责
-- 若发现 `.writer/state/*.json` 有问题，请查 writer skill 的 troubleshooting 或直接跑 `python <writer>/scripts/archive_facts.py --dry-run` 诊断
+- **本 skill v3.5 起不再持有状态**——所有状态归档由 writer skill 的 `scripts/archive_facts.py` 负责，落 `novel_project` MCP
+- 若发现 MCP 里角色/伏笔缺失或错乱，请查 writer skill 的 `references/troubleshooting.md` 与 `references/memory-mcp.md`；或让 writer 侧 Agent 直接调 `read_graph` / `get_entity_with_relations` 诊断
 
 ## patch 工具在中文 .md 章节文件上失败
 - **现象**：`patch` 在 `.md` 文件上持续返回 "Could not find a match"，即使文本肉眼可见匹配

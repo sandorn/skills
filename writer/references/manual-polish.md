@@ -44,14 +44,14 @@
 
 如果润色**改变了角色状态/伏笔进度/世界观描述**（比如原文写"苏白拔剑"改为"苏白掌握了新剑法"），需要在润色完成后：
 
-1. 构造 `archive_facts.py` payload 归档新事实到 `.writer/state/*.json`（见 `write.md` Step 3 完整示例）
-2. `python <writer>/scripts/render_tracking.py` 刷新 `tracking/*.md`
+1. 构造 `archive_facts.py` payload 归档新事实到 `novel_project` MCP（见 `write.md` Step 3 完整示例；Agent 依生成的 tool_calls 顺序调 MCP）
+2. 无需其他派生步骤（v8.4 起 `tracking/*.md` 已废）
 
-**如果润色只是文字层面（不改情节/角色/伏笔）**：不需要归档，`.writer/state/` 保持不变。
+**如果润色只是文字层面（不改情节/角色/伏笔）**：不需要归档，MCP 保持不变。
 
 ### 留规划意图给下一次
 
-润色过程中如果发现某处**当前不改但未来需改**（比如"这章的老周太扁平，但要在 ch_030 才自然铺开"），可以在 `tracking/hooks.md` 或 `tracking/current_state.md` 相应 `##` 标题下方追加：
+润色过程中如果发现某处**当前不改但未来需改**（比如"这章的老周太扁平，但要在 ch_030 才自然铺开"），可以在 `setting/characters.md` 或 `setting/factions.md` 里相关角色的 `##` 标题下方追加：
 
 ```markdown
 <!-- user-edit -->
@@ -59,7 +59,7 @@ ch_030 前需要给老周补两条动机线索
 <!-- /user-edit -->
 ```
 
-下次 write 或 review 时主 Agent 会读到这段规划意图；`render_tracking.py` 重跑时保留此块不动。
+下次 write 或 review 时主 Agent 会读到这段规划意图。
 
 ---
 

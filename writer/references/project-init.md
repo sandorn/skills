@@ -20,6 +20,7 @@
 - 是否有 `选题决策.md` → 读取作为开书依据
 - 是否有已有项目（检测 `novel.json` / `writer.json` / `setting/` + `chapters/`）→ 不覆盖
 - 确认项目输出目录（默认当前工作目录）
+- **确认 `novel_project` MCP 可达**（未连通时提示先修复；见 `references/memory-mcp.md`）
 
 ---
 
@@ -68,19 +69,19 @@
 
 ---
 
-## Step 4：生成项目骨架（新架构 v8.3）
+## Step 4：生成项目骨架（v8.4 精简架构）
 
 ```bash
 mkdir -p {project}/setting {project}/outline/chapter_outline {project}/chapters \
-         {project}/tracking {project}/.writer/state {project}/.writer/runtime
+         {project}/.writer/runtime
 ```
 
-### 四层职责结构
+### 三层职责结构（v8.4 去除 tracking/ 与 .writer/state/）
 
 ```
 {project}/
-├── novel.json                # 项目根标记（新架构统一用 novel.json）
-├── setting/                  # 用户领地：静态约束（世界观/角色/战力）
+├── novel.json                # 项目根标记（含 memory_mcp: novel_project）
+├── setting/                  # 用户领地：静态设定原稿（seed MCP 的原始出处）
 │   ├── story_bible.md
 │   ├── characters.md
 │   ├── power_system.md
@@ -91,27 +92,18 @@ mkdir -p {project}/setting {project}/outline/chapter_outline {project}/chapters 
 │   ├── volume_outline.md
 │   └── chapter_outline/      # 章纲（每章一个）
 ├── chapters/                 # 产出：正文（ch_NNN.md 三位数补零）
-├── tracking/                 # 【Agent 派生渲染】进度笔记
-│   ├── characters.md         # 从 .writer/state/characters.json 渲染
-│   ├── hooks.md              # 从 .writer/state/foreshadowing.json 渲染
-│   └── current_state.md      # 当前状态快照（派生）
 └── .writer/
-    ├── state/                # 【Agent 归档写入】原子事实（机读源）
-    │   ├── characters.json   # {"version": 1, "characters": []}
-    │   ├── foreshadowing.json
-    │   ├── power_system.json
-    │   └── world_setting.json
-    ├── project_memory.json   # skill 学到的项目习惯
     └── runtime/              # 临时文件（.gitignore）
 ```
 
-### 四层写权限
+> **当前状态数据（人物/势力/伏笔/剧情节点）不落在项目目录里**，统一存 `novel_project` MCP，落盘 `~/.agents/skills/writer/memory/novel_project.db`。
+
+### 三层写权限
 
 | 层 | 谁写 | 谁改 | 用途 |
 |---|---|---|---|
-| `.writer/state/*.json` | Agent 独写（`scripts/archive_facts.py`）| 只 Agent | 原子事实源，程序读 |
-| `tracking/*.md` | Agent 派生（`scripts/render_tracking.py`）| 用户可在 `<!-- user-edit -->` 块内增补 | 人读快照 |
-| `setting/*.md` | Agent 初始化 + 用户手改 | 用户为主 | 世界观/角色的静态约束 |
+| **`novel_project` MCP** | Agent 独写（`archive_facts.py` 生成 payload → Agent 调 MCP）| 只 Agent | 原子事实源 + 关系图谱，续写前查询 |
+| `setting/*.md` | Agent 初始化 + 用户手改（含 `<!-- user-edit -->` 块） | 用户为主 | 世界观/角色的静态约束（seed MCP 的原稿） |
 | `chapters/*.md` | Agent 主写 | 用户可修 | 正文 |
 | `outline/*.md` | Agent 生成 + 用户改 | 双方 | 大纲 |
 
@@ -119,20 +111,17 @@ mkdir -p {project}/setting {project}/outline/chapter_outline {project}/chapters 
 
 | 文件 | 初始内容 |
 |------|------|
-| `novel.json` | 项目状态（stage=scaffold）|
+| `novel.json` | 项目状态（stage=scaffold，含 `"memory_mcp": "novel_project"`）|
 | `setting/story_bible.md` | 世界观基础 |
 | `setting/characters.md` | 主角+基础角色卡 |
 | `setting/power_system.md` | 力量/等级体系 |
 | `setting/factions.md` | 势力关系 |
 | `setting/writing_rules.md` | 项目声音卡（可选，从波次 3 主角性格生成）|
 | `outline/master_outline.md` | 核心冲突 + 结局方向 |
-| `.writer/state/characters.json` | `{"version": 1, "characters": []}` |
-| `.writer/state/foreshadowing.json` | `{"version": 1, "active": [], "resolved": []}` |
-| `.writer/state/power_system.json` | `{"version": 1, "realms": [], "equipment": [], "combat_rules": []}` |
-| `.writer/state/world_setting.json` | `{"version": 1, "factions": [], "geography": [], "special_rules": []}` |
 | `.writer/runtime/.gitkeep` | 占位 |
 
-**tracking/ 目录初始为空**——用户第一次写章后由 `render_tracking.py` 自动生成。
+> **无需创建 `.writer/state/*.json` 骨架**（v8.4 起该层已废，数据全走 MCP）。
+> **无需创建 tracking/ 目录**（人读快照按需用 `report_graph.py` 从 MCP 派生）。
 
 ### novel.json 初始化
 
@@ -151,12 +140,11 @@ mkdir -p {project}/setting {project}/outline/chapter_outline {project}/chapters 
   "chapter_dir": "./chapters/",
   "setting_dir": "./setting/",
   "outline_dir": "./outline/",
-  "tracking_dir": "./tracking/",
-  "state_dir": "./.writer/state/",
+  "memory_mcp": "novel_project",
   "polish_toggle": true,
   "auto_skip_transition_chapters": true,
   "stage": "scaffold",
-  "skill_version": "8.3",
+  "skill_version": "8.4",
   "last_action": "init",
   "created_at": "{当前时间}",
   "updated_at": "{当前时间}"
@@ -165,36 +153,57 @@ mkdir -p {project}/setting {project}/outline/chapter_outline {project}/chapters 
 
 ---
 
-## Step 5：填充核心设定
+## Step 5：填充核心设定 + 首批 MCP seed
 
-Agent 根据波次 2-3 收集的信息初始化 `setting/*.md` 骨架 + `.writer/state/*.json` 骨架。
+Agent 根据波次 2-3 收集的信息初始化 `setting/*.md` 骨架，**并同步 seed `novel_project` MCP**：
 
-**注意**：setting/*.md 是**用户人读源**，写成完整的 markdown 描述（含世界观框架、主角背景、金手指规则）；.writer/state/*.json 保留空数组，等第一次写章由 `archive_facts.py` 自动填充。
+```
+setting/characters.md 里每个人物   → create_entities(entityType="人物")
+setting/factions.md 里每个势力     → create_entities(entityType="势力")
+setting/power_system.md 每层境界   → create_entities(entityType="境界")
+                        每种功法   → create_entities(entityType="功法")
+setting/story_bible.md 关键地点    → create_entities(entityType="地点")
+                       世界规则   → create_entities(entityType="世界规则", name="世界规则:xxx")
+```
+
+然后用 `create_relations` 建立首批关系：
+- 主角/配角 → 所属势力（`所属`）
+- 势力 → 位于地点（`位于`）
+- 主角 → 师父（`师承`）、修习功法（`修习`）
+- 主角 → 已知敌对/盟友势力
+
+**注意**：`setting/*.md` 是**用户人读源**，写成完整的 markdown 描述（含世界观框架、主角背景、金手指规则）；MCP 里存的是**结构化实体 + chSEED 前缀观测**（如 `chSEED: 修为 练气一层`）。
+
+seed 完成后调 `read_graph` 抽查：应至少返回主角+配角 3-5 个人物、2-3 个势力、3+ 层境界、若干地点。
 
 ---
 
 ## Step 6：确认 + 收尾
 
-展示已创建的项目结构 + 关键文件摘要。
+展示已创建的项目结构 + 关键文件摘要 + MCP seed 统计。
 
 ```
-项目骨架已创建。下一步：
-1. 完善设定 → 扩展 setting/ 目录下的文件
+项目骨架已创建：
+  - 5 个 setting/*.md
+  - novel.json（stage=scaffold）
+  - novel_project MCP 已 seed：{N}实体 + {M}关系
+
+下一步：
+1. 完善设定 → 扩展 setting/ 目录下的文件（记得同步补 MCP 实体）
 2. 规划大纲 → plan
-3. 直接开写 → write 第1章
+3. 直接开写 → write 第1章（写前会自动查 MCP 拉主要角色状态）
 ```
 
 ---
 
 ## 成功标准
 
-- [ ] 项目目录结构完整（8 个目录 + 11 个文件）
-- [ ] `novel.json` 格式合法，字段齐备（含 state_dir）
+- [ ] 项目目录结构完整（5 个 setting/*.md + outline/ + chapters/ + .writer/runtime/）
+- [ ] `novel.json` 格式合法，字段齐备（含 `memory_mcp`）
 - [ ] `setting/story_bible.md` 包含世界观类型和核心规则
 - [ ] `setting/characters.md` 包含主角基本信息
 - [ ] `outline/master_outline.md` 包含核心冲突和结局方向
-- [ ] `.writer/state/*.json` 4 个骨架文件已创建（空数组）
-- [ ] `.writer/runtime/` 目录存在
+- [ ] `novel_project` MCP 已 seed（`read_graph` 返回主角+主要势力+境界体系）
 
 ---
 
@@ -206,24 +215,32 @@ Agent 根据波次 2-3 收集的信息初始化 `setting/*.md` 骨架 + `.writer
 - 单个 `.md/.txt` 长文 → 按章节切分
 - 一组 `ch_NNN.md` / `chNN.md` / 章节.md → 直接采纳，重命名为标准格式
 - 老 novel-pipeline 项目（`state-files/*.json` + `novel-pipeline.json`）→ 迁移到新架构
-- 老 writer v8.2 项目（`writer.json` + 无 `.writer/state/`）→ 补建 state 骨架
+- 老 writer v8.2 / v8.3 项目（`.writer/state/*.json`）→ 一次性迁移到 MCP
 
 ### 迁移映射表
 
 | 老结构 | 新结构 |
 |---|---|
 | `novel-pipeline.json` / `writer.json` | 保留（三种 marker 都被识别），或 `git mv` 为 `novel.json` |
-| `state-files/*.json` | `git mv` 到 `.writer/state/*.json` |
+| `state-files/*.json` (老 novel-pipeline) | 用 `import_state_to_mcp.py` 灌入 MCP 后删除 |
+| `.writer/state/*.json` (v8.3 writer) | 用 `import_state_to_mcp.py` 灌入 MCP 后删除 |
+| `tracking/*.md` (v8.3 writer) | 用户手抄的 `<!-- user-edit -->` 块挪到 `setting/*.md` 对应文件；派生表格丢弃 |
 | `chXX.md` / `chXXX.md` | `git mv` 为 `ch_NNN.md` |
 | `chapters_polished/` | 删除（新架构原地覆盖）|
 
 ### 流程
 1. 识别输入类型
-2. 创建 Writer v8.3 标准目录结构（不覆盖已有正文）
+2. 创建 Writer v8.4 标准目录结构（不覆盖已有正文）
 3. 迁移映射（如上表）
-4. 从正文反推：主角、重要配角、伏笔、章节摘要（可选，交给用户确认后写入 setting/ 与 .writer/state/）
-5. 生成导入报告：已识别章节数、缺失设定、疑似断章、下一步建议
+4. **一次性 MCP 迁移**：
+   ```bash
+   python <writer>/scripts/import_state_to_mcp.py --project-root <path>
+   # 输出 tool_calls → Agent 按顺序调 create_entities/create_relations
+   # 完成后调 read_graph 抽查实体数是否与 stats.total_entities 相符
+   ```
+5. 从正文反推补充：主角、重要配角、伏笔、章节摘要（可选，交给用户确认后写入 setting/ 与 MCP）
+6. 生成导入报告：已识别章节数、缺失设定、疑似断章、MCP 导入统计、下一步建议
 
 ---
 
-> **下一步**：[大纲规划](plan.md)（总纲→卷纲→章纲）
+> **下一步**：[大纲规划](plan.md)（总纲→卷纲→章纲）；写第一章前用 `references/memory-mcp.md` 复核 MCP seed 是否合理

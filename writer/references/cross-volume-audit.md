@@ -31,7 +31,7 @@
 
 ### Step 2: 角色修为/状态一致性检查
 
-1. 从 `.writer/state/characters.json` 读前卷末的角色修为数据（`cultivation` 字段）
+1. 调 `novel_project` MCP `get_entity_with_relations({name: "<主角>"})`，从观测里筛出前卷末的 `chXXX: 修为 xxx` 时间点
 2. 用 Python 扫描当前卷各章，抽取角色修为/等级的关键词
 3. 比对：主角修为是否延续？配角修为是否延续？
 
@@ -40,7 +40,7 @@
 跨卷设置名称漂移是长篇中最隐蔽也最致命的断裂。不同卷之间对同一角色的称呼必须一致。
 
 **检查方法：**
-1. 从 `.writer/state/world_setting.json` 或第一卷正文中提取关键命名锚点（势力名、人物称号、地名）
+1. 调 `novel_project` MCP `search_nodes({query: "势力", limit: 50})` + `search_nodes({query: "地点", limit: 50})` 提取关键命名锚点；或从第一卷正文抽取
 2. 用 `search_files` 扫描当前卷各章，比对命名是否一致
 3. 关注：势力体系名称、人物尊称、地名
 
@@ -90,8 +90,8 @@
 
 ### Step 3: 伏笔跨卷追踪
 
-1. 从 `.writer/state/foreshadowing.json` 读取 active 伏笔列表
-2. 对每条 `status: "unresolved"` 的伏笔：
+1. 调 `novel_project` MCP `search_nodes({query: "伏笔:", limit: 50})` 拉全部伏笔实体
+2. 对每条**未含 `回收于` 关系**的伏笔（未回收）：
    - 用 `search_files` 在全卷搜索伏笔关键词
    - 记录该伏笔"连续未出现的卷数"
    - 连续 ≥2 卷未出现 → ⚠️ S3 警告
@@ -102,10 +102,12 @@
 
 发现断裂伏笔后：
 - **有自然插入点**: 在当前卷插入回调场景（旁观者法/回想法/对话法/战利品法）
-- **无自然插入点**: 在下一卷开头安排回收，更新 `.writer/state/foreshadowing.json` 中该 active 项的 `expected_payoff_window`
+- **无自然插入点**: 在下一卷开头安排回收，可在 MCP 伏笔实体上追加观测 `chXXX: 计划下一卷开头回收`
 
 回调场景插入技巧：人群加神秘观察者、角色心理活动提及、角色对话带回线索、从敌人身上搜出伏笔物品
 
 ### Step 5: 归档
 
-修复完成后调用 `archive_facts.py` 写入 `.writer/state/foreshadowing.json`：新增回调 payload 里带 `"foreshadowing": {"new": [...]}`；已回收带 `"resolved_ids": [...]`；然后跑 `render_tracking.py` 刷新 `tracking/hooks.md`。
+修复完成后调用 `archive_facts.py` 生成 MCP tool_calls → Agent 依 read→merge→write 顺序调 `novel_project` MCP：
+- 新回调/新伏笔 payload 里带 `"foreshadowing": {"new": [...]}`
+- 已回收 payload 里带 `"foreshadowing": {"resolved": [...]}`（会自动加 `chXXX: 已回收` 观测；若 payload 填了 `resolved_plot`，还会建 `回收于` 关系边）

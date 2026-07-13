@@ -5,7 +5,7 @@
 - API 端点：豆包/DeepSeek（或任一 OpenAI 兼容端点，火山方舟 `/api/plan/v3` 亦可）
 - 可选：Hermes CLI（若要自动向 Hermes 注册 MCP）
 
-**不再依赖** LiteLLM 网关、firstory、uno、publishready、memory-novel 等外部服务。
+**不再依赖** LiteLLM 网关、firstory、uno、publishready、memory-novel 等外部服务。项目当前状态由 writer skill 的 `novel_project` MCP 承载（本 skill 不读不写）。
 
 ---
 
@@ -76,7 +76,7 @@
 writer skill 会话 → "开新书" → 交互创建标准目录 + novel.json
 ```
 
-生成的目录结构（含 `.writer/state/*.json` 四层写权限架构）可直接被本 skill 的 `polish_chapter.py` 识别使用。
+生成的目录结构（含 `novel.json` + setting/*.md + chapters/）可直接被本 skill 的 `polish_chapter.py` 识别使用。项目当前状态由 writer 侧的 `novel_project` MCP 管理（本 skill 只碰 chapters/）。
 
 若只是独立运行 novel-pipeline 做纯润色，只需：
 1. 有 `chapters/ch_NNN.md` 一批

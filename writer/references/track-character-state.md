@@ -1,7 +1,7 @@
 # 角色状态追踪更新
 
-> **适用范围**：写完一卷(≥60章)或批量写章(>10章)后更新角色状态追踪文件。**不适用**：单章日更——单章的状态变化在写章管线 Step 5 通过 `archive_facts.py` 自动归档到 `.writer/state/*.json`，再由 `render_tracking.py` 派生到 `tracking/current_state.md`。本文档仅在需要人工深度校准状态（如全卷完结后主角状态全面盘点）时用。
-> **加载时机**：审查循环 Step 4（追踪更新）或卷末批量写章后。**非日常操作**。
+> **适用范围**：写完一卷(≥60章)或批量写章(>10章)后对主要角色状态做人工深度校准。**不适用**：单章日更——单章的状态变化在写章管线 Step 5 通过 `archive_facts.py` 生成 payload 后 Agent 自动调 `novel_project` MCP 归档。本文档仅在需要人工深度校准状态（如全卷完结后主角状态全面盘点）时用。
+> **加载时机**：审查循环 Step 4（事实库增量归档）或卷末批量写章后。**非日常操作**。
 
 ---
 
@@ -101,10 +101,14 @@ grep -lE '角色A|角色B|角色C' chapters/ch29*.md
 - ...
 ```
 
-### 5. 输出文件
+### 5. 输出目标
 
-- 旧项目中文目录：`追踪/角色状态.md`
-- Writer 新目录：`tracking/current_state.md`
+**v8.4 起，卷末盘点结果统一写入 `novel_project` MCP**：
+- 对每个主要角色构造 archive_facts payload（`recent_changes` 里列本卷所有状态变更）
+- 通过 archive_facts.py 生成 tool_calls → Agent 依 read→merge→write 调 MCP
+- 上表格式作为**盘点报告**保存到 `.writer/runtime/volN-character-state.md`（便于用户人读复核），但**权威源是 MCP**
+
+老项目若仍用 `追踪/角色状态.md` 中文目录：视为归档，只读；下一轮更新走 MCP。
 
 ---
 
@@ -117,7 +121,7 @@ grep -lE '角色A|角色B|角色C' chapters/ch29*.md
 grep -lE '主角|女主|配角A|配角B|配角C' chapters/ch29[0-5]*.md
 ```
 
-发现状态变化后，逐条更新 `追踪/角色状态.md` 对应角色的行。
+发现状态变化后，构造 archive_facts payload 追加到 MCP 对应角色实体的观测。
 
 ---
 

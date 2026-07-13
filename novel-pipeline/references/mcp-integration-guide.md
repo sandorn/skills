@@ -106,9 +106,9 @@ DOUBAO_MODEL=...
 
 ---
 
-## 四、状态存储（v3.4 起委托给 writer）
+## 四、状态存储（v3.5 起委托给 writer + `novel_project` MCP）
 
-本 skill **不再持有任何状态文件**。项目状态（角色/伏笔/世界观/战力）由 writer skill 的 `.writer/state/*.json` 独占管理，通过 `writer/scripts/archive_facts.py` 写入。
+本 skill **不再持有任何状态文件**。项目当前状态（角色/伏笔/世界观/战力）由 writer skill 的 `novel_project` MCP 独占管理，通过 `writer/scripts/archive_facts.py` 生成 payload 后由 writer 侧 Agent 调 MCP 写入。**本 skill 不读也不写 `novel_project` MCP。**
 
 本 skill 只操作 `chapters/*.md`：读原文 → 调 MCP → 覆写。
 

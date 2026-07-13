@@ -1,6 +1,6 @@
 # Writer Skill 架构全景图
 
-> v8.3 · 2026-07-10 — 四层写权限架构，novel-pipeline 协作模式
+> v8.4 · 2026-07-13 — 记忆层迁至 `novel_project` MCP，`.writer/state/` 与 `tracking/` 全面废除
 
 ---
 
@@ -13,9 +13,9 @@ writer/                     ~ 380 KB / 47 文件
 ├── ARCHITECTURE.md              本文件
 ├── CHANGELOG.md                  版本历史
 ├── .gitignore
-├── references/           ~ 25 文件  AI 执行指令
+├── references/           ~ 26 文件  AI 执行指令（新增 memory-mcp.md）
 ├── agents/               4 文件    Full 审查子代理
-├── scripts/              12 文件   Python 工具（含 archive_facts / render_tracking / lib.ensure_git_snapshot）
+├── scripts/              12 文件   Python 工具（含 archive_facts / import_state_to_mcp / lib.ensure_git_snapshot）
 └── templates/            1 文件    审查报告模板
 ```
 
@@ -35,8 +35,14 @@ writer/                     ~ 380 KB / 47 文件
               ↑ 嵌套包含，只运行最高级，不叠加
               longform(每100章) 与 full 叠加 — 正交维度
 
-写章 Step 5:  archive_facts.py → .writer/state/*.json（原子事实追加）
-             render_tracking.py → tracking/*.md（人读派生，保留 user-edit 块）
+写章前:        Agent 调 novel_project MCP（get_entity_with_relations + search_nodes）
+              拉主要角色/势力/未回收伏笔当前状态
+
+写章 Step 3:  archive_facts.py 生成 MCP tool_calls (read→merge→write 三段式)
+             Agent 依此顺序调 novel_project MCP：
+               phase=read  → get_entity_with_relations（拿旧观测）
+               phase=write → create_entities（合并后写回）
+               phase=write → create_relations（有向关系边）
 
 批量润色:      交给 novel-pipeline skill polish_chapter.py（豆包 MCP + git 快照 + 断点续传）
 批量出稿:      交给 novel-pipeline skill novel-deepseek MCP.generate_draft
@@ -44,28 +50,32 @@ writer/                     ~ 380 KB / 47 文件
 
 ---
 
-## 三、四层写权限（v8.3 核心架构）
+## 三、三层写权限（v8.4 核心架构）
 
 ```
 {project}/
-├── novel.json                # 项目元数据
-├── setting/*.md              # 【用户领地】静态约束（世界观/角色/战力/势力/writing_rules）
+├── novel.json                # 项目元数据（含 memory_mcp: novel_project）
+├── setting/*.md              # 【用户领地】静态设定原稿 + <!-- user-edit --> 规划意图
 ├── outline/                  # 【用户 + Agent 协作】大纲
 ├── chapters/                 # 【Agent 主写】正文 ch_NNN.md
-├── tracking/*.md             # 【Agent 派生渲染】人读快照 + 用户 <!-- user-edit --> 块
 └── .writer/
-    ├── state/*.json          # 【Agent 独写】原子事实源（archive_facts.py 写入）
-    ├── project_memory.json   # skill 学到的项目习惯
     └── runtime/              # 临时文件（.gitignore）
+
++ novel_project MCP           # 【Agent 独写】当前状态原子事实 + 关系图谱
+  落盘: ~/.agents/skills/writer/memory/novel_project.db
 ```
 
 | 层 | 写方 | 改方 | 用途 |
 |---|---|---|---|
-| `.writer/state/*.json` | Agent 独写 | 只 Agent | 原子事实 |
-| `tracking/*.md` | Agent 派生 | 用户 user-edit 块可补 | 人读快照 |
-| `setting/*.md` | Agent 初始 + 用户改 | 用户为主 | 静态约束 |
+| **`novel_project` MCP** | Agent 独写（archive_facts 生成 payload）| 只 Agent | 原子事实 + 关系图谱 |
+| `setting/*.md` | Agent 初始 + 用户改（含 `<!-- user-edit -->`）| 用户为主 | 静态约束 + 规划意图 |
 | `chapters/*.md` | Agent 主写 | 用户可修 | 正文 |
 | `outline/*.md` | Agent 生成 + 用户改 | 双方 | 大纲 |
+
+**v8.4 与 v8.3 差异**：
+- 废除 `.writer/state/*.json`（4 份原子事实文件）→ 全部迁至 MCP
+- 废除 `tracking/*.md`（人读派生层）→ 需要人读快照时用 `report_graph.py` 从 MCP 生成
+- 用户规划意图从 `tracking/*.md` 挪到 `setting/*.md` 里的 `<!-- user-edit -->` 块
 
 ---
 
@@ -86,55 +96,56 @@ writer/                     ~ 380 KB / 47 文件
   master-outline         暗线审查/总纲对齐
 ```
 
-审查读取源：`.writer/state/*.json`（当前事实）+ `setting/*.md`（原始设定）+ `chapters/*.md`（正文）+ `outline/*.md`（大纲计划），四方交叉对比。
+审查读取源：`novel_project` MCP（当前事实 + 关系）+ `setting/*.md`（原始设定）+ `chapters/*.md`（正文）+ `outline/*.md`（大纲计划），四方交叉对比。
 
 ---
 
-## 五、状态归档链（v8.3 替代 memory-novel MCP）
+## 五、状态归档链（v8.4 · MCP-based）
 
 ```
 写章 Step 3 完成 → chapters/ch_NNN.md 落盘
                 ↓
-       Agent 分析变更 → 构造 JSON payload
+       Agent 分析变更 → 构造 JSON payload（人物/伏笔/势力/关系）
                 ↓
-       stdin ─→ archive_facts.py
+       stdin ─→ archive_facts.py（READONLY，只生成 payload）
                 ↓
-                ├─ .writer/state/characters.json（增量合并 + 版本自增）
-                ├─ .writer/state/foreshadowing.json（active 新增 / resolved 转移）
-                ├─ .writer/state/power_system.json
-                ├─ .writer/state/world_setting.json
-                └─ .bak 备份（每份 JSON 写前自动）
+       输出 tool_calls: [phase=read, phase=write, ...]
                 ↓
-       render_tracking.py
+       Agent 按顺序调 novel_project MCP：
+         1. phase=read  → get_entity_with_relations（每个已存在实体）
+         2. 合并 old_obs + new_obs（替换 <merge_with_old> 占位符）
+         3. phase=write → create_entities（覆盖式写回）
+         4. phase=write → create_relations（有向边幂等）
                 ↓
-                ├─ 读现有 tracking/*.md 提取 <!-- user-edit --> 块
-                ├─ 从 state JSON 重新渲染表格/列表
-                ├─ 把 user-edit 块按锚点回填
-                └─ .md.bak 备份
+       novel_project.db (SQLite) 落盘
+       WAL 模式，读写并发安全
 ```
 
 **关键设计**：
-- state JSON = 机读源（结构化，Agent 归档准确，可 diff）
-- tracking md = 人读快照（Agent 派生，用户可在 `<!-- user-edit -->` 块内补规划意图）
-- setting md = 静态约束（用户手写，写章前 Agent 加载）
-- 三层职责清晰不重合
+- MCP = 单一事实源（结构化实体 + 观测 + 关系，Agent 归档准确，可 `search_nodes` 检索）
+- setting md = 静态约束（用户手写，seed MCP 的原稿）
+- 用户规划意图 = `setting/*.md` 里的 `<!-- user-edit -->` 块（不落 MCP，但写章前 Agent 会读）
+- 两层职责清晰不重合
+
+**权威规范**：`references/memory-mcp.md`（8 个 MCP 工具目录 + entityType/relations 受控词表 + FTS 检索最佳实践）
+**治理禁令**：`references/memory-governance.md`
 
 ---
 
 ## 六、脚本 (12个)
 
 ```
-READONLY (4) — 只读分析
+READONLY (5) — 只读分析
   analyze_hook        追读力 (钩子/爽点)
   analyze_rhythm      节奏 (等级/金币/感情线)
-  report_panorama     全景报告 ← 章节文件 + tracking/
-  report_graph        关系图谱 ← 章节文件 + tracking/
+  report_panorama     全景报告 ← 章节文件 + MCP
+  report_graph        关系图谱 ← MCP（v8.4 数据源迁到 MCP）
+  archive_facts       事实归档 payload 生成（v8.4：只输出 MCP tool_calls，不写文件）
+  import_state_to_mcp 老项目一次性迁移（生成 MCP tool_calls）
 
-SAFE_WRITE (4) — 幂等/可回滚
+SAFE_WRITE (2) — 幂等/可回滚
   split_paragraphs    段落拆分 (.bak备份)
   fix_dashes          B02 破折号四类上下文修复 (.bak备份)
-  archive_facts       事实归档到 .writer/state/*.json (.bak 备份 + 版本自增)
-  render_tracking     从 state JSON 派生 tracking md (.md.bak 备份 + user-edit 块保护)
 
 EXPORT_ONLY (1)
   export              多平台导出
@@ -144,6 +155,9 @@ CAUTION (1)
 
 INFRA (1)
   lib                 共享工具（含 ensure_git_snapshot 快照钩子）
+
+DEPRECATED (1) — v8.4 已停用
+  render_tracking     v8.3 tracking/*.md 派生器；v8.4 起 tracking 层已废
 ```
 
 > 润色能力（原 `polish.py`）自 v8.3 迁移到 **novel-pipeline** skill 的 `scripts/polish_chapter.py`。writer 通过 `references/style-transfer.md` 调用；文风预设仍在 writer 侧 `references/presets/`。
@@ -167,8 +181,7 @@ P2 建议 (1): B10 卷间衔接
 | 能力 | writer | novel-pipeline |
 |---|---|---|
 | 项目初始化、大纲、写章、审查、发布 | ✅ | — |
-| 状态归档（`.writer/state/*.json`）| ✅ archive_facts.py | ❌ |
-| tracking 派生（`tracking/*.md`）| ✅ render_tracking.py | ❌ |
+| **`novel_project` MCP 归档** | ✅ archive_facts.py（生成 payload → Agent 调 MCP）| ❌ |
 | 批量豆包润色 | 不自持 | ✅ `polish_chapter.py` |
 | DeepSeek 批量出稿 | 调本 skill MCP | ✅ `novel-deepseek MCP` |
 | Git 前置快照 | ✅ `lib.ensure_git_snapshot`（写章/修复）| ✅ 内置（润色）|
@@ -181,7 +194,7 @@ P2 建议 (1): B10 卷间衔接
 
 | 指标 | 数值 |
 |------|------|
-| 脚本 | 12 (R:4, SW:4, E:1, C:1, I:1, + archive_facts / render_tracking / lib) |
+| 脚本 | 12 (R:5, SW:2, E:1, C:1, I:1, DEP:1, + archive_facts / import_state_to_mcp / lib) |
 | Agent | 4 (story-architect / consistency-checker / narrative-writer / character-designer) |
 | 路由 | 31 |
 | 审查模式 | 10 (6 自动替代升级 + 4 人工) |
@@ -190,16 +203,26 @@ P2 建议 (1): B10 卷间衔接
 | 段落上限 | 42 汉字 |
 | 字数下限 | 2500 汉字 |
 | 子代理批次 | ≤5章(写) / ≤40章(审) |
-| skill_version | 8.3 |
+| MCP 工具 | 8（详见 references/memory-mcp.md） |
+| skill_version | 8.4 |
 
 ---
 
-## 十、v8.3 关键变更
+## 十、v8.4 关键变更
 
-1. **删除 memory-novel MCP 依赖**：所有原来"知识图谱"的功能改由 `.writer/state/*.json` + `archive_facts.py` 承担
-2. **删除 publishready / firstory / uno MCP 依赖**：所有审查/质检回归本地 audit.py + 主 Agent 判断
-3. **新增四层写权限**：state/tracking/setting/chapters 职责清晰不重合
-4. **新增 archive_facts.py / render_tracking.py**：状态归档链本地化
-5. **协作 novel-pipeline v3.4+**：润色/出稿委托，writer 专注编辑/审查/发布
-6. **章节命名统一 ch_NNN.md**：与 novel-pipeline 一致
-7. **项目根三 marker 兼容**：novel.json > writer.json > novel-pipeline.json
+1. **迁记忆层至 novel_project MCP**：`.writer/state/*.json` 四份原子事实文件、`tracking/*.md` 派生层**全部废除**
+2. **archive_facts.py 从 SAFE_WRITE 改为 READONLY**：只生成 MCP tool_calls 序列，不写任何 JSON
+3. **新增 import_state_to_mcp.py**：老项目一次性迁移（老 `.writer/state/*.json` → MCP）
+4. **新增 references/memory-mcp.md**：8 个 MCP 工具目录 + entityType/relations 受控词表 + 覆盖式陷阱 + FTS 检索最佳实践
+5. **render_tracking.py deprecated**：tracking/*.md 派生逻辑已废，人读快照按需用 `report_graph.py` 从 MCP 生成
+6. **project-init 骨架精简**：不再创建 `.writer/state/`、不再创建 `tracking/`，改为 seed MCP 首批实体
+7. **审查报告增加 MCP 覆盖率维度**：健康评分含 MCP 归档完整度
+
+## v8.3 关键变更（保留背景）
+
+1. 删除 memory-novel MCP 依赖（改用 `.writer/state/*.json`，v8.4 又迁回 MCP）
+2. 四层写权限设计（state/tracking/setting/chapters，v8.4 简化为三层）
+3. archive_facts.py / render_tracking.py（v8.4 前者改造后者废）
+4. 协作 novel-pipeline v3.4+：润色/出稿委托
+5. 章节命名统一 ch_NNN.md
+6. 项目根三 marker 兼容：novel.json > writer.json > novel-pipeline.json

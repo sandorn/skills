@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SAFETY: READONLY — 只读分析+图谱生成，不修改任何源文件。安全。
-"""实体关系图谱生成 — 从正文+追踪文件提取角色关系 → 输出Mermaid格式。
+"""实体关系图谱生成 — 从正文+setting+（老项目）tracking 提取角色关系 → 输出Mermaid格式。
 
 用法：
     python report_graph.py <项目根>                                 # 全量图谱
@@ -8,8 +8,12 @@
     python report_graph.py <项目根> --ch 1 60                        # 仅该范围章节
     python report_graph.py <项目根> --output <文件>                   # 写入文件
 
-项目适配：角色名从 setting/characters.md 或 writer.json 自动加载。
-若都未配置，脚本会从正文中自动检测高频人名（至少出现3次以上的角色）。
+项目适配：
+  - 角色名从 setting/characters.md 或 writer.json 自动加载
+  - v8.4 起：项目当前状态源是 novel_project MCP，本脚本不直连 MCP
+    （Agent 侧可在会话内调 read_graph / get_entity_with_relations 拿实体，本脚本走正文扫描降级路径）
+  - 老项目 tracking/current_state.md 若存在则读为附加角色源，不存在静默跳过
+  - 若都未配置，从正文中自动检测高频人名（至少出现3次以上的角色）
 """
 
 import re, os, sys, json, argparse
@@ -105,7 +109,7 @@ def extract_relationships(text, chars_found):
 
 
 def load_tracking_states(project_root, char_dict):
-    """从追踪文件读取角色状态。"""
+    """兼容老项目：若 tracking/current_state.md 或 追踪/角色状态.md 存在，则读取；v8.4 之后新项目走 MCP，不落文件。"""
     states = {}
     for path in [
         os.path.join(project_root, 'tracking', 'current_state.md'),
@@ -121,25 +125,25 @@ def load_tracking_states(project_root, char_dict):
 
 
 def load_from_tracking(project_root):
-    """从 tracking/ 文件和章节文件提取角色关系。"""
+    """兼容老项目：从 tracking/ + 章节文件提取角色关系。v8.4 后 tracking 已废，缺失时静默返回空。
+
+    新项目当前状态由 novel_project MCP 承载，本脚本不直连 MCP；
+    完整图谱应在会话内调 MCP read_graph / get_entity_with_relations 获取。
+    """
     rels = []
     chars = []
     try:
-        # 从 tracking/current_state.md 读取角色列表
         state_path = os.path.join(project_root, 'tracking', 'current_state.md')
         if os.path.exists(state_path):
             with open(state_path, 'r', encoding='utf-8') as f:
                 for line in f:
-                    # 解析形如 "林北: Lv5, 青云城, 金币35000" 的行
                     if ':' in line and not line.startswith('#'):
                         name = line.split(':')[0].strip()
                         if name and len(name) >= 2:
                             chars.append(name)
 
-        # 从章节文件 grep 关系里程碑
         chapters_dir = os.path.join(project_root, 'chapters')
         if os.path.isdir(chapters_dir):
-            import re
             relation_pattern = re.compile(
                 r'(表白|告白|确定关系|在一起|结婚|初遇|认识|决裂|分手)'
             )
@@ -324,7 +328,7 @@ def generate_mermaid(char_freq, cooccur, relation_list, char_dict,
 
 def main():
     parser = argparse.ArgumentParser(
-        description='实体关系图谱生成 — 从正文+追踪文件提取角色关系 → 输出Mermaid格式',
+        description='实体关系图谱生成 — 从正文（+老项目 tracking）提取角色关系 → 输出Mermaid格式。v8.4 起 tracking 已废，权威源改为 novel_project MCP（本脚本不直连）',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='示例:\n'
                '  python report_graph.py .\n'
