@@ -19,7 +19,7 @@ from lib import (count_chinese, extract_body, scan_chapter_files,
 
 # === 禁令规则（与 references/hard-bans.md 同步） ===
 
-# P0 阻塞禁令（B01-B05）
+# P0 阻塞禁令（B01-B05, B11）
 BANS = {
     # B02: 破折号
     '——破折号': r'——',
@@ -34,6 +34,13 @@ BANS = {
     '眼中闪过一丝': r'眼中闪过一丝',
     '深吸一口气': r'深吸一口气',
     '心中一动': r'心中一动',
+    # B11: Markdown 格式（章节正文零容忍，番茄星号污染防线）
+    'MD加粗': r'\*\*[^*\n]+\*\*',
+    'MD反引号代码': r'`[^`\n]+`',
+    'MD链接/图片': r'!?\[[^\]\n]+\]\([^)\n]+\)',
+    'MD分隔线': r'(?m)^\s*(?:-{3,}|\*{3,}|_{3,})\s*$',
+    'HTML标签': r'<(?:br|hr|b|i|em|strong|div|span|p|u|s|del|ins)\s*/?>',
+    'MD正文标题': r'(?m)^#{1,6}\s+\S',  # extract_body 已剥离首行标题；正文中间出现 = 违规
 }
 
 # B01: 对话引号检测（分 ASCII 和 Unicode 弯引号）
@@ -248,11 +255,11 @@ def main():
 
     files = scan_chapter_files(target, args.start, args.end)
 
-    # 预加载最近章节用于模板复制检测
-    prev_texts = []
-    for f in files[:3]:
+    # 预加载所有章节文本，供每一章按索引取"当前章之前的 3 章"作参考
+    all_texts = {}
+    for f in files:
         with open(os.path.join(target, f), 'r', encoding='utf-8') as fh:
-            prev_texts.append(fh.read())
+            all_texts[f] = fh.read()
 
     ok = bad = 0
     total_cn = 0
@@ -262,8 +269,11 @@ def main():
 
     for i, f in enumerate(files):
         fp = os.path.join(target, f)
+        # 前 3 章无历史，跳过模板复制检测；否则取前面 3 章做参考池
+        prev_slice = files[max(0, i-3):i]
+        prev_texts = [all_texts[pf] for pf in prev_slice]
         passed, issues, cn, fixed = audit_file(
-            fp, prev_texts[:3], fix_escaped, verify_only, backup=do_backup)
+            fp, prev_texts, fix_escaped, verify_only, backup=do_backup)
         total_cn += cn
         if fixed:
             fixed_count += 1
