@@ -344,7 +344,7 @@ with open(ch_path, 'r', encoding='utf-8') as f:
 | `cat chapters/ch_*.md` 从文件读正文 | 子代理委派 |
 | `audit.py --verify` 验证修复结果（只读） | 正则批量替换 |
 | 主会话逐章通读 + 独立报告 | 跳过章节 / 加速节奏 |
-| 进度文件保存到 `tracking/manual-pass-progress.md` | 用脚本扫描结果替代通读 |
+| 进度文件保存到 `.writer/runtime/manual-pass-progress.md` | 用脚本扫描结果替代通读 |
 
 ### 批次限制
 
@@ -358,7 +358,7 @@ with open(ch_path, 'r', encoding='utf-8') as f:
   ② 完整通读一遍
   ③ 报告: 语调评价 + 问题列表 + 修复操作
   ④ 写回文件 → 更新 writer.json 版本状态
-  ⑤ 更新 tracking/manual-pass-progress.md
+  ⑤ 更新 .writer/runtime/manual-pass-progress.md
 ```
 
 ### 每章报告格式

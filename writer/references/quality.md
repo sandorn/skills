@@ -169,14 +169,14 @@ python scripts/audit.py --verify chapters/
 
 **基础检查：**
 - 检查 `writer.json` 是否存在且 JSON 合法
-- 检查 `setting/`、`outline/`、`chapters/`、`tracking/` 是否存在
+- 检查 `setting/`、`outline/`、`chapters/`、`.writer/runtime/` 是否存在
 - 统计正文章数、最近章节、低于 2500 汉字章节
 - 扫描占位符：`TODO`、`待补`、`{}`、`【待】`
 
 **缺口检测（仅在发现问题时报告）：**
 1. **正文多设定少**：章节 > 10 但设定文件 < 3 → 建议补充设定
 2. **AI味密度**：跑 `audit.py` 快速禁令扫描
-3. **异常伏笔**：检查追踪文件中的异常状态伏笔
+3. **异常伏笔**：从 `novel_project` MCP 查询异常状态伏笔；老项目 `tracking/` 仅作只读参考
 4. **大纲缺失**：有正文但无大纲目录 → 建议创建大纲
 5. **拆文未完成**：analysis_lib/ 下有 _progress.md → 提示继续拆解
 6. **部署完整性**：.writer/ 结构是否完整

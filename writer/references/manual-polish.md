@@ -142,7 +142,7 @@ ch_030 前需要给老周补两条动机线索
 1. 确认项目根目录（检测 `novel.json` / `writer.json` + `setting/` + `chapters/`）
 2. 读取项目根 JSON 获取当前写作状态
 3. 检查 `.writer/runtime/` 是否存在上次未完成的润色进度文件
-4. 读取 `tracking/*.md` 内的 `<!-- user-edit -->` 块 —— 用户可能在这里留了本轮润色相关的规划意图（如"ch_030 前要暴露老周的双面"）
+4. 读取 `setting/*.md` 内的 `<!-- user-edit -->` 块 —— 用户可能在这里留了本轮润色相关的规划意图（如"ch_030 前要暴露老周的双面"）
 5. 检查 `setting/writing_rules.md` —— 项目专属声音卡，润色时必须遵守
 
 ```
@@ -171,7 +171,7 @@ ch_030 前需要给老周补两条动机线索
 
 ### Step 2：创建进度追踪文件
 
-润色开始前，在 `tracking/manual-polish-progress.md`（或 `追踪/润色进度.md`）写入：
+润色开始前，在 `.writer/runtime/manual-polish-progress.md` 写入：
 
 ```markdown
 # 纯手动润色进度
@@ -257,7 +257,7 @@ ch_030 前需要给老周补两条动机线索
 | 污染修复 | N | ... |
 | 禁令 | ✅ | 破折号0/AI词0/B030 |
 ```
-然后更新 `tracking/manual-polish-progress.md` 中的进度行。
+然后更新 `.writer/runtime/manual-polish-progress.md` 中的进度行。
 
 润色后逐章自检清单：
 
@@ -347,7 +347,7 @@ python scripts/audit.py chapters/       # 禁令扫描
 
 ## 进度追踪文件完整格式
 
-放在 `tracking/manual-polish-progress.md`：
+放在 `.writer/runtime/manual-polish-progress.md`：
 
 ```markdown
 # 纯手动润色进度
@@ -462,7 +462,7 @@ python scripts/audit.py chapters/       # 禁令扫描
 
 润色过程中若会话中断，恢复流程：
 
-1. 读取 `tracking/manual-polish-progress.md`
+1. 读取 `.writer/runtime/manual-polish-progress.md`
 2. 找到最后一个状态为 `✅` 的章节
 3. 从下一章 `⏳` 或 `🔄` 继续
 4. 如果某章状态 `🔄`（润色中但未完成）：

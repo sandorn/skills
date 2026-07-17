@@ -75,5 +75,49 @@ class TestIsDialogueLine(unittest.TestCase):
         self.assertFalse(is_dialogue_line("这是一个普通的句子。"))
 
 
+class TestAuditB11(unittest.TestCase):
+    """B11 Markdown 格式零容忍"""
+
+    def test_markdown_bold_is_blocking(self):
+        from audit import audit_text
+        text = "# 第1章\n\n这是正文。\n\n**这里不该加粗**。"
+        passed, issues, _cn, _fixed = audit_text(text)
+        self.assertFalse(passed)
+        self.assertTrue(any("MD加粗" in issue for issue in issues))
+
+    def test_body_heading_is_blocking_but_first_title_is_allowed(self):
+        from audit import audit_text
+        text = "# 第1章\n\n这是正文。\n\n## 正文里不该有二级标题\n\n继续正文。"
+        passed, issues, _cn, _fixed = audit_text(text)
+        self.assertFalse(passed)
+        self.assertTrue(any("MD正文标题" in issue for issue in issues))
+
+
+class TestArchiveFactsPayload(unittest.TestCase):
+    """archive_facts.py 只生成 MCP tool call，不写本地 JSON。"""
+
+    def test_character_calls_use_read_before_write(self):
+        from archive_facts import build_character_calls
+        reads, writes = build_character_calls([
+            {
+                "name": "苏白",
+                "cultivation": "练气四层",
+                "current_location": "青云门",
+                "recent_changes": ["遇到老周"],
+                "factions": ["青云门"],
+            }
+        ], chapter=12)
+
+        self.assertEqual(reads[0]["phase"], "read")
+        self.assertEqual(reads[0]["tool"], "get_entity_with_relations")
+        self.assertEqual(writes[0]["phase"], "write")
+        self.assertEqual(writes[0]["tool"], "create_entities")
+        entity = writes[0]["args"]["entities"][0]
+        self.assertEqual(entity["name"], "苏白")
+        self.assertIn("<merge_with_old>", entity["observations"])
+        self.assertIn("ch012: 修为 练气四层", entity["observations"])
+        self.assertEqual(writes[1]["tool"], "create_relations")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

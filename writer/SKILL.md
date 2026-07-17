@@ -1,7 +1,7 @@
 ---
 name: writer
-version: "8.4"
-description: "网文写作全流程引擎：扫榜/拆文/大纲/写章/审查/质检/发布/文风转换。v8.4 起小说记忆统一由 novel_project MCP 管理，禁用本地 JSON 状态；v8.3 起与 novel-pipeline 协作，批量润色/初稿由后者提供。"
+version: "8.5"
+description: "网文写作全流程引擎：扫榜/拆文/大纲/写章/审查/质检/发布/文风转换。v8.5 起章节 Markdown 格式零容忍；v8.4 起小说记忆统一由 novel_project MCP 管理，禁用本地 JSON 状态；与 novel-pipeline 协作，批量润色/初稿由后者提供。"
 category: writing
 tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 ---
@@ -490,8 +490,8 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 
 1. **Plan** — 确认本章目标、情绪、钩子、禁区
 2. **Architect** — 编排上下文，生成章节结构
-3. **Write + Reflect** — 写正文，提取事实变更（≥2500字/B06/B01/B05）
-4. **Audit + Normalize** — 审查 B01-B05 禁令 + AI 痕迹 + 字数段落
+3. **Write + Reflect** — 写正文，提取事实变更（≥2500字/B06/B01/B05/B11）
+4. **Audit + Normalize** — 审查 B01-B05/B11 禁令 + AI 痕迹 + 字数段落
 5. **Revise** — 只修 blocking 和用户关心的问题
 
 `--full` 展开 9 步完整管线；`--fast` 缩减为 Plan → Write → Audit → Revise。
@@ -513,7 +513,7 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 {
   "project_name": "书名",
   "author": "作者",
-  "skill_version": "8.4",
+  "skill_version": "8.5",
   "stage": "scaffold|planning|writing|reviewing|completed",
   "genre": "xuanhuan|urban|xianxia|horror|other",
   "platform": "fanqie|feilu|qidian|zhihu|other",
@@ -540,7 +540,7 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 
 > **加载策略**：核心模块每次写作会话预加载；扩展模块按路由匹配按需加载。
 
-### 核心（12 个 — 每次写作必知）
+### 核心（11 个 — 每次写作必知）
 
 | 文件 | 功能 |
 |------|------|
@@ -579,7 +579,7 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 | `references/tool-pitfalls-windows.md` | Windows 特有工具陷阱（write_file 换行丢失、PowerShell 引号冲突） |
 | `references/encoding-fix-recipe.md` | Git 中文编码修复方案（字节级损坏不可逆，必须从干净旧版本重建） |
 
-### 脚本（14 个）— 安全级别见各脚本头部
+### 脚本（12 个）— 安全级别见各脚本头部
 
 | 文件 | 功能 | 安全 |
 |------|------|------|
@@ -621,7 +621,7 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 **核心原则**：主会话逐章通读，零子代理，零批量替换。每章独立报告。
 **允许的脚本**：只读脚本（`audit.py --verify` 验证），不修改文件。
 **禁止**：子代理委派、正则批量替换、跳过章节、加速节奏。
-**批次上限**：每会话 ≤5 章（超出则分批，批次间保存进度到 `tracking/manual-pass-progress.md`）。
+**批次上限**：每会话 ≤5 章（超出则分批，批次间保存进度到 `.writer/runtime/manual-pass-progress.md`）。
 **读取方式**：直接从文件系统读取正文（`chapters/ch_{NNN}.md`）。
 
 详见路由表。

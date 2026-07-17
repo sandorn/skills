@@ -61,9 +61,9 @@ echo '{"chapter": 123}' | python hooks/polish_independent.py
 ## 关键限制
 
 ### mcp_call 的 I/O 模型
-novel-doubao 的 API 响应时间约 60-170 秒（因为通过 `/api/plan/v3` 的 agent plan 链路，推理时间较长）。`subprocess.communicate()` 会提前关闭 stdin 导致 `anyio.ClosedResourceError`。
+novel-doubao 的 API 响应时间约 60-170 秒（因为通过 `/api/plan/v3` 的 agent plan 链路，推理时间较长）。对 MCP server 进程直接使用 `subprocess.communicate()` 会提前关闭 stdin，导致 `anyio.ClosedResourceError`。
 
-**必须使用线程读取 stdout**（见 `polish_independent.py` 的 `mcp_call` 实现），保持 stdin 开着直到收到 id=2 的响应。
+**直接调用 MCP server 时必须使用线程读取 stdout**（见 `hooks/utils.py::BaseMCPClient`），保持 stdin 开着直到收到 id=2 的响应。CLI 对本地 hook 脚本使用一次性 stdin 是允许的，因为 hook 内部仍通过 `BaseMCPClient` 和 MCP server 通信。
 
 **超时设置**：doubao 的 timeout 建议设为 300s（5 分钟）。大章（9000+ 字）可能需 160s+。
 

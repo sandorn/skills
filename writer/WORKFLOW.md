@@ -3,7 +3,7 @@
 > 从一个新选题开始，模拟使用本 skill 的端到端流程。
 > 每个阶段标注激活词、自动行为、状态归档。
 
-**架构版本**：v8.4（协作 novel-pipeline，三层写权限：`novel_project` MCP / `setting/*.md` / `chapters/*.md`）
+**架构版本**：v8.5（B11 Markdown 零容忍；协作 novel-pipeline，三层写权限：`novel_project` MCP / `setting/*.md` / `chapters/*.md`）
 
 ---
 

@@ -27,6 +27,13 @@ tags: [网文, 写作, pipeline, MCP, 逐章润色, writer 协作]
 - 字数循环（`--min-words` / `--max-words`）
 - 文风预设 override（`--style-file`）
 
+配合 `scripts/generate_draft_range.py` 提供：
+- DeepSeek 顺序出稿 CLI（`--range N-M`）
+- 读取 `outline/chapter_outline/ch_NNN.md`
+- 合并 `setting/*.md` 作为 `global_setting`
+- 前置 git 快照、断点续传（`.draft_progress.json`）
+- 覆写保护（默认不覆盖，`--overwrite` 才替换并生成 `.bak`）
+
 **明确不做**（v3.4 起）：
 - 项目初始化、大纲规划
 - 状态归档（伏笔/角色/世界观）
@@ -47,8 +54,8 @@ tags: [网文, 写作, pipeline, MCP, 逐章润色, writer 协作]
 
 优先级：Skill 本地 .env → 系统环境变量。两级都缺则 MCP server 启动即 `sys.exit(1)`。
 
-### novel-doubao 调用规范
-禁止 `subprocess.communicate()` 立即关闭 stdin（会触发 `anyio.ClosedResourceError`）。必须用 `hooks/utils.py::BaseMCPClient`（队列+线程读 stdout）。
+### MCP 调用规范
+禁止对 MCP server 进程直接使用 `subprocess.communicate()` 后立即关闭 stdin（会触发 `anyio.ClosedResourceError`）。必须用 `hooks/utils.py::BaseMCPClient`（队列+线程读 stdout）。CLI 调本地 hook 的一次性 stdin 不在此禁令范围内。
 
 ### 章节文件命名（强制）
 统一 `chapters/ch_NNN.md`（三位数补零 + 下划线，与 writer 一致）。
@@ -64,9 +71,11 @@ tags: [网文, 写作, pipeline, MCP, 逐章润色, writer 协作]
 # 1. writer 会话内规划（不涉及本 skill）
 #    → outline/chapter_outline/ch_NNN.md
 
-# 2. writer 主 Agent 调 novel-deepseek MCP 出初稿
-#    → chapters/ch_NNN.md
-#    → writer 侧 archive_facts.py 生成 novel_project MCP payload → Agent 落库
+# 2. DeepSeek 顺序出初稿（CLI 正式入口）
+python <novel-pipeline>/scripts/generate_draft_range.py --range 1-30 <project>/chapters
+#    → 读取 outline/chapter_outline/ch_NNN.md + setting/*.md
+#    → 写入 chapters/ch_NNN.md
+#    → 后续由 writer 侧 archive_facts.py 生成 novel_project MCP payload → Agent 落库
 
 # 3. 本 skill 批量润色（豆包 + writer 番茄预设）
 python <novel-pipeline>/scripts/polish_chapter.py --range 1-30 <project>/chapters `
@@ -127,6 +136,7 @@ novel-pipeline/
 │   └── novel-deepseek/deepseek_server.py # 初稿 MCP
 ├── scripts/
 │   ├── polish_chapter.py           # 官方唯一润色入口（CLI）
+│   ├── generate_draft_range.py     # DeepSeek 顺序出稿入口（CLI）
 │   ├── mcp_utils.py                # Hermes 自动注册（可选）
 │   └── verify_env.py               # 环境诊断
 └── references/                     # 6 份必要文档
@@ -156,6 +166,7 @@ novel-pipeline/
 | 脚本 | 功能 |
 |------|------|
 | `scripts/polish_chapter.py` | 唯一润色入口（前置 git 快照 + 断点续传 + 字数循环 + 文风 override）|
+| `scripts/generate_draft_range.py` | DeepSeek 顺序出稿入口（读取章纲/设定，写入 chapters/ch_NNN.md）|
 | `scripts/verify_env.py` | 环境诊断（Python/依赖包/.env/MCP server 文件）|
 | `scripts/mcp_utils.py` | Hermes 会话内自动注册 MCP（非 Hermes 环境打印手动配置片段）|
 
@@ -172,7 +183,7 @@ Hook 脚本（被 polish_chapter.py 调用，无独立入口）：
 | 大纲规划、状态追踪、审查、发布、封面 | ✅ | — |
 | 初稿写章（主 Agent 直写） | ✅ 5/9 步管线 | — |
 | 批量豆包润色（`DOUBAO_MODEL`） | 不自持 | ✅ `polish_chapter.py` |
-| DeepSeek MCP 批量出稿 | 调本 skill MCP | ✅ `generate_draft` |
+| DeepSeek MCP 批量出稿 | 调本 skill CLI/MCP | ✅ `generate_draft_range.py` / `generate_draft` |
 | 硬禁令 B01-B10、43 维审查 | ✅ | — |
 | Git 前置快照 | writer 侧有 `lib.ensure_git_snapshot`（供批量写章/修复用） | 本 skill 自持（供批量润色用）|
 | 状态归档（`novel_project` MCP）| ✅（`scripts/archive_facts.py` 生成 payload → Agent 调 MCP）| ❌ |

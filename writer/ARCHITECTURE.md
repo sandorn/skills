@@ -1,6 +1,6 @@
 # Writer Skill 架构全景图
 
-> v8.4 · 2026-07-13 — 记忆层迁至 `novel_project` MCP，`.writer/state/` 与 `tracking/` 全面废除
+> v8.5 · 2026-07-16 — B11 Markdown 零容忍；v8.4 起记忆层迁至 `novel_project` MCP，`.writer/state/` 与 `tracking/` 全面废除
 
 ---
 
@@ -167,7 +167,7 @@ DEPRECATED (1) — v8.4 已停用
 ## 七、禁令速查
 
 ```
-P0 阻塞 (5): B01对话「」 B02禁止—— B03不是…而是… B04元叙事 B05 AI高频词
+P0 阻塞 (6): B01对话「」 B02禁止—— B03不是…而是… B04元叙事 B05 AI高频词 B11章节正文禁用Markdown格式
 P1 强制 (4): B06 ≤42字/段 B07 ≥2500字/章 B08 禁止脚本注入 B09 ≤5章/批
 P2 建议 (1): B10 卷间衔接
 ```
@@ -198,17 +198,22 @@ P2 建议 (1): B10 卷间衔接
 | Agent | 4 (story-architect / consistency-checker / narrative-writer / character-designer) |
 | 路由 | 31 |
 | 审查模式 | 10 (6 自动替代升级 + 4 人工) |
-| 禁令 | 10 (P0:5, P1:4, P2:1) |
+| 禁令 | 11 (P0:6, P1:4, P2:1) |
 | 使用场景 | 8 (见 SKILL.md 「使用场景全景」章节) |
 | 段落上限 | 42 汉字 |
 | 字数下限 | 2500 汉字 |
 | 子代理批次 | ≤5章(写) / ≤40章(审) |
 | MCP 工具 | 8（详见 references/memory-mcp.md） |
-| skill_version | 8.4 |
+| skill_version | 8.5 |
 
 ---
 
-## 十、v8.4 关键变更
+## 十、v8.5 关键变更
+
+1. **B11 Markdown 零容忍**：章节正文禁止加粗、反引号代码、链接、HTML 标签、分隔线、正文内 Markdown 标题等格式污染
+2. **audit 参考池修复**：模板复制检测只比较当前章之前的 3 章，避免自比误报
+
+## 十一、v8.4 关键变更
 
 1. **迁记忆层至 novel_project MCP**：`.writer/state/*.json` 四份原子事实文件、`tracking/*.md` 派生层**全部废除**
 2. **archive_facts.py 从 SAFE_WRITE 改为 READONLY**：只生成 MCP tool_calls 序列，不写任何 JSON

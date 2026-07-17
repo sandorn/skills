@@ -46,7 +46,7 @@ DOUBAO_MODEL=...
 
 `polish_chapter` 通过火山方舟 `/api/plan/v3` agent plan 链路推理，单章响应 60–170s，大章 9000+ 字可到 200s+。
 
-- **禁止** `subprocess.communicate()` 立即关 stdin，会触发 `anyio.ClosedResourceError`。
+- **禁止** 对 MCP server 进程直接使用 `subprocess.communicate()` 立即关 stdin，会触发 `anyio.ClosedResourceError`。
 - **正确做法**：`hooks/utils.py::BaseMCPClient` 通过 `queue + thread` 逐行读 stdout，stdin 常开直到收到匹配 id 的响应。
 - **超时**：`polish_chapter` 建议 `timeout=300`，最大 600s。
 
@@ -100,7 +100,7 @@ DOUBAO_MODEL=...
 
 `polish_chapter` 通过火山方舟 `/api/plan/v3` agent plan 链路推理，单章响应 60–170s，大章 9000+ 字可到 200s+。
 
-- **禁止** `subprocess.communicate()` 立即关 stdin，会触发 `anyio.ClosedResourceError`。
+- **禁止** 对 MCP server 进程直接使用 `subprocess.communicate()` 立即关 stdin，会触发 `anyio.ClosedResourceError`。CLI 调本地 hook 的一次性 stdin 不在此禁令范围内。
 - **正确做法**：`hooks/utils.py::BaseMCPClient` 通过 `queue + thread` 逐行读 stdout，stdin 常开直到收到匹配 id 的响应。
 - **超时**：`polish_chapter` 建议 `timeout=300`，最大 600s。
 
@@ -113,4 +113,3 @@ DOUBAO_MODEL=...
 本 skill 只操作 `chapters/*.md`：读原文 → 调 MCP → 覆写。
 
 项目根识别（`hooks/utils.py::find_project_root()`）从 CWD 向上找 `novel.json` / `writer.json` / `novel-pipeline.json` 任一标记，用于 git 快照路径解析。识别不到不阻塞——独立场景（无项目根）仍可跑，只是无 git 快照保护。
-
