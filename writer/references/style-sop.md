@@ -64,7 +64,7 @@ reader_profile:
 sentence_params:
   max_sentence_length: 15       # 单句≤15字占比≥70%
   max_paragraph_lines: 3        # 最大段落行数
-  paragraph_separator: "空行"   # 段间分隔方式
+  paragraph_separator: "单换行"  # 段间分隔方式（不加空行，避免网站粘贴时双倍换行）
   dialogue_ratio:
     min: 0.4                    # 对话行占本章≥40%
     max: 0.6                    # 对话行占本章≤60%

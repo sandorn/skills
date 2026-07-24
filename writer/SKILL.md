@@ -592,6 +592,7 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 | `scripts/report_graph.py` | 实体关系图谱（从 MCP 派生） | READONLY |
 | `scripts/export.py` | 多平台格式导出 | EXPORT_ONLY |
 | `scripts/split_paragraphs.py` | 段落拆分（.bak备份，不涉及文本替换） | SAFE_WRITE |
+| `scripts/collapse_blanks.py` | 压缩正文段间空行（保留标题后1空行，其余段间统一单换行；.bak备份） | SAFE_WRITE |
 | `scripts/fix_dashes.py` | B02破折号四类上下文批量修复（预览/--apply两模式） | SAFE_WRITE |
 | `scripts/audit.py` | 统一审计（默认 --verify 只读） | CAUTION |
 
@@ -651,7 +652,8 @@ Full 模式是审查的最高等级。将 43 个审查维度拆分给 4 个独�
 2. **写章管线外的脚本默认只报告不修改** — `audit.py` 默认 `--verify`；需要修复时显式传 `--fix-escaped`。
 3. **字数不足时标记该章手工扩充** — 禁止任何脚本向正文注入文本。
 4. **段落拆分只能用 `split_paragraphs.py`** — 按句号断段，≤42 汉字，自动 .bak。
-5. **修改文件的脚本必须在输出中报告修改内容** — 静默修改视为 bug。
+5. **正文段间不加空行** — 段间统一单换行，只保留首行标题后那一个空行。老稿修复用 `collapse_blanks.py`（自动 .bak）；新写章由子代理和 MCP 直接产出，不再引入空行。
+6. **修改文件的脚本必须在输出中报告修改内容** — 静默修改视为 bug。
 
 ### Git 快照前置钩子
 
