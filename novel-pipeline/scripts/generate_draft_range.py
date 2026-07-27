@@ -160,10 +160,50 @@ def generate_draft(client: BaseMCPClient, chapter: int, global_setting: str, out
     return True, text
 
 
-def write_chapter(chapters_dir: Path, chapter: int, text: str, overwrite: bool) -> tuple[bool, str]:
+def _ensure_title_prefix(text: str, chapter: int, outline_file: Path | None) -> str:
+    """兜底：确保正文首行以 `# ` 开头（供 writer 下游脚本识别章节标题）。
+
+    - 若已以 `# ` 开头，原样返回
+    - 否则尝试从章纲文件首行提取 `第X章 标题`，包装为 `# 第X章 标题`
+    - 兜底不到章名时用 `# 第{chapter}章`
+    """
+    stripped = text.lstrip()
+    if stripped.startswith("#"):
+        return text
+
+    title_line = ""
+    if outline_file and outline_file.exists():
+        try:
+            for raw in outline_file.read_text(encoding="utf-8").splitlines():
+                s = raw.strip().lstrip("#").strip()
+                if not s:
+                    continue
+                # 匹配 "第N章 XX" / "第N章：XX" / "第N章:XX"
+                m = re.match(r"^第\s*[零一二三四五六七八九十百千\d]+\s*章[\s:：\-—]*(.*)$", s)
+                if m:
+                    name = m.group(1).strip() or ""
+                    title_line = f"# 第{chapter}章 {name}".rstrip()
+                    break
+                # 匹配无「第N章」但有中文标题的行
+                if len(s) <= 30 and not s.endswith("。"):
+                    title_line = f"# 第{chapter}章 {s}"
+                    break
+        except OSError:
+            pass
+
+    if not title_line:
+        title_line = f"# 第{chapter}章"
+
+    return f"{title_line}\n\n{text.lstrip()}"
+
+
+def write_chapter(chapters_dir: Path, chapter: int, text: str, overwrite: bool,
+                  outline_file: Path | None = None) -> tuple[bool, str]:
     path = chapters_dir / chapter_filename(chapter)
     if path.exists() and not overwrite:
         return False, f"{path.name} already exists; pass --overwrite to replace"
+    # 首行标题兜底（供 writer 下游脚本识别）
+    text = _ensure_title_prefix(text, chapter, outline_file)
     if path.exists():
         old = path.read_text(encoding="utf-8")
         if old != text:
@@ -252,7 +292,8 @@ Examples:
                 fail += 1
                 continue
 
-            written, message = write_chapter(chapters_dir, chapter, draft, overwrite=args.overwrite)
+            written, message = write_chapter(chapters_dir, chapter, draft, overwrite=args.overwrite,
+                                             outline_file=outline_file)
             if not written:
                 print(f"  跳过：{message}")
                 progress.mark_failed(chapter, message)
