@@ -59,13 +59,21 @@ MD_RESIDUE_CHECKS = [
 CN_DIGITS = "一二三四五六七八九十百千"
 
 # 第X条 正则（用于编号连续性检查的一级边界）
-ARTICLE_RE = re.compile(rf"^第[{CN_DIGITS}]+条")
+# 锚定行首并要求后接分隔符，避免正文中"依据《XX办法》第七条"被误判为条文
+ARTICLE_RE = re.compile(rf"^第[{CN_DIGITS}]+条(?=[\s　]|$)")
+
+# 一级标题"一、xxx"——非制度类公文（报告/请示/建议书）的分节边界，
+# 同样应重置二级/三级编号。缺此规则会把全文二级编号当作一条连续序列，
+# 对每节从"（一）"重启的正确公文误报"编号不连续"。
+H1_OUT_RE = re.compile(rf"^[{CN_DIGITS}]+、")
 
 # 二级编号（一）（二）...
 H2_OUT_RE = re.compile(rf"^（[{CN_DIGITS}]+）")
 
 # 三级编号 1．2．...
-H3_OUT_RE = re.compile(r"^\d+[．.]")
+# 要求编号后紧跟非数字字符，避免表格中的金额（如"112.84万元"、"1.5倍"）
+# 被误判为三级编号
+H3_OUT_RE = re.compile(r"^\d+[．.](?!\d)")
 
 # 中文数字 → int 映射
 _CN_NUM_MAP = dict(zip("一二三四五六七八九十", range(1, 11)))
@@ -104,6 +112,26 @@ def _extract_texts(docx_path: Path) -> list[str]:
         with z.open("word/document.xml") as f:
             tree = ET.parse(f)
     return [t.text or "" for t in tree.iter(f"{{{NS['w']}}}t")]
+
+
+def _extract_body_texts(docx_path: Path) -> list[str]:
+    """提取正文段落文本，跳过表格（<w:tbl>）内的内容。
+
+    编号连续性检查必须排除表格：单元格里的金额、比率、序号
+    （如"112.84万元"、"1．"）会被误判为三级编号，产生假阳性。
+    """
+    with zipfile.ZipFile(docx_path, "r") as z:
+        with z.open("word/document.xml") as f:
+            tree = ET.parse(f)
+    body = tree.find(f"{{{NS['w']}}}body")
+    if body is None:
+        return []
+    texts = []
+    # 仅遍历 body 的直接子元素：<w:p> 取文本，<w:tbl> 整体跳过
+    for child in body:
+        if child.tag == f"{{{NS['w']}}}p":
+            texts.append("".join(t.text or "" for t in child.iter(f"{{{NS['w']}}}t")))
+    return texts
 
 
 def _extract_styles(docx_path: Path) -> dict[str, dict]:
@@ -296,42 +324,32 @@ def _check_md_residue(docx_path: Path) -> list[dict]:
 # ═══════════════════ 第三层: 编号连续性 ═══════════════════
 
 def _check_numbering_continuity(docx_path: Path) -> list[dict]:
-    """检查 22-23: 二级/三级编号跨条重置。
+    """检查 22-23: 二级/三级编号跨节重置。
 
-    提取所有 <w:t> 文本，识别"第X条"作为一级边界，
+    按段落提取正文（跳过表格），识别"第X条"和一级标题"一、"作为分节边界，
     在每个边界区间内检查（一）（二）... 和 1．2．... 是否从 1 开始递增。
     """
-    texts = _extract_texts(docx_path)
-    # 合并相邻的 <w:t> 片段（word 会把一个段落拆成多个 run）
-    merged = []
-    buf = ""
-    for t in texts:
-        t = t.strip()
-        if not t:
-            continue
-        # 中文数字开头的编号通常标志新段落开始
-        if buf and (ARTICLE_RE.match(t) or H2_OUT_RE.match(t) or H3_OUT_RE.match(t)):
-            merged.append(buf)
-            buf = t
-        elif buf and not any(c in "（）．." for c in t[:6]):
-            # 普通文本可能接在编号后面，合并
-            buf += t
-        else:
-            if buf:
-                merged.append(buf)
-            buf = t
-    if buf:
-        merged.append(buf)
+    # 按 <w:p> 取整段文本，天然对齐段落边界；同时跳过表格，
+    # 避免单元格中的金额/序号被误判为编号
+    merged = [t.strip() for t in _extract_body_texts(docx_path) if t.strip()]
 
     h2_errors = []
     h3_errors = []
-    current_section = 0  # 当前第X条计数
+    current_section = 0  # 当前分节计数（第X条 或 一级标题）
     h2_counter = 0
     h3_counter = 0
 
     for line in merged:
         art_m = ARTICLE_RE.match(line)
         if art_m:
+            current_section += 1
+            h2_counter = 0
+            h3_counter = 0
+            continue
+
+        # 一级标题"一、xxx"同为分节边界（报告/请示等非制度文种）
+        h1_m = H1_OUT_RE.match(line)
+        if h1_m:
             current_section += 1
             h2_counter = 0
             h3_counter = 0
@@ -347,7 +365,7 @@ def _check_numbering_continuity(docx_path: Path) -> list[dict]:
                 actual = -1
             if actual != expected:
                 h2_errors.append(
-                    f"第{current_section}条区间: 期望( {_cn_to_str(expected)} ) 实际{line[:30]}"
+                    f"第{current_section}节区间: 期望（{_cn_to_str(expected)}） 实际{line[:30]}"
                 )
             h2_counter = actual if actual > 0 else expected
             h3_counter = 0
@@ -363,20 +381,20 @@ def _check_numbering_continuity(docx_path: Path) -> list[dict]:
                 actual = -1
             if actual != expected:
                 h3_errors.append(
-                    f"第{current_section}条区间: 期望 {expected}． 实际{line[:30]}"
+                    f"第{current_section}节区间: 期望 {expected}． 实际{line[:30]}"
                 )
             h3_counter = actual if actual > 0 else expected
 
     results = [
         {
-            "name": "二级编号跨条重置（一）（二）...",
+            "name": "二级编号跨节重置（一）（二）...",
             "pass": len(h2_errors) == 0,
             "level": "ERROR",
             "detail": "全部正确" if not h2_errors else f"{len(h2_errors)} 处错误",
             "samples": h2_errors[:5],
         },
         {
-            "name": "三级编号跨条重置 1．2．...",
+            "name": "三级编号跨节重置 1．2．...",
             "pass": len(h3_errors) == 0,
             "level": "ERROR",
             "detail": "全部正确" if not h3_errors else f"{len(h3_errors)} 处错误",

@@ -89,7 +89,13 @@ PAGE = {  # A4，单位 twips
 INDENTED_HEADS = {"14", "15", "16"}
 CN_NUM = "〇一二三四五六七八九十"
 # 制度类文档的"第X条"模式——正文中的一级结构边界，重置二级/三级编号
-ART_RE = re.compile(r"第[一二三四五六七八九十百千]+条")
+#
+# 必须锚定段落开头（^）：制度条文以"第X条"起始，如"第七条 公司设立……"。
+# 若用 search() 匹配任意位置，正文中引用条款的表述（如"依据《XX办法》第七条"、
+# "第十二条规定……"）会被误判为条文边界，错误重置二级/三级计数器，
+# 导致后续标题编号错乱。此为已修复的真实缺陷，勿改回 search()。
+ART_RE = re.compile(r"^第[一二三四五六七八九十百千]+条(?=[\s　]|$)")
+
 
 def _h1_num(n: int) -> str:
     """一级标题中文序号，>10 时兜底为阿拉伯数字。"""
@@ -268,8 +274,10 @@ def _xml_document(parts: list[tuple]) -> str:
         elif sid == "16":
             h3 += 1
             text = f"{h3}．{text}"
-        elif sid == "19" and ART_RE.search(text):
-            # 制度类"第X条"作为一级结构边界，重置二级/三级计数器
+        elif sid == "19" and ART_RE.match(text.lstrip()):
+            # 制度类"第X条"作为一级结构边界，重置二级/三级计数器。
+            # 用 match + lstrip 而非 search：仅段落起始的条文才是边界，
+            # 正文中引用"《XX办法》第七条"不应触发重置。
             h2 = h3 = 0
 
         need_indent = indent or sid in INDENTED_HEADS
