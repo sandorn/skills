@@ -43,5 +43,8 @@
 | `create_entities` 覆盖了旧观测 | 直接写入而未 merge | 严格走 `archive_facts.py` 生成的 read→merge→write 三段式，见 `memory-mcp.md` §4.1 |
 | `search_nodes` 找不到已建的实体 | 查询词与 name/observations 字面差异大 | 用多同义词并列查询；或直接 `get_entity_with_relations` 走精确名字 |
 | 传入 `embedding` 字段被忽略 | mcp-memory-sqlite@0.0.4 不支持向量 | 已实测确认；用 FTS 多词组合替代，见 `memory-mcp.md` §4.3 |
-| `novel_project.db` 文件损坏 | 写入中断 | 删除 `~/.agents/skills/writer/memory/novel_project.db` → 跑 `import_state_to_mcp.py` 从 setting/*.md 重新 seed |
-| 多本书数据混在同一 db | 单 MCP 实例默认共库 | 用 `import_state_to_mcp.py --project-prefix <书名>` 命名空间隔离，或在 `.claude.json` 里为每本书起独立 SQLITE_DB_PATH |
+| `novel_project.db` 文件损坏 | 写入中断 | 删除本书 `memory/novel_project.db` → 跑 `import_state_to_mcp.py` 从 setting/*.md 重新 seed |
+| 多本书数据混在同一 db | `~/.claude.json` 顶层配了绝对路径 `SQLITE_DB_PATH`，所有书共写一个文件 | 移除全局配置，改为每本书目录下的项目级 `.mcp.json` + 相对路径，见 `memory-mcp.md` §7.2/§7.4 |
+| MCP 连上了但 `read_graph` 是空的 | 在书目录的**上级**启动 claude，相对路径解析到了别处 | `cd {project}` 后再 `claude`；确认 `{project}/.mcp.json` 存在，见 `memory-mcp.md` §7.3 |
+| MCP 显示 `⏸ Pending approval` | 项目级 `.mcp.json` 首次使用需信任 | 在书目录内运行 `claude` 并 approve 一次（正常安全机制） |
+| 备份出来的 `.db` 是 0 字节 / 缺最新章节 | 只 `cp` 未 checkpoint，或未校验备份 | 先 `PRAGMA wal_checkpoint(TRUNCATE)` 再复制，复制后用 `os.path.getsize` + `PRAGMA integrity_check` 独立校验，见 `memory-mcp.md` §7.6 |

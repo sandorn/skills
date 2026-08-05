@@ -81,6 +81,7 @@ mkdir -p {project}/setting {project}/outline/chapter_outline {project}/chapters 
 ```
 {project}/
 ├── novel.json                # 项目根标记（含 memory_mcp: novel_project）
+├── .mcp.json                 # 项目级 MCP 配置（一书一库，见 memory-mcp.md §7.2）
 ├── setting/                  # 用户领地：静态设定原稿（seed MCP 的原始出处）
 │   ├── story_bible.md
 │   ├── characters.md
@@ -92,11 +93,12 @@ mkdir -p {project}/setting {project}/outline/chapter_outline {project}/chapters 
 │   ├── volume_outline.md
 │   └── chapter_outline/      # 章纲（每章一个）
 ├── chapters/                 # 产出：正文（ch_NNN.md 三位数补零）
+├── memory/                   # novel_project.db（Agent 独写，MCP 自动创建）
 └── .writer/
     └── runtime/              # 临时文件（.gitignore）
 ```
 
-> **当前状态数据（人物/势力/伏笔/剧情节点）不落在项目目录里**，统一存 `novel_project` MCP，落盘 `~/.agents/skills/writer/memory/novel_project.db`。
+> **当前状态数据（人物/势力/伏笔/剧情节点）不落在 setting/ 里**，统一存 `novel_project` MCP，落盘本书自己的 `memory/novel_project.db`（一书一库，配置见 `memory-mcp.md` §7）。
 
 ### 三层写权限
 
@@ -112,6 +114,7 @@ mkdir -p {project}/setting {project}/outline/chapter_outline {project}/chapters 
 | 文件 | 初始内容 |
 |------|------|
 | `novel.json` | 项目状态（stage=scaffold，含 `"memory_mcp": "novel_project"`）|
+| `.mcp.json` | 项目级 MCP 配置，照抄 `memory-mcp.md` §7.2（`SQLITE_DB_PATH` 必须是相对路径 `./memory/novel_project.db`）|
 | `setting/story_bible.md` | 世界观基础 |
 | `setting/characters.md` | 主角+基础角色卡 |
 | `setting/power_system.md` | 力量/等级体系 |
@@ -200,10 +203,11 @@ seed 完成后调 `read_graph` 抽查：应至少返回主角+配角 3-5 个人�
 
 - [ ] 项目目录结构完整（5 个 setting/*.md + outline/ + chapters/ + .writer/runtime/）
 - [ ] `novel.json` 格式合法，字段齐备（含 `memory_mcp`）
+- [ ] `.mcp.json` 已创建，`SQLITE_DB_PATH` 为相对路径；`~/.claude.json` 顶层无同名 `novel_project` 残留
 - [ ] `setting/story_bible.md` 包含世界观类型和核心规则
 - [ ] `setting/characters.md` 包含主角基本信息
 - [ ] `outline/master_outline.md` 包含核心冲突和结局方向
-- [ ] `novel_project` MCP 已 seed（`read_graph` 返回主角+主要势力+境界体系）
+- [ ] `novel_project` MCP 已 seed（**在书目录内**启动 claude 后 `read_graph` 返回主角+主要势力+境界体系）
 
 ---
 

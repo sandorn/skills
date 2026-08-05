@@ -55,14 +55,16 @@ writer/                     ~ 380 KB / 47 文件
 ```
 {project}/
 ├── novel.json                # 项目元数据（含 memory_mcp: novel_project）
+├── .mcp.json                 # 项目级 MCP 配置（SQLITE_DB_PATH=./memory/novel_project.db）
 ├── setting/*.md              # 【用户领地】静态设定原稿 + <!-- user-edit --> 规划意图
 ├── outline/                  # 【用户 + Agent 协作】大纲
 ├── chapters/                 # 【Agent 主写】正文 ch_NNN.md
+├── memory/                   # 【Agent 独写】novel_project.db（一书一库）
 └── .writer/
     └── runtime/              # 临时文件（.gitignore）
 
 + novel_project MCP           # 【Agent 独写】当前状态原子事实 + 关系图谱
-  落盘: ~/.agents/skills/writer/memory/novel_project.db
+  落盘: {project}/memory/novel_project.db（需在书目录内启动 claude）
 ```
 
 | 层 | 写方 | 改方 | 用途 |
@@ -118,6 +120,7 @@ writer/                     ~ 380 KB / 47 文件
          4. phase=write → create_relations（有向边幂等）
                 ↓
        novel_project.db (SQLite) 落盘
+       {project}/memory/ 下，一书一库
        WAL 模式，读写并发安全
 ```
 

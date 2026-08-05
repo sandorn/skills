@@ -10,7 +10,7 @@
 
 - **服务名**：`novel_project`
 - **底层包**：`mcp-memory-sqlite`（stdio）
-- **数据库落盘**：`C:/Users/Administrator/.agents/skills/writer/memory/novel_project.db`
+- **数据库落盘**：`{project}/memory/novel_project.db` —— **每本书一个独立库**，由该书目录下的 `.mcp.json` 配置（见 §7）
 - **检索能力**：SQLite FTS 文本关键词相关性检索（**非向量语义**）
 - **写入模型**：实体 (`entity`) + 观测 (`observations[]`) + 有向关系 (`relations`)
 - **限制**：不支持 embedding 字段（传入会被静默丢弃，见 CHANGELOG）
@@ -187,14 +187,130 @@ read_graph()  → 应至少返回：
 
 ---
 
-## 7. 存储物理位置与备份
+## 7. MCP 配置方法与存储位置
 
-- **数据库**：`C:/Users/Administrator/.agents/skills/writer/memory/novel_project.db`
-- **WAL 模式**：`novel_project.db-wal` / `-shm` 是正常伴生文件
-- **备份**：SQLite 文件复制即可（先 `.backup` 或停 MCP 后 cp）；建议每周备份一次到 git 忽略的目录
-- **重置**：`delete_entity` 逐个删；或直接删数据库文件后重跑 seed
+### 7.1 一书一库（标准做法）
 
-**⚠️ 数据库是全局单文件，多个小说项目共享一个 db** —— 若同机器上有多本书，用 entity name 前缀区分（如 `<项目名>:苏白`）。或每本书单独跑一个 MCP 实例（改 `.claude.json` 里的 `SQLITE_DB_PATH`）。
+数据库**落在书自己的目录里**，每本书一个独立库：
+
+```
+{project}/
+├── .mcp.json                     # 项目级 MCP 配置（入 git）
+├── memory/
+│   ├── novel_project.db          # 记忆库本体（入 git）
+│   ├── novel_project.db-wal      # WAL 伴生文件（.gitignore）
+│   └── novel_project.db-shm      # 共享内存伴生文件（.gitignore）
+├── novel.json
+├── setting/
+└── chapters/
+```
+
+### 7.2 `.mcp.json` 内容（照抄即可）
+
+在**书目录根**创建 `.mcp.json`：
+
+```json
+{
+  "mcpServers": {
+    "novel_project": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-memory-sqlite"],
+      "env": {
+        "SQLITE_DB_PATH": "./memory/novel_project.db"
+      }
+    }
+  }
+}
+```
+
+**必须用相对路径 `./memory/novel_project.db`**，不要写绝对路径。这样开新书时把 `.mcp.json` 复制进新目录即可，零改动就是独立的库。
+
+### 7.3 关键前提：在书目录内启动
+
+`mcp-memory-sqlite` 解析路径的源码逻辑是：
+
+```js
+const db_path = process.env.SQLITE_DB_PATH || './sqlite-memory.db';
+```
+
+相对路径基于**进程 cwd**，而 `.mcp.json` 只在**启动 Claude Code 的那个目录**被读取。因此：
+
+```bash
+cd {project}          # 必须先进书目录
+claude                # 再启动
+```
+
+在书目录的上级（如多书共存的 `writer/` 根）启动，这份 `.mcp.json` 不生效。
+
+首次在新书目录启动时，Claude Code 会提示**信任该项目的 MCP 配置**，approve 一次即可。
+
+### 7.4 不要用全局配置
+
+**禁止**把 `novel_project` 写进 `~/.claude.json` 的顶层 `mcpServers`。原因：那里只能填绝对路径，会导致所有书共写同一个文件——写第二本书时新旧剧情图谱混在一起。
+
+若已存在全局配置，先移除，再改用项目级 `.mcp.json`：
+
+```bash
+# 检查全局是否有残留（应输出空）
+python -c "import json,os;d=json.load(open(os.path.expanduser('~/.claude.json'),encoding='utf-8'));print(list(d.get('mcpServers',{}).keys()))"
+```
+
+同名 server 同时存在于全局和项目级会冲突。
+
+### 7.5 `.gitignore`
+
+WAL/SHM 是运行时副产物，不入库；`.db` 本体建议入库（记忆随书走）：
+
+```gitignore
+*.db-shm
+*.db-wal
+*.db.bak-*
+```
+
+⚠️ gitignore **管不到已跟踪的文件**。若 `-wal`/`-shm` 之前已被提交，需 `git rm --cached <file>` 才能脱离版本控制。
+
+### 7.6 备份与验证
+
+复制 `.db` 前**必须先 checkpoint**，否则 WAL 里未落盘的数据不在副本中：
+
+```python
+import sqlite3, shutil
+c = sqlite3.connect('memory/novel_project.db')
+c.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+c.close()
+shutil.copy2('memory/novel_project.db', 'memory/novel_project.db.bak-YYYYMMDD')
+```
+
+⚠️ **备份后必须独立校验**，不要相信复制操作的返回值：
+
+```python
+import os, sqlite3
+p = 'memory/novel_project.db.bak-YYYYMMDD'
+print('size:', os.path.getsize(p))                    # 不能是 0
+c = sqlite3.connect(p)
+print('integrity:', c.execute('PRAGMA integrity_check').fetchone()[0])
+print('rows:', [c.execute(f'SELECT COUNT(*) FROM {t}').fetchone()[0]
+                for t in ('entities','observations','relations')])
+```
+
+（`ls` 在部分终端代理下会显示过滤后的失真大小，用 `os.stat` / `os.path.getsize` 复核。）
+
+### 7.7 重置为空库（开新书复用旧文件时）
+
+保留 schema、只清数据：
+
+```python
+import sqlite3
+c = sqlite3.connect('memory/novel_project.db')
+c.execute('PRAGMA foreign_keys=OFF')
+for t in ('relations', 'observations', 'entities'):
+    c.execute(f'DELETE FROM {t}')
+c.execute('DELETE FROM sqlite_sequence')
+c.commit(); c.execute('VACUUM'); c.close()
+```
+
+清空前**先备份并按 §7.6 校验**。完成后用 `read_graph()` 确认返回空图谱。
 
 ---
 

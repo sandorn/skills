@@ -1,7 +1,7 @@
 ---
 name: writer
-version: "8.5"
-description: "网文写作全流程引擎：扫榜/拆文/大纲/写章/审查/质检/发布/文风转换。v8.5 起章节 Markdown 格式零容忍；v8.4 起小说记忆统一由 novel_project MCP 管理，禁用本地 JSON 状态；与 novel-pipeline 协作，批量润色/初稿由后者提供。"
+version: "8.6"
+description: "网文写作全流程引擎：扫榜/拆文/大纲/写章/审查/质检/发布/文风转换。v8.6 起记忆库一书一库（项目级 .mcp.json + 相对路径，须在书目录内启动）；v8.5 起章节 Markdown 格式零容忍；v8.4 起小说记忆统一由 novel_project MCP 管理，禁用本地 JSON 状态；与 novel-pipeline 协作，批量润色/初稿由后者提供。"
 category: writing
 tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 ---
@@ -26,6 +26,7 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 {project}/
 ├── novel.json                   # 项目根标识 + 元数据（stage/chapters_done/current_chapter）
 │   └── 或 writer.json / novel-pipeline.json（都被识别，novel.json 优先）
+├── .mcp.json                    # 【必需】项目级 MCP 配置（一书一库，见 references/memory-mcp.md §7）
 ├── setting/                     # 【用户领地】静态设定原稿（开局约束）
 │   ├── story_bible.md           # 世界观设定总纲
 │   ├── characters.md            # 角色卡 + 关系矩阵（首批 seed MCP 的原始出处）
@@ -41,9 +42,12 @@ tags: [网文, 写作, 质量控制, 批量写章, 审查, 质检]
 ├── chapters/                    # 【Agent 主写】正文
 │   ├── ch_001.md                # 命名格式：ch_NNN.md（三位数补零 + 下划线）
 │   └── ...
+├── memory/                      # 【Agent 独写】novel_project.db（MCP 自动创建，一书一库）
 └── .writer/                     # 【skill 领地】不入 git 主线
     └── runtime/                 # 临时文件（.gitignore）
 ```
+
+> ⚠️ **必须在书目录内启动 `claude`**（`cd {project} && claude`）。`.mcp.json` 只在启动目录被读取，且用相对路径 `./memory/novel_project.db` 定位记忆库——在上级目录启动会导致记忆库读不到或写错位置。
 
 ### v8.4 关键变化：**记忆迁到 MCP，废除 .writer/state/ 与 tracking/**
 

@@ -35,13 +35,16 @@
 ```
 {project}/
 ├── novel.json            # 项目根（首选命名，含 memory_mcp: novel_project）
+├── .mcp.json             # 项目级 MCP 配置（SQLITE_DB_PATH=./memory/novel_project.db）
 ├── setting/              # 4 份 md（story_bible/characters/power_system/factions）+ writing_rules.md
 ├── outline/              # 空（等 plan 阶段）
 ├── chapters/             # 空
+├── memory/               # novel_project.db（首次 seed 时 MCP 自动创建）
 └── .writer/
     └── runtime/          # 临时文件
 
 + novel_project MCP       # seed 完成：主角+主要势力+境界体系实体，含首批关系边
+                          # 前提：在书目录内启动 claude 并 approve 项目 MCP 配置
 ```
 
 ---
