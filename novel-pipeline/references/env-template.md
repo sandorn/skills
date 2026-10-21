@@ -1,7 +1,7 @@
 # 环境变量模板
 
 > 唯一权威配置位置：Skill 本地 `.env`
-> 路径：`C:\Users\Administrator\.agents\skills\novel-pipeline\.env`
+> 路径：`C:\Users\Administrator\.cc-switch\skills\novel-pipeline\.env`
 > 优先级：**skill 本地 .env → 系统环境变量**。两级都缺则 server 启动报错退出。
 
 ```ini
@@ -17,10 +17,25 @@ DEEPSEEK_MODEL=deepseek-v4-pro
 
 # ==================== 路径配置（可选，供 hooks 使用） ====================
 # MCP 子进程 Python 解释器（缺省则用当前 sys.executable；旧变量名 HERMES_PYTHON 仍向后兼容）
-PIPELINE_PYTHON=C:\Users\Administrator\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+# 推荐指向本 skill 自带 venv（由 uv 创建，依赖见 requirements.txt）
+PIPELINE_PYTHON=C:\Users\Administrator\.cc-switch\skills\novel-pipeline\.venv\Scripts\python.exe
 # 默认小说项目章节目录
 CHAPTERS_DIR=D:\Writer\novel-project\chapters
 ```
+
+## 独立 venv
+
+本 skill 自带独立 venv（`<Skill>\.venv`），不依赖 Hermes 主环境：
+
+```powershell
+# 重建（Python 3.13）
+cd <Skill>
+uv venv --python 3.13 .venv
+uv pip install --python .venv\Scripts\python.exe -r requirements.txt
+```
+
+⚠️ **必须锁定 `mcp<2`**：mcp 2.x 已将 `FastMCP` 改名为 `MCPServer`，
+现有 MCP server 代码使用 `from mcp.server.fastmcp import FastMCP`，装 2.x 会直接导入失败。
 
 ## 说明
 

@@ -74,7 +74,7 @@ novel-doubao 的 API 响应时间约 60-170 秒（因为通过 `/api/plan/v3` �
 当 doubao 调用失败（API 超时、key 错误、网络问题）时，`polish_independent.py` 保留原文不变，返回错误信息，不会丢失数据。`passed=False` + `issues=["doubao 失败: ..."]`。
 
 ### doubao 环境配置
-`.env` 唯一位置：`<Skill路径>\.env`（例：`C:\Users\Administrator\.agents\skills\novel-pipeline\.env`）。
+`.env` 唯一位置：`<Skill路径>\.env`（例：`C:\Users\Administrator\.cc-switch\skills\novel-pipeline\.env`）。
 
 ```env
 DOUBAO_BASE_URL=https://ark.cn-beijing.volces.com/api/plan/v3

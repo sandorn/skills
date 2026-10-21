@@ -22,7 +22,7 @@ pipeline 目前仅依赖两个 stdio MCP，全部由 Skill 自带（`mcp/novel-*
 
 两个 server 都严格按以下顺序读取环境变量：
 
-1. **Skill 本地 `.env`** — `C:\Users\Administrator\.agents\skills\novel-pipeline\.env`
+1. **Skill 本地 `.env`** — `C:\Users\Administrator\.cc-switch\skills\novel-pipeline\.env`
 2. **系统环境变量** — 兜底
 
 **没有内置默认值**：任一 KEY 缺失，server 启动即 `sys.exit(1)`，避免打错误端点。
@@ -76,7 +76,7 @@ pipeline 目前仅依赖两个 stdio MCP，全部由 Skill 自带（`mcp/novel-*
 
 两个 server 都严格按以下顺序读取环境变量：
 
-1. **Skill 本地 `.env`** — `C:\Users\Administrator\.agents\skills\novel-pipeline\.env`
+1. **Skill 本地 `.env`** — `C:\Users\Administrator\.cc-switch\skills\novel-pipeline\.env`
 2. **系统环境变量** — 兜底
 
 **没有内置默认值**：任一 KEY 缺失，server 启动即 `sys.exit(1)`，避免打错误端点。

@@ -1,6 +1,6 @@
 ---
 name: officialdocuments
-version: 2.3.1
+version: 2.4.0
 description: "起草、修改和排版央国企正式公文（请示、报告、通知、函件等）。"
 tags: [official-documents, 公文, 正式文档, 央国企, 报告]
 category: document
@@ -16,6 +16,7 @@ linked_files:
   scripts:
     - scripts/gb_gongwen.py
     - scripts/qa_docx.py
+    - scripts/fix_theme_fonts.py
 ---
 
 # 公文 Skill
@@ -77,7 +78,8 @@ linked_files:
 | `references/format-spec.md` | GB/T 9704-2012 排版参数 + 质量门 |
 | `references/checklist.md` | 发文前自检清单 |
 | `scripts/gb_gongwen.py` | Word 排版引擎（纯 XML+zipfile） |
-| `scripts/qa_docx.py` | 产物质检工具（26 项自动化检查） |
+| `scripts/qa_docx.py` | 产物质检工具（31 项自动化检查） |
+| `scripts/fix_theme_fonts.py` | 存量 docx 主题字体修复（MS 明朝/ja-JP） |
 
 ---
 
@@ -93,3 +95,6 @@ linked_files:
 - **Windows CRLF**：脚本已用单反斜杠 `\r\n`/`\n` 分割；修改后必须在 Windows 原生 Python 验证 CRLF 输入。
 - **质检报错先辨真伪**：`qa_docx.py` 的编号连续性检查曾有三处误报（正文引用"第七条"、一级标题未识别为边界、表格金额被当编号），均已在 2.3.2 修复。若再遇编号类报错，先按 `references/errors.md` 第九节的排查脚本定位，确认是文档问题还是检查器缺陷，**不要为了让质检通过而改动本身正确的文档**。
 - **项目特定约束**（如人员规模、部门名称、弹性措辞等）→ 查阅项目工作目录下的 `AGENTS.md`，不在本 skill 内维护。
+- **二级标题 >10 项必须验证编号**（2.3.2+）：脚本 `cn_num()` 支持 1-99 中文序号。生成后 grep `^\（\d+\）` 检查标题行，确认无 `（11）（12）` 残留（正文款项 `（1）` 属正常）。详见 `references/errors.md` 第九节缺陷4。
+- **MS 明朝是包级污染**（2.4.0+）：`gb_gongwen.py` 已显式输出 settings.xml/theme1.xml，东亚 ea 槽位非空、`themeFontLang=zh-CN`。**存量带雷 docx**（原文件自带，不只新增段）用 `python scripts/fix_theme_fonts.py "稿件.docx"` 原地修复（自动留 .bak）；qa_docx 新增「第三·五层」6 项拦截。详见 `references/errors.md` 第九节缺陷5。
+- **起草前先检索目标目录**：制度类任务开工前，先 `search_files` 目标目录下是否已有同名/近似制度稿（含"待审定""清洁版"等后缀）。用户既有稿件可能基于同一上位制度改写，先发现才能避免产出平行冲突稿。

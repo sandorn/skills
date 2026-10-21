@@ -120,6 +120,42 @@
 
 以下三处曾导致**格式正确的文档被误判、或正确文档被排错版**，均已修复。改动脚本时勿回退。
 
+### 缺陷5：日文模板底子导致整篇变 MS 明朝（gb_gongwen.py / theme1.xml / settings.xml）
+
+| 项目 | 内容 |
+|------|------|
+| **症状** | 生成/另存的 docx 在 Word 中出现「ＭＳ 明朝」字体，且**不只新增段**——原文件自带的既有段同样中招 |
+| **根因** | 三处叠加：① `word/theme/theme1.xml` 是日文模板底子，`majorFont`/`minorFont` 的 `<a:ea typeface=""/>` 东亚字体槽位为空；② 字体回退表中 `Jpan`（日文）槽位正是「ＭＳ 明朝」（major 为「ＭＳ ゴシック」）；③ `word/settings.xml` 里一句 `<w:themeFontLang w:eastAsia="ja-JP"/>` 把东亚语言钉成日文 |
+| **为何以前没暴露** | 旧 `gb_gongwen.py` 根本不输出 settings.xml/theme1.xml，Word 打开时用隐式主题补全；一旦经日文模板/WPS 兼容路径处理过，雷就被埋进包里 |
+| **修正（新稿）** | `gb_gongwen.py` 显式输出 `word/settings.xml`（`themeFontLang eastAsia="zh-CN"`）与 `word/theme/theme1.xml`（major 的 ea=方正小标宋简体、minor 的 ea=仿宋_GB2312；Jpan 槽也钉成黑体/仿宋_GB2312），并在 `[Content_Types].xml`、`document.xml.rels` 中登记 |
+| **修正（存量）** | 新增 `scripts/fix_theme_fonts.py`：只替换 a:ea 与 Jpan 槽字体、改 themeFontLang 语言，不动其他槽位、不删表；部件缺失不新增 |
+| **验证** | ① 新稿解包：无 ＭＳ/明朝/ゴシック/ja-JP，a:ea 两槽非空；② 存量带雷稿修复后 qa 主题层 6 项全 PASS；③ qa_docx 新增「第三·五层」6 项自动拦截 |
+
+```bash
+# 修复存量带雷 docx（默认原地修复并留 .bak）
+python scripts/fix_theme_fonts.py "稿件.docx"
+# 或另存
+python scripts/fix_theme_fonts.py "稿件.docx" -o "修复稿.docx"
+```
+
+> 教训：OOXML 里「没写」不等于「没有」——缺失的主题/设置部件会被 Word 用隐式默认补全，
+> 而默认值可能随模板语言变化。涉及东亚字体必须**显式钉死 a:ea 槽位与 themeFontLang**，
+> 不能依赖 Word 回退。该雷影响整篇（含原文件段），属包级污染，逐段改 rFonts 治标不治本。
+
+### 缺陷4：二级标题超过10项时退化为阿拉伯数字（gb_gongwen.py）
+
+| 项目 | 内容 |
+|------|------|
+| **症状** | 制度类文档二级标题出现"（11）（12）"，而前文是"（九）（十）"。qa_docx.py 不报错，需人工发现 |
+| **根因** | `CN_NUM = "〇一二三四五六七八九十"` 只覆盖 0-10。`_h2_num(11)` 走 `return str(n)` 兜底，输出半角 `"11"`。一级标题同类问题（>10 个一级标题时） |
+| **修正** | 新增 `cn_num(n)` 支持 1-99（`二十`/`二十一`/`九十九`），`_h1_num`/`_h2_num` 统一委托它；>99 仍兜底 str(n) |
+| **验证** | `cn_num(11)=='十一'`、`cn_num(25)=='二十五'`；1-10 行为不变（回归）；`ART_RE` 行首锚定不受影响 |
+| **触发场景** | 制度/办法类文档，某一章内二级标题多于 10 个（如"四、采购程序"下有十二项）。**长制度必查** |
+
+> 教训：中文序号转换必须覆盖到实际可能出现的最大值。制度类文档二级标题常见 10-20 项，
+> CN_NUM 这种"只到十"的查表实现是隐患。生成后建议 grep `（\d+）` 自检二级编号是否残留阿拉伯数字
+> ——注意区分：四级正文款项"（1）"是**正确**的，只有**标题行**出现才是有问题。
+
 ### 缺陷1：正文引用条款破坏编号（gb_gongwen.py）
 
 | 项目 | 内容 |

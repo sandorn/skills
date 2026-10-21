@@ -82,7 +82,19 @@ _CN_NUM_MAP["千"] = 1000
 
 # XML 命名空间
 NS = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main"
 ET.register_namespace("w", NS["w"])
+
+
+# ═══════════════════ 主题/语言禁忌（日文模板底子的雷） ═══════════════════
+#
+# 真实事故：theme1.xml 若为日文模板底子——
+#   ① majorFont/minorFont 的 <a:ea typeface=""/> 东亚槽位为空；
+#   ② 回退表 Jpan 槽为「ＭＳ 明朝」；
+#   ③ settings.xml 出现 <w:themeFontLang w:eastAsia="ja-JP"/>。
+# 三者叠加会把整篇（含原文件既有段）渲染成 MS 明朝。以下正则逐项拦截。
+THEME_BAD_FONTS = ("ＭＳ", "明朝", "MS Mincho", "MS Gothic", "ゴシック")
+THEME_PARTS = ("word/theme/theme1.xml", "word/settings.xml")
 
 
 # ═══════════════════ 工具函数 ═══════════════════
@@ -412,6 +424,104 @@ def _cn_to_str(n: int) -> str:
     return str(n)
 
 
+# ═══════════════════ 第三·五层: 主题字体/语言 ═══════════════════
+
+def _read_part(docx_path: Path, part: str) -> str | None:
+    """读取 docx 内指定部件文本；缺失返回 None。"""
+    try:
+        with zipfile.ZipFile(docx_path, "r") as z:
+            try:
+                with z.open(part) as f:
+                    return f.read().decode("utf-8", errors="replace")
+            except KeyError:
+                return None
+    except Exception:
+        return None
+
+
+def _check_theme_fonts(docx_path: Path) -> list[dict]:
+    """检查 theme1.xml / settings.xml：日文模板底子的三处雷。
+
+    1) 部件必须存在（缺失时 Word 会用隐式主题补全，存在同样风险）；
+    2) 不得出现 ＭＳ 明朝/MS Mincho/ゴシック 等日文回退字体；
+    3) majorFont/minorFont 的 <a:ea typeface=""/> 东亚槽位不得为空；
+    4) <w:themeFontLang w:eastAsia="..."/> 不得为 ja-JP，应为 zh-CN。
+    """
+    results: list[dict] = []
+    for part in THEME_PARTS:
+        xml = _read_part(docx_path, part)
+        label = part.split("/")[-1]
+        if xml is None:
+            results.append({
+                "name": f"{label} 存在性",
+                "pass": False,
+                "level": "ERROR",
+                "detail": f"缺少 {part}，Word 将隐式补全主题（可能落入日文字体回退）",
+                "samples": [],
+            })
+            continue
+        results.append({
+            "name": f"{label} 存在性",
+            "pass": True,
+            "level": "INFO",
+            "detail": "部件存在",
+            "samples": [],
+        })
+
+        bad_hits = [tok for tok in THEME_BAD_FONTS if tok in xml]
+        results.append({
+            "name": f"{label} 日文回退字体（MS明朝等）",
+            "pass": not bad_hits,
+            "level": "ERROR",
+            "detail": "未检出日文回退字体" if not bad_hits
+                      else f"检出禁忌字体标记: {', '.join(bad_hits)}",
+            "samples": bad_hits,
+        })
+
+        if part.endswith("theme1.xml"):
+            # 提取 majorFont/minorFont 两个槽内的 <a:ea typeface="..."/>
+            empty_slots: list[str] = []
+            for slot_name in ("majorFont", "minorFont"):
+                slot_m = re.search(rf"<a:{slot_name}>(.*?)</a:{slot_name}>", xml, re.S)
+                if not slot_m:
+                    empty_slots.append(f"{slot_name}（槽位缺失）")
+                    continue
+                ea_m = re.search(r'<a:ea[^>]*typeface="([^"]*)"', slot_m.group(1))
+                if ea_m is None:
+                    empty_slots.append(f"{slot_name}（无 a:ea 节点）")
+                elif not ea_m.group(1).strip():
+                    empty_slots.append(f"{slot_name}（a:ea 为空）")
+            results.append({
+                "name": "theme1.xml 东亚字体槽位 a:ea",
+                "pass": not empty_slots,
+                "level": "ERROR",
+                "detail": "major/minor 东亚槽位均已显式指定中文字体" if not empty_slots
+                          else "存在空东亚槽位，将回退 Jpan→MS 明朝: " + ", ".join(empty_slots),
+                "samples": empty_slots,
+            })
+        else:
+            lang_m = re.search(r'<w:themeFontLang[^>]*w:eastAsia="([^"]+)"', xml)
+            if lang_m is None:
+                # 无 themeFontLang 时 Word 可能按系统/主题推断，显式告警
+                lang_ok = False
+                detail = "未找到 <w:themeFontLang w:eastAsia=...>，东亚语言未钉为 zh-CN"
+                samples = ["themeFontLang 缺失"]
+            else:
+                lang = lang_m.group(1)
+                lang_ok = lang == "zh-CN"
+                detail = ("东亚语言为 zh-CN" if lang_ok
+                          else f"东亚语言被钉为 {lang}，应为 zh-CN（ja-JP 会触发 MS 明朝）")
+                samples = [] if lang_ok else [f"eastAsia={lang}"]
+            results.append({
+                "name": "settings.xml 东亚语言 themeFontLang",
+                "pass": lang_ok,
+                "level": "ERROR",
+                "detail": detail,
+                "samples": samples,
+            })
+    return results
+
+
 # ═══════════════════ 第四层: 综合 ═══════════════════
 
 def _check_file_size(docx_path: Path) -> dict:
@@ -485,6 +595,7 @@ def terminal_report(docx_path: Path, all_results: list[dict]) -> int:
         "第一层: 版式结构": (range(0, 8), "#1-#8"),
         "第二层: Markdown 残留": (None, "#9-#21"),
         "第三层: 编号连续性": (None, "#22-#23"),
+        "第三·五层: 主题字体/语言": (None, "#27-#32"),
         "第四层: 综合报告": (None, "#24-#26"),
     }
 
@@ -509,10 +620,13 @@ def terminal_report(docx_path: Path, all_results: list[dict]) -> int:
             layer_items = [(r["name"], r) for r in all_results[4]]
         elif layer_idx == 2:
             layer_items = [(r["name"], r) for r in all_results[5]]
+        elif layer_idx == 3:
+            # 主题字体/语言层，位置在 results[6]
+            layer_items = [(r["name"], r) for r in all_results[6]]
         else:
             layer_items = [
-                ("文件大小", all_results[6]),
-                ("段落统计", all_results[7]),
+                ("文件大小", all_results[7]),
+                ("段落统计", all_results[8]),
             ]
 
         for name, r in layer_items:
@@ -569,9 +683,10 @@ def json_report(docx_path: Path, all_results: list[dict]) -> int:
             },
             "layer2_md_residue": all_results[4],
             "layer3_numbering": all_results[5],
+            "layer3_5_theme": all_results[6],
             "layer4_summary": {
-                "file_size": all_results[6],
-                "paragraph_stats": all_results[7],
+                "file_size": all_results[7],
+                "paragraph_stats": all_results[8],
             },
         },
     }
@@ -583,8 +698,9 @@ def json_report(docx_path: Path, all_results: list[dict]) -> int:
         + [all_results[3]]
         + all_results[4]
         + all_results[5]
-        + [all_results[6]]
+        + all_results[6]
         + [all_results[7]]
+        + [all_results[8]]
     )
     fail_count = sum(1 for r in all_checks if r.get("pass") is False and r.get("level") in ("ERROR", "CRITICAL"))
     output["summary"] = {
@@ -615,8 +731,9 @@ def run(docx_path: Path, keywords: list[str] | None = None, fmt: str = "text") -
         _check_content_integrity(docx_path, keywords),  # 3: 内容完整性
         _check_md_residue(docx_path),      # 4: MD残留 (list)
         _check_numbering_continuity(docx_path),  # 5: 编号连续性 (list)
-        _check_file_size(docx_path),       # 6: 文件大小
-        _count_paragraphs(docx_path),      # 7: 段落统计
+        _check_theme_fonts(docx_path),     # 6: 主题字体/语言 (list)
+        _check_file_size(docx_path),       # 7: 文件大小
+        _count_paragraphs(docx_path),      # 8: 段落统计
     ]
 
     if fmt == "json":

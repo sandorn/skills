@@ -88,6 +88,27 @@ PAGE = {  # A4，单位 twips
 
 INDENTED_HEADS = {"14", "15", "16"}
 CN_NUM = "〇一二三四五六七八九十"
+
+
+def cn_num(n: int) -> str:
+    """整数转中文序号（1-99），公文标题层级编号用。
+
+    修复：旧实现 CN_NUM[n] 仅覆盖 0-10，超过 10 时兜底 str(n)，
+    导致二级标题出现"（11）"这类半角阿拉伯数字，与 GB/T 9704
+    的"（一）（二）……（十一）（十二）"中式序号不一致。
+    """
+    if n <= 0:
+        return str(n)
+    if n <= 10:
+        return CN_NUM[n]
+    if n < 20:
+        return "十" + CN_NUM[n - 10]
+    if n < 100:
+        tens, ones = divmod(n, 10)
+        return CN_NUM[tens] + "十" + (CN_NUM[ones] if ones else "")
+    return str(n)
+
+
 # 制度类文档的"第X条"模式——正文中的一级结构边界，重置二级/三级编号
 #
 # 必须锚定段落开头（^）：制度条文以"第X条"起始，如"第七条 公司设立……"。
@@ -98,16 +119,13 @@ ART_RE = re.compile(r"^第[一二三四五六七八九十百千]+条(?=[\s　]|$
 
 
 def _h1_num(n: int) -> str:
-    """一级标题中文序号，>10 时兜底为阿拉伯数字。"""
-    if n <= 10:
-        return CN_NUM[n]
-    return str(n)
+    """一级标题中文序号（1-99）。"""
+    return cn_num(n)
+
 
 def _h2_num(n: int) -> str:
-    """二级标题中文序号。"""
-    if n <= 10:
-        return CN_NUM[n]
-    return str(n)
+    """二级标题中文序号（1-99）。"""
+    return cn_num(n)
 
 H1_RE = re.compile(r"^([一二三四五六七八九十]+)、\s*(.*)$")
 H2_RE = re.compile(r"^（([一二三四五六七八九十]+)）\s*(.*)$")
@@ -196,6 +214,7 @@ def _build_docx(parts: list[tuple], output_path: Path, *, author: str = "") -> N
     try:
         (tmp / "_rels").mkdir(parents=True, exist_ok=True)
         (tmp / "word" / "_rels").mkdir(parents=True, exist_ok=True)
+        (tmp / "word" / "theme").mkdir(parents=True, exist_ok=True)
         (tmp / "docProps").mkdir(parents=True, exist_ok=True)
 
         def w(rel: str, content: str) -> None:
@@ -207,6 +226,8 @@ def _build_docx(parts: list[tuple], output_path: Path, *, author: str = "") -> N
         w("docProps/core.xml", _xml_core(parts, author=author))
         w("docProps/app.xml", _xml_app(author=author))
         w("word/styles.xml", _xml_styles())
+        w("word/settings.xml", _xml_settings())
+        w("word/theme/theme1.xml", _xml_theme())
         w("word/document.xml", _xml_document(parts))
 
         with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as z:
@@ -355,6 +376,8 @@ def _xml_content_types() -> str:
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
+  <Override PartName="/word/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
   <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
   <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
 </Types>"""
@@ -373,6 +396,8 @@ def _xml_doc_rels() -> str:
     return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>
 </Relationships>"""
 
 
@@ -399,6 +424,116 @@ def _xml_app(*, author: str = "") -> str:
 <Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
   <Application>{app}</Application>
 </Properties>"""
+
+
+# ═══════════════════ settings.xml / theme1.xml（防日文字体回退） ═══════════════════
+#
+# 背景（真实事故）：不写 settings.xml / theme1.xml 时，Word 打开后会用隐式
+# Office 主题补全；而早期经由日文模板底子（或 WPS 兼容路径）补出的主题里：
+#   ① majorFont/minorFont 的 <a:ea typeface=""/> 东亚字体槽位为空；
+#   ② 脚本回退表中 Jpan（日文）槽位为「ＭＳ 明朝」；
+#   ③ settings.xml 出现 <w:themeFontLang w:eastAsia="ja-JP"/>，把东亚语言
+#      钉成日文。三者叠加，导致整篇（含原文件既有段，不只新增段）被
+#      渲染成 MS 明朝。故必须显式输出这两个部件，且 ea 槽位不得为空。
+
+def _xml_settings() -> str:
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        # 东亚语言钉为简体中文，杜绝 ja-JP 回退到 MS 明朝
+        '<w:themeFontLang w:val="en-US" w:eastAsia="zh-CN"/>'
+        '<w:clrSchemeMapping w:bg1="light1" w:t1="dark1" w:bg2="light2" '
+        'w:t2="dark2" w:accent1="accent1" w:accent2="accent2" w:accent3="accent3" '
+        'w:accent4="accent4" w:accent5="accent5" w:accent6="accent6" '
+        'w:hyperlink="hyperlink" w:followedHyperlink="followedHyperlink"/>'
+        '<w:compat>'
+        '<w:doNotExpandShiftReturn/><w:useFELayout/>'
+        '<w:compatSetting w:name="compatibilityMode" '
+        'w:uri="http://schemas.microsoft.com/office/word" w:val="12"/>'
+        '</w:compat>'
+        '</w:settings>'
+    )
+
+
+def _xml_theme() -> str:
+    # majorFont（标题）/minorFont（正文）的东亚槽位显式给中文字体，
+    # Jpan 槽也钉成同一中文字体，任何语言路径都不会落到「ＭＳ 明朝」。
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Office">'
+        '<a:themeElements>'
+        '<a:clrScheme name="Office">'
+        '<a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1>'
+        '<a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1>'
+        '<a:dk2><a:srgbClr val="1F497D"/></a:dk2>'
+        '<a:lt2><a:srgbClr val="EEECE1"/></a:lt2>'
+        '<a:accent1><a:srgbClr val="4F81BD"/></a:accent1>'
+        '<a:accent2><a:srgbClr val="C0504D"/></a:accent2>'
+        '<a:accent3><a:srgbClr val="9BBB59"/></a:accent3>'
+        '<a:accent4><a:srgbClr val="8064A2"/></a:accent4>'
+        '<a:accent5><a:srgbClr val="4BACC6"/></a:accent5>'
+        '<a:accent6><a:srgbClr val="F79646"/></a:accent6>'
+        '<a:hlink><a:srgbClr val="0000FF"/></a:hlink>'
+        '<a:folHlink><a:srgbClr val="800080"/></a:folHlink>'
+        '</a:clrScheme>'
+        '<a:fontScheme name="Office">'
+        '<a:majorFont>'
+        '<a:latin typeface="Times New Roman"/>'
+        '<a:ea typeface="方正小标宋简体"/><a:cs typeface="Times New Roman"/>'
+        '<a:font script="Jpan" typeface="黑体"/>'
+        '<a:font script="Hang" typeface="黑体"/>'
+        '<a:font script="Hans" typeface="黑体"/>'
+        '<a:font script="Hant" typeface="黑体"/>'
+        '</a:majorFont>'
+        '<a:minorFont>'
+        '<a:latin typeface="Times New Roman"/>'
+        '<a:ea typeface="仿宋_GB2312"/><a:cs typeface="Times New Roman"/>'
+        '<a:font script="Jpan" typeface="仿宋_GB2312"/>'
+        '<a:font script="Hang" typeface="仿宋_GB2312"/>'
+        '<a:font script="Hans" typeface="仿宋_GB2312"/>'
+        '<a:font script="Hant" typeface="仿宋_GB2312"/>'
+        '</a:minorFont>'
+        '</a:fontScheme>'
+        '<a:fmtScheme name="Office">'
+        '<a:fillStyleLst>'
+        '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'
+        '<a:gradFill rotWithShape="1"><a:gsLst>'
+        '<a:gs pos="0"><a:schemeClr val="phClr"><a:tint val="50000"/>'
+        '<a:satMod val="300000"/></a:schemeClr></a:gs>'
+        '<a:gs pos="100000"><a:schemeClr val="phClr"><a:tint val="15000"/>'
+        '<a:satMod val="300000"/></a:schemeClr></a:gs>'
+        '</a:gsLst><a:lin ang="16200000" scaled="1"/></a:gradFill>'
+        '</a:fillStyleLst>'
+        '<a:lnStyleLst>'
+        '<a:ln w="9525" cap="flat" cmpd="sng" algn="ctr">'
+        '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'
+        '<a:prstDash val="solid"/></a:ln>'
+        '<a:ln w="25400" cap="flat" cmpd="sng" algn="ctr">'
+        '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'
+        '<a:prstDash val="solid"/></a:ln>'
+        '<a:ln w="38100" cap="flat" cmpd="sng" algn="ctr">'
+        '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'
+        '<a:prstDash val="solid"/></a:ln>'
+        '</a:lnStyleLst>'
+        '<a:effectStyleLst>'
+        '<a:effectStyle><a:effectLst/></a:effectStyle>'
+        '<a:effectStyle><a:effectLst/></a:effectStyle>'
+        '<a:effectStyle><a:effectLst/></a:effectStyle>'
+        '</a:effectStyleLst>'
+        '<a:bgFillStyleLst>'
+        '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'
+        '<a:gradFill rotWithShape="1"><a:gsLst>'
+        '<a:gs pos="0"><a:schemeClr val="phClr"><a:tint val="40000"/>'
+        '<a:satMod val="350000"/></a:schemeClr></a:gs>'
+        '<a:gs pos="100000"><a:schemeClr val="phClr"><a:tint val="15000"/>'
+        '<a:satMod val="350000"/></a:schemeClr></a:gs>'
+        '</a:gsLst><a:lin ang="16200000" scaled="1"/></a:gradFill>'
+        '</a:bgFillStyleLst>'
+        '</a:fmtScheme>'
+        '</a:themeElements>'
+        '<a:objectDefaults/>'
+        '</a:theme>'
+    )
 
 
 def _strip_markdown_inline(text: str) -> str:

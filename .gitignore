@@ -16,3 +16,11 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+# Virtual environments
+**/.venv/
+.venv/
+# local env / backups
+**/.env.bak*
+**/*.bak-*
+**/.curator*
