@@ -9,7 +9,7 @@
 
 ## 前置准备
 
-1. 已安装 novel-pipeline skill（通常与 writer 共处一个 `.agents/skills/` 目录）
+1. 已安装 novel-pipeline skill（与 writer 同处唯一真相源 `~/.cc-switch/skills/`，经软链接入各客户端）
 2. novel-pipeline 的 `.env` 已配置豆包 API：`DOUBAO_API_KEY / DOUBAO_BASE_URL / DOUBAO_MODEL`
 3. 项目根有 git 仓库（`git init`）——润色前会自动做快照
 

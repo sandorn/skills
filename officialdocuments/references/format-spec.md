@@ -67,7 +67,7 @@ generate(parts, "output.docx")
 ### 命令行接口
 
 ```bash
-python ~/.agents/skills/officialdocuments/scripts/gb_gongwen.py \
+python ~/.cc-switch/skills/officialdocuments/scripts/gb_gongwen.py \
   "输入.md" "输出.docx" \
   --author "子公司管理室" \
   --date "2026年6月19日"

@@ -1,7 +1,7 @@
 # novel-pipeline 部署指南
 
 ## 一、前置依赖
-- Python ≥ 3.10（含 `httpx` / `mcp` 两个 pip 包）
+- 运行时：skill 自带 `.venv`（uv 创建，依赖由 `requirements.txt` 锁定：`httpx` / `mcp` 等），无需手动 pip 安装；重建：`uv venv .venv && uv pip install -r requirements.txt`
 - API 端点：豆包/DeepSeek（或任一 OpenAI 兼容端点，火山方舟 `/api/plan/v3` 亦可）
 - 可选：Hermes CLI（若要自动向 Hermes 注册 MCP）
 
@@ -11,14 +11,14 @@
 
 ## 二、Skill 部署步骤
 
-1. **放置 Skill 目录**
-   将 `novel-pipeline/` 放到你的 skills 目录：
-   - Hermes：`C:\Users\<用户名>\AppData\Roaming\cn.org.hermesagent.desktop\runtime\hermes-home\skills\`
-   - 通用：`C:\Users\<用户名>\.agents\skills\`
-   - Claude Code：`~/.claude/skills/` 或项目内 `.claude/skills/`
+1. **放置 Skill 目录（单一真相源 + 软链，勿复制实体副本）**
+   实体只保留一份在真相源：
+   - 真相源：`C:\Users\<用户名>\.cc-switch\skills\novel-pipeline\`（本身是 git 仓）
+   - Hermes：`C:\Users\<用户名>\AppData\Roaming\cn.org.hermesagent.desktop\runtime\hermes-home\skills\novel-pipeline` 为指回真相源的 SymbolicLink
+   - Claude Code：`~/.claude/skills/novel-pipeline` 为指回真相源的 SymbolicLink（项目内 `.claude/skills/` 同理）
 
 2. **配置环境变量**
-   在 `<Skill 目录>\.env` 中填 6 个必需项：
+   在 `<Skill 目录>\.env` 中填 6 个必需项（`.env` 已被 `.gitignore` 忽略，不会入库）：
 
    ```ini
    DEEPSEEK_API_KEY=...
@@ -33,7 +33,7 @@
 
 3. **诊断**
    ```powershell
-   python <Skill路径>\scripts\verify_env.py
+   <Skill路径>\.venv\Scripts\python.exe <Skill路径>\scripts\verify_env.py
    ```
    `summary.ok: true` 即通过。
 
@@ -42,25 +42,25 @@
 ## 三、MCP 注册
 
 ### Hermes 环境（自动）
-首次调用 `scripts/polish_chapter.py` 时会自动向 Hermes 注册 `novel-doubao` 与 `novel-deepseek`（通过 `hermes mcp add`）。
+首次调用 `scripts/polish_chapter.py` / `generate_draft_range.py` 时，会经 `ensure_mcps_ready()` 自动向 Hermes 注册 `novel-doubao` 与 `novel-deepseek`（`hermes mcp add`）。**注册命令一律使用 skill 自带 `.venv` 的解释器**（`mcp_utils.pipeline_python()`，跨平台解析 `.venv/Scripts` 或 `.venv/bin`）；若 `.venv` 不存在则中止并提示重建，**不会回退到系统 Python**，避免注册成缺依赖的解释器。
 
 ### 非 Hermes 环境（手动）
-运行 `polish_chapter.py` 会检测到 `hermes` 命令缺失，打印手动注册片段。将其粘贴到你的客户端配置：
+运行脚本会检测到 `hermes` 命令缺失，打印手动注册片段（`command` 同样取自自带 `.venv`）。将其粘贴到你的客户端配置：
 
 - **Claude Desktop**：`%APPDATA%\Claude\claude_desktop_config.json`
 - **Claude Code**：项目根 `.mcp.json` 或用户级 `~/.claude/mcp.json`
 
-配置形如：
+配置形如（路径按本机真相源替换）：
 ```json
 {
   "mcpServers": {
     "novel-doubao": {
-      "command": "C:\\Python313\\python.exe",
-      "args": ["C:\\...\\novel-pipeline\\mcp\\novel-doubao\\doubao_server.py"]
+      "command": "C:\\Users\\<用户名>\\.cc-switch\\skills\\novel-pipeline\\.venv\\Scripts\\python.exe",
+      "args": ["C:\\Users\\<用户名>\\.cc-switch\\skills\\novel-pipeline\\mcp\\novel-doubao\\doubao_server.py"]
     },
     "novel-deepseek": {
-      "command": "C:\\Python313\\python.exe",
-      "args": ["C:\\...\\novel-pipeline\\mcp\\novel-deepseek\\deepseek_server.py"]
+      "command": "C:\\Users\\<用户名>\\.cc-switch\\skills\\novel-pipeline\\.venv\\Scripts\\python.exe",
+      "args": ["C:\\Users\\<用户名>\\.cc-switch\\skills\\novel-pipeline\\mcp\\novel-deepseek\\deepseek_server.py"]
     }
   }
 }
@@ -83,4 +83,3 @@ writer skill 会话 → "开新书" → 交互创建标准目录 + novel.json
 2. `polish_chapter.py --range 1-N <chapters_dir> [--force]`
 
 不需要 novel.json，也不需要任何 setting/state 目录。
-

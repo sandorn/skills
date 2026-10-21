@@ -1,6 +1,6 @@
 # Hermes 技能库维护标准
 
-> 基于 2026-06-17 审查 ~/.agents/skills + ~/.hermes/skills 的实践经验。
+> 基于 2026-06-17 审查自建 skill 库的实践经验；2026-10-21 起拓扑已收敛为单一真相源（见「符号联结注意事项」）。
 
 ## 硬性标准
 
@@ -40,9 +40,17 @@ for root, dirs, files in os.walk(skills_root):
 
 ## 符号联结注意事项
 
-`~/.hermes/skills/` → `~/.agents/skills/` 的符号联结：
-- `skill_manage(action='delete')` **无法处理符号联结**，必须用 `rm -rf` 同时删除源和联结
-- 修改源文件自动反映到联结（`patch`、`write_file` 直接操作源路径即可）
+**当前拓扑（2026-10-21 起，单一真相源）**：实体只存一份在 `~/.cc-switch/skills/`（本身是 git 仓，双推 Gitee+GitHub）；各客户端目录的同名条目均为指回它的 SymbolicLink/Junction：
+- Hermes：`~/AppData/Roaming/cn.org.hermesagent.desktop/runtime/hermes-home/skills/<名>`
+- Claude Code：`~/.claude/skills/<名>`
+- （如启用）VS Code 用户技能 `%APPDATA%\Code\User\skills\<名>`、Copilot `~/.copilot/skills/<名>`
+
+旧的 `~/.agents/skills/` 已删除——任何仍指向它的链接都是死链，应重指到 `~/.cc-switch/skills/<名>` 或删除。
+
+注意：
+- `skill_manage(action='delete')` **无法处理符号联结**（认不到软链目标），改实体一律用 `write_file`/`patch` 直接操作 `~/.cc-switch/skills/` 下的真实文件；删除链接本身用 `rm`/`Remove-Item` 只删链接、不溯源。
+- 修改真相源文件自动反映到所有链接。
+- 新增 skill：在真相源建实体目录，再到各客户端 skills 目录补建同指向的 SymbolicLink，最后在真相源 git 提交。
 
 ## 功能重叠检测
 

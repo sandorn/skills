@@ -100,7 +100,7 @@ flowchart TD
 ### 首选导出：`scripts/gb_gongwen.py`
 
 ```bash
-python ~/.agents/skills/officialdocuments/scripts/gb_gongwen.py \
+python ~/.cc-switch/skills/officialdocuments/scripts/gb_gongwen.py \
   “输入.md” “输出.docx” \
   --title “关于XXX的报告” \
   --author “子公司管理室” \

@@ -13,19 +13,34 @@ from pathlib import Path
 SKILL_ROOT = Path(__file__).parent.parent
 
 
+def pipeline_python() -> Path:
+    """MCP server 必须由 skill 自带 .venv 的解释器运行，保证依赖隔离。
+
+    跨平台：Windows 为 .venv/Scripts/python.exe，POSIX 为 .venv/bin/python。
+    """
+    subdir = "Scripts" if os.name == "nt" else "bin"
+    exe = "python.exe" if os.name == "nt" else "python"
+    return SKILL_ROOT / ".venv" / subdir / exe
+
+
 def has_hermes() -> bool:
     """检测当前环境是否有 hermes CLI（用于 MCP 自动注册）。"""
     return shutil.which("hermes") is not None
 
 
 def _manual_register_hint(required_mcps) -> None:
-    """打印手动注册引导（非 Hermes 环境使用）。"""
+    """打印手动注册引导（非 Hermes 环境使用）。统一指向自带 .venv。"""
+    py = pipeline_python()
+    if not py.exists():
+        print(f"\n❌ 未找到自带虚拟环境：{py}", file=sys.stderr)
+        print("   请先在 skill 根目录用 uv 重建：uv venv .venv && uv pip install -r requirements.txt",
+              file=sys.stderr)
     print("\n⚠️  当前环境未检测到 hermes 命令，无法自动注册 MCP。", file=sys.stderr)
     print("请在你的 MCP 客户端配置文件中手动加入以下条目：\n", file=sys.stderr)
     for name, dir_name, script in required_mcps:
         server_path = SKILL_ROOT / "mcp" / dir_name / script
         print(f'  "{name}": {{', file=sys.stderr)
-        print(f'    "command": "{sys.executable}",', file=sys.stderr)
+        print(f'    "command": "{py}",', file=sys.stderr)
         print(f'    "args": ["{server_path}"]', file=sys.stderr)
         print(f'  }}', file=sys.stderr)
     print("\n（Claude Desktop 位于 %APPDATA%\\Claude\\claude_desktop_config.json；Claude Code 使用 `.mcp.json`）", file=sys.stderr)
@@ -85,12 +100,20 @@ def register_mcp(mcp_name: str, server_dir: str, script_name: str) -> bool:
         print(f"⚠️  MCP {mcp_name} 脚本不存在: {server_path}", file=sys.stderr)
         return False
 
+    # 强制使用 skill 自带 .venv 的解释器，避免用系统 Python 注册导致依赖缺失。
+    py = pipeline_python()
+    if not py.exists():
+        print(f"❌ MCP {mcp_name} 注册中止：未找到自带虚拟环境 {py}", file=sys.stderr)
+        print("   请先在 skill 根目录重建：uv venv .venv && uv pip install -r requirements.txt",
+              file=sys.stderr)
+        return False
+
     try:
         subprocess.run(
             [
                 "hermes", "mcp", "add",
                 mcp_name,
-                "--command", sys.executable,
+                "--command", str(py),
                 "--args", str(server_path),
             ],
             check=True,
