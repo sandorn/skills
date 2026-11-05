@@ -240,3 +240,28 @@ for p in markdown_to_parts(open('稿件.md',encoding='utf-8').read()):
 
 结果报告给用户、经目检确认后才原地修复原件。文件被 Word/WPS 占用时 zip 打开会报 "used by another process"，需先关闭。
 
+### 缺陷7 / 陷阱：WPS 宏产物主题丢失（日文底子）——改模板治不了，只能换新建载体
+
+**现象**：`word.bas` 公文宏（`自动格式化文档`）产出的 docx，`theme1.xml` 里 `majorFont/minorFont` 的 `a:ea` 为空、`Jpan=游明朝/游ゴシック Light`、`latin=Calibri`，触发第三·五层主题拦截。而 Normal.dotm **本体**的 theme1.xml 是干净的（方正小标宋简体/仿宋_GB2312/黑体/Times New Roman）。
+
+**六组实验证伪（2026-11-05，WPS 12.1.0.29158）**：
+
+| 尝试 | 结果 |
+|---|---|
+| 改写 `WPS.thmx`（应用默认主题）| 新文档仍日文底子 → 无效，已回滚 |
+| `Documents.Add()` 无参 | 日文底子 |
+| `Documents.Add(Normal.dotm)` 显式指定 | 仍日文底子（**不继承**） |
+| `Documents.Add(同内容改名的 .dotm 副本)` | **主题干净** → 文件内容本身没问题 |
+| `ApplyTheme(...)` | 返回成功但零效果 |
+| `DocumentTheme.ThemeFonts` | 对象模型缺失（WPS 未实现） |
+
+**根因**：`游明朝/游ゴシック` 以 UTF-16 硬编码在 `office6/wpscore.dll`（全盘主题资源中无此字符串）；WPS 对**名为 Normal.dotm 的默认模板**做特例——样式/宏照常加载，`theme1.xml` 被强制替换为内置日文主题。
+
+**因此**：改 Normal.dotm 的 theme 部件、改 WPS.thmx、宏内写主题，三条路全部不通。对「打开既有文档跑宏」更天然无效——主题来自原文档本身。
+
+**判定「是否有实际影响」**：宏产物 `w:*Theme` 引用数为 **0**（字体全显式 + `docDefaults` 钉 `eastAsia=仿宋_GB2312`），空 `a:ea` 槽与 Jpan 回退**永不被触发**，渲染 100% 正确。`qa_docx.py` 自 2.4.1 起用 `_theme_inert()` 识别此情形并降为 WARNING；`refs>0` 或 docDefaults 无东亚字体的真带雷文档仍阻断。
+
+**根治做法**：用 **`中言公文模板.dotx`**（`%APPDATA%\kingsoft\office6\templates\`）新建文档再跑宏。该模板由 Normal.dotm 派生：保留 styles/settings/theme/sectPr，剥离 `vbaProject.bin`/`vbaData.xml`，`[Content_Types].xml` 主文档类型改为 `...template.main+xml`。实测新建 → 跑「自动格式化文档」→ 落盘，主题 ea=方正小标宋简体/仿宋_GB2312、Jpan=黑体/仿宋，**31/31 全绿、0 告警**。
+
+**兜底**：对已在既有文档上跑过宏的成品，`python scripts/fix_theme_fonts.py "稿件.docx"` 一行修掉（修复目标值与 Normal.dotm 本体一致）。
+

@@ -26,12 +26,19 @@ from xml.etree import ElementTree as ET
 PAGE_SPEC = {"top": "2098", "bottom": "1985", "left": "1588", "right": "1474"}
 
 # 样式标准
+# id 为 gb_gongwen.py 生成文档的固有 styleId；aliases 为跨模板的样式名候选
+# （宏产物用「公文标题/公文1级/…」命名，ID 体系也不同，必须按名定位）。
 STYLE_SPEC = {
-    "13": {"name": "标题", "font": "方正小标宋简体", "sz": "44", "bold": False},
-    "14": {"name": "一级标题", "font": "黑体", "sz": "32", "bold": False},
-    "15": {"name": "二级标题", "font": "楷体_GB2312", "sz": "32", "bold": False},
-    "16": {"name": "三级标题", "font": "仿宋_GB2312", "sz": "32", "bold": True},
-    "19": {"name": "正文", "font": "仿宋_GB2312", "sz": "32", "bold": False},
+    "13": {"name": "标题", "font": "方正小标宋简体", "sz": "44", "bold": False,
+           "aliases": ("标题", "公文标题", "文件标题", "Title")},
+    "14": {"name": "一级标题", "font": "黑体", "sz": "32", "bold": False,
+           "aliases": ("一级标题", "公文1级", "一级标题（一）")},
+    "15": {"name": "二级标题", "font": "楷体_GB2312", "sz": "32", "bold": False,
+           "aliases": ("二级标题", "公文2级")},
+    "16": {"name": "三级标题", "font": "仿宋_GB2312", "sz": "32", "bold": True,
+           "aliases": ("三级标题", "公文3级")},
+    "19": {"name": "正文", "font": "仿宋_GB2312", "sz": "32", "bold": False,
+           "aliases": ("正文", "公文正文", "Normal", "Body Text")},
 }
 
 # 段落版式标准
@@ -146,27 +153,92 @@ def _extract_body_texts(docx_path: Path) -> list[str]:
     return texts
 
 
+def _local(attr: str) -> str:
+    """去掉 XML 命名空间前缀，返回属性本地名。"""
+    return attr.split("}")[-1] if "}" in attr else attr
+
+
+def _ind_map(el) -> dict:
+    return {_local(k): v for k, v in el.attrib.items()}
+
+
 def _extract_styles(docx_path: Path) -> dict[str, dict]:
-    """从 styles.xml 提取各 styleId 的字体/字号信息。"""
-    result = {}
+    """从 styles.xml 提取样式信息：名称、basedOn、字体/字号、段落属性。
+
+    额外键 ``__docdefaults__`` 保存 docDefaults 的字体/字号兜底值。
+    样式可整体为空（如「公文正文」只靠 basedOn 继承），调用方需用
+    `_resolve_style()` 沿继承链补齐，不可直接读 rPr 就判失败。
+    """
+    result: dict[str, dict] = {}
     try:
         with zipfile.ZipFile(docx_path, "r") as z:
             with z.open("word/styles.xml") as f:
                 tree = ET.parse(f)
-        for style in tree.iter(f"{{{NS['w']}}}style"):
-            sid = style.get(f"{{{NS['w']}}}styleId", "")
-            rpr = style.find(f"w:rPr", NS)
-            if rpr is None:
+        W = NS["w"]
+
+        dd_info: dict = {}
+        dd = tree.find("w:docDefaults", NS)
+        if dd is not None:
+            rpr = dd.find("w:rPrDefault/w:rPr", NS)
+            if rpr is not None:
+                rf = rpr.find("w:rFonts", NS)
+                sz = rpr.find("w:sz", NS)
+                dd_info["font"] = rf.get(f"{{{W}}}eastAsia", "") if rf is not None else ""
+                dd_info["sz"] = sz.get(f"{{{W}}}val", "") if sz is not None else ""
+        result["__docdefaults__"] = dd_info
+
+        for style in tree.iter(f"{{{W}}}style"):
+            sid = style.get(f"{{{W}}}styleId", "")
+            if not sid:
                 continue
-            rfonts = rpr.find("w:rFonts", NS)
-            sz = rpr.find("w:sz", NS)
-            result[sid] = {
-                "font": rfonts.get(f"{{{NS['w']}}}eastAsia", "") if rfonts is not None else "",
-                "sz": sz.get(f"{{{NS['w']}}}val", "") if sz is not None else "",
+            nm = style.find("w:name", NS)
+            bo = style.find("w:basedOn", NS)
+            info: dict = {
+                "name": nm.get(f"{{{W}}}val", "") if nm is not None else "",
+                "basedOn": bo.get(f"{{{W}}}val", "") if bo is not None else "",
+                "default": style.get(f"{{{W}}}default", "") in ("1", "true"),
+                "type": style.get(f"{{{W}}}type", ""),
+                "font": "", "sz": "", "ind": {}, "spacing": {},
             }
+            rpr = style.find("w:rPr", NS)
+            if rpr is not None:
+                rf = rpr.find("w:rFonts", NS)
+                sz = rpr.find("w:sz", NS)
+                info["font"] = rf.get(f"{{{W}}}eastAsia", "") if rf is not None else ""
+                info["sz"] = sz.get(f"{{{W}}}val", "") if sz is not None else ""
+            ppr = style.find("w:pPr", NS)
+            if ppr is not None:
+                ind = ppr.find("w:ind", NS)
+                if ind is not None:
+                    info["ind"] = _ind_map(ind)
+                sp = ppr.find("w:spacing", NS)
+                if sp is not None:
+                    info["spacing"] = _ind_map(sp)
+            result[sid] = info
     except Exception:
         pass
     return result
+
+
+def _resolve_style(sid: str, styles: dict, depth: int = 0) -> dict:
+    """沿 basedOn 链补齐 font/sz，最终兜底 docDefaults。
+
+    宏产物中「公文正文」等样式 rPr 为空、靠 basedOn=Normal 继承，
+    直接读 rPr 会得到空值并被误判为 N/A。
+    """
+    info = styles.get(sid)
+    if not isinstance(info, dict) or depth > 10:
+        return {"font": "", "sz": ""}
+    out = {"font": info.get("font", ""), "sz": info.get("sz", "")}
+    if (not out["font"] or not out["sz"]) and info.get("basedOn"):
+        parent = _resolve_style(info["basedOn"], styles, depth + 1)
+        out["font"] = out["font"] or parent.get("font", "")
+        out["sz"] = out["sz"] or parent.get("sz", "")
+    if not out["font"] or not out["sz"]:
+        dd = styles.get("__docdefaults__") or {}
+        out["font"] = out["font"] or dd.get("font", "")
+        out["sz"] = out["sz"] or dd.get("sz", "")
+    return out
 
 
 def _check_page(docx_path: Path) -> dict:
@@ -191,27 +263,53 @@ def _check_page(docx_path: Path) -> dict:
         return {"pass": False, "detail": f"检查异常: {e}", "actual": {}}
 
 
+def _find_style_id(spec: dict, fallback: str, styles: dict) -> str:
+    """按样式名/别名定位实际 styleId；找不到时回退硬编码 ID。
+
+    跨模板兼容：gb_gongwen 产物用「标题/一级标题/…」+ 13/14/15/19，
+    Normal.dotm 宏产物用「公文标题/公文1级/…」+ 18/13/15/16。
+    """
+    by_name: dict[str, str] = {}
+    for sid, info in styles.items():
+        if sid.startswith("__") or not isinstance(info, dict):
+            continue
+        nm = (info.get("name") or "").strip().lower()
+        if nm:
+            by_name.setdefault(nm, sid)
+    for alias in spec.get("aliases", ()):
+        hit = by_name.get(alias.lower())
+        if hit:
+            return hit
+    return fallback
+
+
 def _check_styles(docx_path: Path) -> list[dict]:
-    """检查 2-5: 字体/样式（标题/正文/一级/二级）。"""
+    """检查 2-5: 字体/样式（标题/一级/二级/正文）。
+
+    按样式名（含别名）定位、沿 basedOn 继承链取字体字号，
+    避免依赖特定模板的 styleId 编号而误报。
+    """
     results = []
     actual_styles = _extract_styles(docx_path)
-    for sid in ["13", "14", "15", "19"]:
-        spec = STYLE_SPEC[sid]
-        actual = actual_styles.get(sid, {})
+    for spec_key in ["13", "14", "15", "19"]:
+        spec = STYLE_SPEC[spec_key]
+        sid = _find_style_id(spec, spec_key, actual_styles)
+        actual = _resolve_style(sid, actual_styles) if sid else {}
         font_ok = actual.get("font", "") == spec["font"]
         sz_ok = actual.get("sz", "") == spec["sz"]
         ok = font_ok and sz_ok
         detail_parts = []
         if not font_ok:
-            detail_parts.append(f"字体期望'{spec['font']}' 实际'{actual.get('font', 'N/A')}'")
+            detail_parts.append(f"字体期望'{spec['font']}' 实际'{actual.get('font') or 'N/A'}'")
         if not sz_ok:
-            detail_parts.append(f"字号期望'{spec['sz']}' 实际'{actual.get('sz', 'N/A')}'")
+            detail_parts.append(f"字号期望'{spec['sz']}' 实际'{actual.get('sz') or 'N/A'}'")
         results.append({
-            "id": sid,
+            "id": spec_key,
+            "style_id": sid,
             "name": spec["name"],
             "pass": ok,
             "detail": "正确" if ok else "; ".join(detail_parts),
-            "actual": actual,
+            "actual": {"styleId": sid, **actual},
         })
     # 检查一级标题编号存在性（公文"一、"或制度"第X条"任一存在即通过）
     texts = _extract_texts(docx_path)
@@ -241,33 +339,85 @@ def _check_styles(docx_path: Path) -> list[dict]:
 
 
 def _check_paragraph_format(docx_path: Path) -> dict:
-    """检查 6: 段落版式（首行缩进 + 行距）。"""
+    """检查 6: 段落版式（首行缩进 + 行距）。
+
+    正文段落常无 pPr（缩进/行距写在样式里），故按
+    段落 pPr → pStyle → basedOn 链 → 默认段落样式 逐级取值；
+    首行缩进允许 firstLineChars=200（2 字符）等价表达 640 twips。
+    """
     try:
         with zipfile.ZipFile(docx_path, "r") as z:
             with z.open("word/document.xml") as f:
                 tree = ET.parse(f)
-        # 找第一个带 <w:ind> 的正文段落
+        styles = _extract_styles(docx_path)
+        default_sid = next(
+            (sid for sid, i in styles.items()
+             if isinstance(i, dict) and i.get("default") and i.get("type") == "paragraph"),
+            "",
+        )
+
+        def style_props(sid: str, depth: int = 0) -> tuple[dict, dict]:
+            """沿 basedOn 链取第一个非空 ind / spacing。"""
+            info = styles.get(sid)
+            if not isinstance(info, dict) or depth > 10:
+                return {}, {}
+            ind = dict(info.get("ind") or {})
+            sp = dict(info.get("spacing") or {})
+            if (not ind or not sp) and info.get("basedOn"):
+                p_ind, p_sp = style_props(info["basedOn"], depth + 1)
+                ind = ind or p_ind
+                sp = sp or p_sp
+            return ind, sp
+
         for p in tree.iter(f"{{{NS['w']}}}p"):
             ppr = p.find("w:pPr", NS)
-            if ppr is None:
-                continue
-            if ppr.find("w:ind", NS) is not None:
+            own_ind: dict = {}
+            own_sp: dict = {}
+            psid = ""
+            if ppr is not None:
                 ind_el = ppr.find("w:ind", NS)
-                spacing_el = ppr.find("w:spacing", NS)
-                actual = {}
                 if ind_el is not None:
-                    actual["firstLine"] = ind_el.get(f"{{{NS['w']}}}firstLine", "")
-                if spacing_el is not None:
-                    actual["line"] = spacing_el.get(f"{{{NS['w']}}}line", "")
-                    actual["lineRule"] = spacing_el.get(f"{{{NS['w']}}}lineRule", "")
-                ok = all(actual.get(k) == v for k, v in PARA_SPEC.items())
-                mismatches = [k for k in PARA_SPEC if actual.get(k) != PARA_SPEC[k]]
-                return {
-                    "pass": ok,
-                    "detail": f"段落版式{'正确' if ok else '不符合: ' + ', '.join(mismatches)}",
-                    "actual": actual,
-                    "mismatches": mismatches,
-                }
+                    own_ind = _ind_map(ind_el)
+                sp_el = ppr.find("w:spacing", NS)
+                if sp_el is not None:
+                    own_sp = _ind_map(sp_el)
+                ps_el = ppr.find("w:pStyle", NS)
+                if ps_el is not None:
+                    psid = ps_el.get(f"{{{NS['w']}}}val", "")
+
+            s_ind, s_sp = style_props(psid or default_sid)
+            ind = own_ind or s_ind
+            sp = own_sp or s_sp
+            if not ind:
+                continue
+
+            first_line = ind.get("firstLine", "")
+            chars = ind.get("firstLineChars", "")
+            if not first_line and chars:
+                try:
+                    first_line = str(int(round(int(chars) / 100 * 320)))
+                except ValueError:
+                    first_line = ""
+            # 只取「带首行缩进」的正文档（跳过标题/落款等 jc=center 或 firstLine=0 段）
+            try:
+                if not first_line or int(first_line) <= 0:
+                    continue
+            except ValueError:
+                continue
+
+            actual = {
+                "firstLine": first_line,
+                "line": sp.get("line", ""),
+                "lineRule": sp.get("lineRule", ""),
+            }
+            ok = all(actual.get(k) == v for k, v in PARA_SPEC.items())
+            mismatches = [k for k in PARA_SPEC if actual.get(k) != PARA_SPEC[k]]
+            return {
+                "pass": ok,
+                "detail": f"段落版式{'正确' if ok else '不符合: ' + ', '.join(mismatches)}",
+                "actual": actual,
+                "mismatches": mismatches,
+            }
         return {"pass": False, "detail": "未找到带缩进的正文段落", "actual": {}}
     except Exception as e:
         return {"pass": False, "detail": f"检查异常: {e}", "actual": {}}
@@ -439,6 +589,40 @@ def _read_part(docx_path: Path, part: str) -> str | None:
         return None
 
 
+def _theme_inert(docx_path: Path) -> tuple[bool, str]:
+    """判断主题对渲染是否完全无效（用于豁免"日文底子"拦截）。
+
+    豁免须同时满足：
+      1) document.xml + styles.xml 中主题字体引用（w:*Theme=）计数为 0，
+         即没有任何 run/style 依赖 theme1.xml 的字体方案；
+      2) styles.xml 的 docDefaults 已显式指定非空 eastAsia 字体，
+         正文兜底不落回主题。
+
+    两者成立时，theme1.xml 的 a:ea 空槽与 Jpan 日文回退永远不会被触发，
+    属"模板底子脏但零实际影响"，应降级为提示而非阻断。
+    真实事故里的带雷文档（rFonts 缺 eastAsia、正文继承主题）refs>0 或
+    docDefaults 无显式东亚字体，不会命中豁免，仍被拦截。
+    """
+    refs = 0
+    for part in ("word/document.xml", "word/styles.xml"):
+        xml = _read_part(docx_path, part) or ""
+        refs += len(re.findall(r'w:(?:ascii|hAnsi|eastAsia|cs)Theme="', xml))
+
+    styles = _read_part(docx_path, "word/styles.xml") or ""
+    dd_m = re.search(r"<w:docDefaults>.*?</w:docDefaults>", styles, re.S)
+    east = ""
+    if dd_m:
+        ea_m = re.search(r'w:eastAsia="([^"]*)"', dd_m.group(0))
+        if ea_m:
+            east = ea_m.group(1).strip()
+
+    if refs == 0 and east:
+        return True, (f"主题字体引用 0 处，docDefaults 已钉 eastAsia={east}，"
+                      f"主题空槽/Jpan 回退不参与渲染")
+    return False, (f"主题字体引用 {refs} 处，docDefaults eastAsia="
+                   f"{'未钉' if not east else east}")
+
+
 def _check_theme_fonts(docx_path: Path) -> list[dict]:
     """检查 theme1.xml / settings.xml：日文模板底子的三处雷。
 
@@ -446,7 +630,15 @@ def _check_theme_fonts(docx_path: Path) -> list[dict]:
     2) 不得出现 ＭＳ 明朝/MS Mincho/ゴシック 等日文回退字体；
     3) majorFont/minorFont 的 <a:ea typeface=""/> 东亚槽位不得为空；
     4) <w:themeFontLang w:eastAsia="..."/> 不得为 ja-JP，应为 zh-CN。
+
+    豁免：当 `_theme_inert()` 成立（无主题字体引用且 docDefaults 已显式
+    锁定东亚字体）时，上述 2)/3)/4) 一律降为 WARNING —— 脏底子不会被用到。
     """
+    inert, inert_reason = _theme_inert(docx_path)
+    # 惰性主题：不构成实际字形风险，降级为提示；否则阻断
+    lvl = "WARNING" if inert else "ERROR"
+    suffix = f"（豁免：{inert_reason}）" if inert else ""
+
     results: list[dict] = []
     for part in THEME_PARTS:
         xml = _read_part(docx_path, part)
@@ -455,8 +647,8 @@ def _check_theme_fonts(docx_path: Path) -> list[dict]:
             results.append({
                 "name": f"{label} 存在性",
                 "pass": False,
-                "level": "ERROR",
-                "detail": f"缺少 {part}，Word 将隐式补全主题（可能落入日文字体回退）",
+                "level": lvl,
+                "detail": f"缺少 {part}，Word 将隐式补全主题（可能落入日文字体回退）{suffix}",
                 "samples": [],
             })
             continue
@@ -472,9 +664,9 @@ def _check_theme_fonts(docx_path: Path) -> list[dict]:
         results.append({
             "name": f"{label} 日文回退字体（MS明朝等）",
             "pass": not bad_hits,
-            "level": "ERROR",
-            "detail": "未检出日文回退字体" if not bad_hits
-                      else f"检出禁忌字体标记: {', '.join(bad_hits)}",
+            "level": lvl,
+            "detail": ("未检出日文回退字体" if not bad_hits
+                       else f"检出禁忌字体标记: {', '.join(bad_hits)}{suffix}"),
             "samples": bad_hits,
         })
 
@@ -494,9 +686,10 @@ def _check_theme_fonts(docx_path: Path) -> list[dict]:
             results.append({
                 "name": "theme1.xml 东亚字体槽位 a:ea",
                 "pass": not empty_slots,
-                "level": "ERROR",
-                "detail": "major/minor 东亚槽位均已显式指定中文字体" if not empty_slots
-                          else "存在空东亚槽位，将回退 Jpan→MS 明朝: " + ", ".join(empty_slots),
+                "level": lvl,
+                "detail": ("major/minor 东亚槽位均已显式指定中文字体" if not empty_slots
+                           else "存在空东亚槽位，将回退 Jpan→MS 明朝: "
+                                + ", ".join(empty_slots) + suffix),
                 "samples": empty_slots,
             })
         else:
@@ -515,8 +708,8 @@ def _check_theme_fonts(docx_path: Path) -> list[dict]:
             results.append({
                 "name": "settings.xml 东亚语言 themeFontLang",
                 "pass": lang_ok,
-                "level": "ERROR",
-                "detail": detail,
+                "level": lvl,
+                "detail": detail if lang_ok else detail + suffix,
                 "samples": samples,
             })
     return results
@@ -632,7 +825,11 @@ def terminal_report(docx_path: Path, all_results: list[dict]) -> int:
         for name, r in layer_items:
             total_checks += 1
             level = r.get("level", "ERROR" if r.get("pass") is False else "INFO")
-            icon = _status_icon(r["pass"])
+            # 未通过但已降级为 WARNING 的项显示告警图标，避免与阻断混淆
+            if r["pass"] is False and level == "WARNING":
+                icon = _status_icon(None)
+            else:
+                icon = _status_icon(r["pass"])
             detail = r.get("detail", "")
             actual = r.get("actual", {})
             actual_str = ""

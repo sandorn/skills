@@ -1,6 +1,6 @@
 ---
 name: officialdocuments
-version: 2.4.1
+version: 2.4.2
 description: "起草、修改和排版央国企正式公文（请示、报告、通知、函件等）。"
 tags: [official-documents, 公文, 正式文档, 央国企, 报告]
 category: document
@@ -19,6 +19,7 @@ linked_files:
     - scripts/gb_gongwen.py
     - scripts/qa_docx.py
     - scripts/fix_theme_fonts.py
+    - scripts/make_gongwen_dotx.py
 ---
 
 # 公文 Skill
@@ -84,6 +85,7 @@ linked_files:
 | `scripts/gb_gongwen.py` | Word 排版引擎（纯 XML+zipfile） |
 | `scripts/qa_docx.py` | 产物质检工具（31 项自动化检查） |
 | `scripts/fix_theme_fonts.py` | 存量 docx 主题字体修复（MS 明朝/ja-JP/裸 Courier） |
+| `scripts/make_gongwen_dotx.py` | 由 Normal.dotm 派生无宏公文模板 `.dotx`（绕开 WPS 内置日文主题底子）|
 
 ---
 
@@ -106,6 +108,9 @@ linked_files:
 - **损坏/异常 docx 抢救**：批量扫描须捕获 `zipfile.BadZipFile`；按文件头 8 字节甄别空壳、macOS 资源叉、WPS 私有封装（`F1 03 F2 03 F3 03 F4 03`，需 COM 转档后补跑 `fix_theme_fonts.py`）、半截 zip（扫 `PK\x03\x04` 逐条重打包抢救）。详见 `references/errors.md` 第九节缺陷6。
 - **落款只支持两行，三行需外科补行**：`--author/--date` 生成「机关 / 日期」两行；不少单位的**部门请示**惯例是三行「机关 / 部门 / 日期」。对 `document.xml` 落款段做定点正则补 `<w:br/>`，`subn` 的命中数**必须断言 = 1**（防静默改错位置），补行后回读该段确认 `<w:br/>` 计数为 2。完整脚本见 `references/gongwen-draft-optimization.md`。
 - **主送机关会被缩进**：引擎给所有正文段加 `firstLine=640`，md 里的「公司领导：」也会被缩进；公文主送机关应**顶格**，需在补行脚本里一并去掉该段 `<w:ind>`。
+- **qa 按样式名解析，不认 styleId 编号**（2.4.1+）：`STYLE_SPEC` 的 `id` 只是 gb_gongwen 产物的固有编号，实际按 `aliases` 里的样式名（`标题/公文标题`、`一级标题/公文1级`、`正文/公文正文/Normal`…）定位，并沿 `basedOn` 链补齐字体字号。此前硬编码 13/14/15/19 会把 **WPS 宏产物**（套装名「公文标题/公文1级/…」、编号 18/13/15/16）判成大面积不合格——那是检查器误报，不是文档问题。
+- **主题拦截可被「惰性主题」豁免**（2.4.1+）：当 `document.xml`+`styles.xml` 的 `w:*Theme` 引用数为 0，且 `docDefaults` 已显式锁定 `eastAsia` 字体时，`theme1.xml` 的空 `a:ea` 槽与 `Jpan` 日文回退**永不参与渲染**，第三·五层降为 WARNING 不阻断；真依赖主题的文档（`refs>0` 或 docDefaults 无东亚字体）仍照常拦截。判定函数 `_theme_inert()`。
+- **宏产物主题脏 ≠ 版式错**：`word.bas` 的公文宏（`自动格式化文档`）产物 `*Theme` 引用为 0、字体全显式，实际渲染正确；仅 `theme1.xml` 底子来自 WPS 内置日文主题。根治只能换新建载体——用 **`中言公文模板.dotx`**（`%APPDATA%\kingsoft\office6\templates\`，由 Normal.dotm 剥离 VBA 派生，主题干净）新建文档后再跑宏，产物 31/31 全绿。详见 `references/errors.md` 第九节缺陷7。
 - **二级标题不可与正文同行**：`（一）小标题。正文……` 写在一行会让**整段**套上楷体二级标题样式。小标题要么单独成行，要么不用二级、改用「一是/二是」写在正文段内。
 - **起草/优化前先找「配套材料」**：同目录往往已有**采购需求单、先例请示、所涉制度**。草稿里的「大厦」「此合同」「相关规定」等含糊指代，能从这些材料坐实为具体名称/日期/文号/金额。请示缺**预算总额**、缺**标的概况**是硬伤——照需求单补齐，每个数字都要能在既有材料里指出来并在改动说明表中标注出处；拿不到出处的用 `XX` 占位并列入待确认。
 - **起草前先检索目标目录**：制度类任务开工前，先 `search_files` 目标目录下是否已有同名/近似制度稿（含"待审定""清洁版"等后缀）。用户既有稿件可能基于同一上位制度改写，先发现才能避免产出平行冲突稿。
