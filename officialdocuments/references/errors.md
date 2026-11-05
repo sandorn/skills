@@ -263,5 +263,20 @@ for p in markdown_to_parts(open('稿件.md',encoding='utf-8').read()):
 
 **根治做法**：用 **`中言公文模板.dotx`**（`%APPDATA%\kingsoft\office6\templates\`）新建文档再跑宏。该模板由 Normal.dotm 派生：保留 styles/settings/theme/sectPr，剥离 `vbaProject.bin`/`vbaData.xml`，`[Content_Types].xml` 主文档类型改为 `...template.main+xml`。实测新建 → 跑「自动格式化文档」→ 落盘，主题 ea=方正小标宋简体/仿宋_GB2312、Jpan=黑体/仿宋，**31/31 全绿、0 告警**。
 
-**兜底**：对已在既有文档上跑过宏的成品，`python scripts/fix_theme_fonts.py "稿件.docx"` 一行修掉（修复目标值与 Normal.dotm 本体一致）。
+**兜底**：对已在既有文档上跑过宏的成品，`python scripts/fix_theme_fonts.py "稿件.docx"` 原地修复（目标值与 Normal.dotm 本体一致）。
+
+### 缺陷8 / 陷阱：多节文档跑宏后「整篇变横向」（清理空行删掉了分节符）
+
+**现象**：正文纵向 + 附件宽表横向的多节文档，跑 `自动格式化文档` 后节数 2→1，整篇变成末节的横向版式。
+
+**根因**：分节符保存在**段落属性** `pPr/sectPr` 中，该段正文通常只有一个段落标记（`Range.Text` 长度=1，实测为 `\x0c`）。`清理空行` 的判据是 `Len(text) = 1`，把它当空行删掉 → 分节符消失 → 末节页面设置（横向）接管全文。
+
+**修法**（word.bas v2.2）：删空行前先登记各节末段 `ActiveDocument.Sections(i).Range.Paragraphs.Last.Range.Start` 到 Dictionary，删到这些位置时跳过。从后向前删除不会使已登记的起始位置失效。
+
+**排查要点**：
+- 用 `doc.Sections.Count` 在宏执行前后比对，最直接；
+- 仅看 `document.xml` 的 `sectPr` 数即可确认（2→1 即中招）；
+- 手工复现时 `Application.Run("自动格式化文档")` 会**优先命中 Normal.dotm 的全局宏**，注入到测试文档里的同名副本不会被执行——测试须给入口改名（如 `自动格式化文档_v22`）。
+
+**顺带**：`Range.Text` 里 `\x07` 是单元格结束标记，`\r\x07` 长度为 2，不会被误删，无需特殊处理。
 

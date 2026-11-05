@@ -30,13 +30,13 @@ PAGE_SPEC = {"top": "2098", "bottom": "1985", "left": "1588", "right": "1474"}
 # （宏产物用「公文标题/公文1级/…」命名，ID 体系也不同，必须按名定位）。
 STYLE_SPEC = {
     "13": {"name": "标题", "font": "方正小标宋简体", "sz": "44", "bold": False,
-           "aliases": ("标题", "公文标题", "文件标题", "Title")},
+           "aliases": ("标题", "公文标题", "文件标题", "Title", "heading 1")},
     "14": {"name": "一级标题", "font": "黑体", "sz": "32", "bold": False,
-           "aliases": ("一级标题", "公文1级", "一级标题（一）")},
+           "aliases": ("一级标题", "公文1级", "一级标题（一）", "heading 2")},
     "15": {"name": "二级标题", "font": "楷体_GB2312", "sz": "32", "bold": False,
-           "aliases": ("二级标题", "公文2级")},
+           "aliases": ("二级标题", "公文2级", "heading 3")},
     "16": {"name": "三级标题", "font": "仿宋_GB2312", "sz": "32", "bold": True,
-           "aliases": ("三级标题", "公文3级")},
+           "aliases": ("三级标题", "公文3级", "heading 4")},
     "19": {"name": "正文", "font": "仿宋_GB2312", "sz": "32", "bold": False,
            "aliases": ("正文", "公文正文", "Normal", "Body Text")},
 }
@@ -391,13 +391,16 @@ def _check_paragraph_format(docx_path: Path) -> dict:
             if not ind:
                 continue
 
-            first_line = ind.get("firstLine", "")
+            # OOXML 语义：firstLineChars 存在时优先于 firstLine（Word 按字符数渲染，
+            # firstLine 只是创建时的绝对快照，可能因字号变更而失配，如 880 残留）
             chars = ind.get("firstLineChars", "")
-            if not first_line and chars:
+            if chars and chars != "0":
                 try:
                     first_line = str(int(round(int(chars) / 100 * 320)))
                 except ValueError:
-                    first_line = ""
+                    first_line = ind.get("firstLine", "")
+            else:
+                first_line = ind.get("firstLine", "")
             # 只取「带首行缩进」的正文档（跳过标题/落款等 jc=center 或 firstLine=0 段）
             try:
                 if not first_line or int(first_line) <= 0:

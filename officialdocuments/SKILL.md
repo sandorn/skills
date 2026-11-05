@@ -108,7 +108,8 @@ linked_files:
 - **损坏/异常 docx 抢救**：批量扫描须捕获 `zipfile.BadZipFile`；按文件头 8 字节甄别空壳、macOS 资源叉、WPS 私有封装（`F1 03 F2 03 F3 03 F4 03`，需 COM 转档后补跑 `fix_theme_fonts.py`）、半截 zip（扫 `PK\x03\x04` 逐条重打包抢救）。详见 `references/errors.md` 第九节缺陷6。
 - **落款只支持两行，三行需外科补行**：`--author/--date` 生成「机关 / 日期」两行；不少单位的**部门请示**惯例是三行「机关 / 部门 / 日期」。对 `document.xml` 落款段做定点正则补 `<w:br/>`，`subn` 的命中数**必须断言 = 1**（防静默改错位置），补行后回读该段确认 `<w:br/>` 计数为 2。完整脚本见 `references/gongwen-draft-optimization.md`。
 - **主送机关会被缩进**：引擎给所有正文段加 `firstLine=640`，md 里的「公司领导：」也会被缩进；公文主送机关应**顶格**，需在补行脚本里一并去掉该段 `<w:ind>`。
-- **qa 按样式名解析，不认 styleId 编号**（2.4.1+）：`STYLE_SPEC` 的 `id` 只是 gb_gongwen 产物的固有编号，实际按 `aliases` 里的样式名（`标题/公文标题`、`一级标题/公文1级`、`正文/公文正文/Normal`…）定位，并沿 `basedOn` 链补齐字体字号。此前硬编码 13/14/15/19 会把 **WPS 宏产物**（套装名「公文标题/公文1级/…」、编号 18/13/15/16）判成大面积不合格——那是检查器误报，不是文档问题。
+- **qa 按样式名解析，不认 styleId 编号**（2.4.1+）：`STYLE_SPEC` 的 `id` 只是 gb_gongwen 产物的固有编号，实际按 `aliases` 里的样式名（`标题/公文标题/heading 1`、`一级标题/公文1级/heading 2`、`正文/公文正文/Normal`…）定位，并沿 `basedOn` 链补齐字体字号。此前硬编码 13/14/15/19 会把 **WPS 宏产物**（套装名「公文标题/公文1级/…」、编号 18/13/15/16）和 **英文样式名的既有 Word 文档**（heading 1..6）判成大面积不合格——那是检查器误报，不是文档问题。
+- **首行缩进以 firstLineChars 为准**（2.4.2+）：`w:ind` 同时有 `firstLine`（绝对 twips 快照）与 `firstLineChars`（字符倍数）时，Word 按后者渲染；`firstLine=880` 只是 22pt 时代的残留，实际 2 字符 = 640 twips。检查器取 chars 换算，避免误判。
 - **主题拦截可被「惰性主题」豁免**（2.4.1+）：当 `document.xml`+`styles.xml` 的 `w:*Theme` 引用数为 0，且 `docDefaults` 已显式锁定 `eastAsia` 字体时，`theme1.xml` 的空 `a:ea` 槽与 `Jpan` 日文回退**永不参与渲染**，第三·五层降为 WARNING 不阻断；真依赖主题的文档（`refs>0` 或 docDefaults 无东亚字体）仍照常拦截。判定函数 `_theme_inert()`。
 - **宏产物主题脏 ≠ 版式错**：`word.bas` 的公文宏（`自动格式化文档`）产物 `*Theme` 引用为 0、字体全显式，实际渲染正确；仅 `theme1.xml` 底子来自 WPS 内置日文主题。根治只能换新建载体——用 **`中言公文模板.dotx`**（`%APPDATA%\kingsoft\office6\templates\`，由 Normal.dotm 剥离 VBA 派生，主题干净）新建文档后再跑宏，产物 31/31 全绿。详见 `references/errors.md` 第九节缺陷7。
 - **二级标题不可与正文同行**：`（一）小标题。正文……` 写在一行会让**整段**套上楷体二级标题样式。小标题要么单独成行，要么不用二级、改用「一是/二是」写在正文段内。
