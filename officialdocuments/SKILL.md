@@ -1,6 +1,6 @@
 ---
 name: officialdocuments
-version: 2.4.0
+version: 2.4.1
 description: "起草、修改和排版央国企正式公文（请示、报告、通知、函件等）。"
 tags: [official-documents, 公文, 正式文档, 央国企, 报告]
 category: document
@@ -13,6 +13,8 @@ linked_files:
     - references/format-spec.md
     - references/checklist.md
     - references/vocabulary.md
+    - references/diff_docx_parts.md
+    - references/gongwen-draft-optimization.md
   scripts:
     - scripts/gb_gongwen.py
     - scripts/qa_docx.py
@@ -77,9 +79,11 @@ linked_files:
 | `references/workflow.md` | 起草流程与导出 |
 | `references/format-spec.md` | GB/T 9704-2012 排版参数 + 质量门 |
 | `references/checklist.md` | 发文前自检清单 |
+| `references/diff_docx_parts.md` | 包级修复后的「内容零影响」验证脚本与判定标准 |
+| `references/gongwen-draft-optimization.md` | **既有草稿「完整优化」工作流**（文件名/标题/正文）：前置审计→佐证提取→请示要素补齐清单→语病对照表→三行落款外科补行脚本→改动说明表交付 |
 | `scripts/gb_gongwen.py` | Word 排版引擎（纯 XML+zipfile） |
 | `scripts/qa_docx.py` | 产物质检工具（31 项自动化检查） |
-| `scripts/fix_theme_fonts.py` | 存量 docx 主题字体修复（MS 明朝/ja-JP） |
+| `scripts/fix_theme_fonts.py` | 存量 docx 主题字体修复（MS 明朝/ja-JP/裸 Courier） |
 
 ---
 
@@ -97,4 +101,11 @@ linked_files:
 - **项目特定约束**（如人员规模、部门名称、弹性措辞等）→ 查阅项目工作目录下的 `AGENTS.md`，不在本 skill 内维护。
 - **二级标题 >10 项必须验证编号**（2.3.2+）：脚本 `cn_num()` 支持 1-99 中文序号。生成后 grep `^\（\d+\）` 检查标题行，确认无 `（11）（12）` 残留（正文款项 `（1）` 属正常）。详见 `references/errors.md` 第九节缺陷4。
 - **MS 明朝是包级污染**（2.4.0+）：`gb_gongwen.py` 已显式输出 settings.xml/theme1.xml，东亚 ea 槽位非空、`themeFontLang=zh-CN`。**存量带雷 docx**（原文件自带，不只新增段）用 `python scripts/fix_theme_fonts.py "稿件.docx"` 原地修复（自动留 .bak）；qa_docx 新增「第三·五层」6 项拦截。详见 `references/errors.md` 第九节缺陷5。
+- **裸 Courier 缺字弹窗**（2.4.0+）：同一类包级字体污染——`styles.xml`/`fontTable.xml` 引用系统不存在的裸名 `Courier`（macro 样式），打开弹「是否替换为 Courier New」。`fix_theme_fonts.py` 已内置 `LEGACY_FONT_MAP` 一并消除（负向前瞻保护 `Courier New` 不被误改）。详见 `references/errors.md` 第九节缺陷5附带的雷。
+- **修复稿必须验证内容零影响**：对存量 docx 做任何包级修复前，先产出 `-o` 测试稿，用 `references/diff_docx_parts.md` 的比对脚本验证「非目标部件字节一致 + 正文段落逐字 diff 一致」，结果报告给用户、经目检确认后才原地修复原件。文件被 Word/WPS 占用时 zip 打开会报 "used by another process"，需先关闭。
+- **损坏/异常 docx 抢救**：批量扫描须捕获 `zipfile.BadZipFile`；按文件头 8 字节甄别空壳、macOS 资源叉、WPS 私有封装（`F1 03 F2 03 F3 03 F4 03`，需 COM 转档后补跑 `fix_theme_fonts.py`）、半截 zip（扫 `PK\x03\x04` 逐条重打包抢救）。详见 `references/errors.md` 第九节缺陷6。
+- **落款只支持两行，三行需外科补行**：`--author/--date` 生成「机关 / 日期」两行；不少单位的**部门请示**惯例是三行「机关 / 部门 / 日期」。对 `document.xml` 落款段做定点正则补 `<w:br/>`，`subn` 的命中数**必须断言 = 1**（防静默改错位置），补行后回读该段确认 `<w:br/>` 计数为 2。完整脚本见 `references/gongwen-draft-optimization.md`。
+- **主送机关会被缩进**：引擎给所有正文段加 `firstLine=640`，md 里的「公司领导：」也会被缩进；公文主送机关应**顶格**，需在补行脚本里一并去掉该段 `<w:ind>`。
+- **二级标题不可与正文同行**：`（一）小标题。正文……` 写在一行会让**整段**套上楷体二级标题样式。小标题要么单独成行，要么不用二级、改用「一是/二是」写在正文段内。
+- **起草/优化前先找「配套材料」**：同目录往往已有**采购需求单、先例请示、所涉制度**。草稿里的「大厦」「此合同」「相关规定」等含糊指代，能从这些材料坐实为具体名称/日期/文号/金额。请示缺**预算总额**、缺**标的概况**是硬伤——照需求单补齐，每个数字都要能在既有材料里指出来并在改动说明表中标注出处；拿不到出处的用 `XX` 占位并列入待确认。
 - **起草前先检索目标目录**：制度类任务开工前，先 `search_files` 目标目录下是否已有同名/近似制度稿（含"待审定""清洁版"等后缀）。用户既有稿件可能基于同一上位制度改写，先发现才能避免产出平行冲突稿。

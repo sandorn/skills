@@ -142,6 +142,15 @@ python scripts/fix_theme_fonts.py "稿件.docx" -o "修复稿.docx"
 > 而默认值可能随模板语言变化。涉及东亚字体必须**显式钉死 a:ea 槽位与 themeFontLang**，
 > 不能依赖 Word 回退。该雷影响整篇（含原文件段），属包级污染，逐段改 rFonts 治标不治本。
 
+#### 附带雷：裸 Courier 缺字弹窗（同一类包级字体污染，常并发）
+
+| 项目 | 内容 |
+|------|------|
+| **症状** | 打开 docx 弹「缺失 Courier 字体，是否替换为 Courier New」 |
+| **根因** | `styles.xml`/`fontTable.xml` 引用裸名 `Courier`（macro / Macro Text Char 样式 `w:ascii="Courier"`），系统只装 Courier New；fontTable 虽有 `altName=Courier New` 但 Word 仍弹窗 |
+| **修正** | `fix_theme_fonts.py` 内置 `LEGACY_FONT_MAP`（Courier→Courier New），负向前瞻 `(?![\w ])` 排除 `Courier New` 本身不被误改；跑一次脚本与 MS 明朝一并消除 |
+| **验证** | 全包正则复扫 `="Courier(?![\w ])"` 零命中 |
+
 ### 缺陷4：二级标题超过10项时退化为阿拉伯数字（gb_gongwen.py）
 
 | 项目 | 内容 |
@@ -202,4 +211,32 @@ for p in markdown_to_parts(open('稿件.md',encoding='utf-8').read()):
 ```
 
 看到非预期的 `!!RESET` 即为边界误判。**质检报错时先判断是文档问题还是检查器误报**——用负向样例（故意跳号）确认检查器仍有效，再决定改文档还是改脚本。
+
+### 缺陷6 / 陷阱：损坏与异常 docx 的甄别与恢复（批量修复必读）
+
+批量扫描大目录时（实测 ~680 个 docx），约 2% 是非 zip 的「假 docx」，扫描脚本必须捕获 `zipfile.BadZipFile` 异常跳过，否则整批中断。甄别靠**读文件头 8 字节**：
+
+| 文件头 | 类型 | 处理 |
+|--------|------|------|
+| `00 00...`（0 字节或全零） | 空壳/同步中断 | 确认无正常副本后删除（删除前重新实测，可能期间已被填充） |
+| `00 05 16 07` | macOS 资源叉垃圾（`__MACOSX\._xxx`） | 直接删除，真身在同级目录 |
+| `F1 03 F2 03 F3 03 F4 03` | WPS 加密/私有封装 | WPS COM `KWPS.Application` → `Documents.Open(path,$false,$true)` → `SaveAs2(out, 12)` 转标准 docx；转换稿沿用日文主题，**转换后必须再跑 fix_theme_fonts.py** |
+| `50 4B 03 04` 但报 "End of Central Directory record could not be found" | 半截 zip（写到一半被截断） | 本地文件头仍完整：扫 `PK\x03\x04` 逐条按 csize/method 解压重打包即可抢救全部内容（实测完整恢复 11 个部件含 48KB document.xml） |
+| 打开报 "used by another process" | 文件被 Word/WPS 占用 | 非损坏；让用户关闭后重试 |
+
+注意事项：
+
+- WPS COM 用 `KWPS.Application`（非 `WPS.Application`）；`Visible=false`、`DisplayAlerts=0` 防弹窗；
+- 恢复/转换产物命名 `_抢救_`/`_转换_` 前缀，验证内容完整并修复字体后**替换回原文件名**；
+- 批量修复流程：扫描 → 逐个 `.bak` 备份（已存在不覆盖）→ 修复 → **复扫验证通过才算成功** → 临时脚本用完即删。
+
+### 修复稿必须验证「内容零影响」
+
+对存量 docx 做任何包级修复（`fix_theme_fonts.py` 等）前，先产出 `-o` 测试稿，用 [`diff_docx_parts.md`](diff_docx_parts.md) 的比对脚本验证：
+
+- 部件清单前后无增减；
+- 非目标部件（除 `theme1.xml`/`settings.xml` 及命令行允许项外）字节完全一致；
+- `word/document.xml` 逐段 `<w:t>` 文本 diff 为空（实测 552 段零差异）。
+
+结果报告给用户、经目检确认后才原地修复原件。文件被 Word/WPS 占用时 zip 打开会报 "used by another process"，需先关闭。
 
