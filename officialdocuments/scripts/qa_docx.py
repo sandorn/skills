@@ -251,8 +251,19 @@ def _check_page(docx_path: Path) -> dict:
         if pgmar is None:
             return {"pass": False, "detail": "未找到 <w:pgMar>", "actual": {}}
         actual = {k: pgmar.get(f"{{{NS['w']}}}{k}", "") for k in PAGE_SPEC}
-        ok = all(actual.get(k) == v for k, v in PAGE_SPEC.items())
-        mismatches = [k for k in PAGE_SPEC if actual.get(k) != PAGE_SPEC[k]]
+        # 容差 ±2 twips：GB/T 9704 的厘米值换算成 twips 不是整数
+        # （如 3.5cm = 1984.25），WPS/Word 落盘时会取整成 1984 或 1985，
+        # 二者等价，不应判为不合规。
+        TOL = 2
+
+        def _near(x: str, y: str) -> bool:
+            try:
+                return abs(int(x) - int(y)) <= TOL
+            except (TypeError, ValueError):
+                return False
+
+        ok = all(_near(actual.get(k), v) for k, v in PAGE_SPEC.items())
+        mismatches = [k for k in PAGE_SPEC if not _near(actual.get(k), PAGE_SPEC[k])]
         return {
             "pass": ok,
             "detail": f"页边距{'正确' if ok else '不符合: ' + ', '.join(mismatches)}",
