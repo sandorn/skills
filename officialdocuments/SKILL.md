@@ -1,6 +1,6 @@
 ---
 name: officialdocuments
-version: 2.4.2
+version: 2.4.4
 description: "起草、修改和排版央国企正式公文（请示、报告、通知、函件等）。"
 tags: [official-documents, 公文, 正式文档, 央国企, 报告]
 category: document
