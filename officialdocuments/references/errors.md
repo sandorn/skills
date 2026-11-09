@@ -330,6 +330,68 @@ If para.Range.Information(wdWithInTable) Then GoTo ContinueLoop
 
 脚本写成「跑宏 → 核验 → 保存」时，核验段一旦抛 COM 异常（如对无第 2 行的表格调 `Tables(1).Cell(2,1)`），`Save` 就被跳过，文件仍是原件。**必须把保存紧跟在宏之后**，核验另起只读脚本。
 
+### 缺陷11：标题判据在流程内失效、单独调用却正常（`Trim` 不去 `Chr(13)`）
+
+**现象**：`1.母公司政策调整；`（10 字，正文列举项）跑宏后仍被套上「标题 4」，加粗并带 `outlineLvl=3`。但用 `Application.Run("IsHeadingText", "1.母公司政策调整；")` 单独求值，返回的却是 `False`。
+
+**根因**：`text = Trim(para.Range.Text)` —— `Range.Text` 末尾带**段落标记 `Chr(13)`**，而 VBA 的 `Trim` 只去空格 `Chr(32)`，**不吃控制字符**。于是：
+
+| 项目 | 单独 `Run` 传参 | 流程内取 `Range.Text` |
+|---|---|---|
+| 末尾字符 | `；` | `Chr(13)` |
+| `Len()` | 10 | 11 |
+| `Right(s,1)` 判据 | 命中「；」→ 排除 | 取到 `\r` → 判据整体失效 |
+
+这就是「函数逻辑对、结果不对」的根源：判据写错在**取值环节**，不在判据本身。`Len()` 长度阈值也因此多算 1 个字符。
+
+**修法（word.bas v2.7）**：函数入口先剥控制字符。
+
+```vba
+s = Replace(Replace(Replace(txt, Chr(13), ""), Chr(7), ""), Chr(12), "")
+s = Trim(s)
+```
+
+`识别公文标题` 里的 `text` 赋值同步清洗，避免同类问题。
+
+**排查口径**：判定「是判据错还是取值错」，把同一字符串**同时**用 `Application.Run` 传参和从 `Range.Text` 取，比对 `Len`；差 1 就是段落标记。**只看外部求值结果会误判为「宏没生效」**——本次就曾误判成「Application.Run 命中旧宏」，清进程重试数次无效，实为取值脏。
+
+**顺带**：`Application.Run` 确实会优先命中 `Normal.dotm` 的全局宏（见缺陷8 排查要点），但该机制不是本例根因，两种情况要分开证伪。
+
+### 缺陷12：标题判据只看「编号开头」，正文长条款污染文档大纲
+
+**现象**：`1.子公司应基于自身组织架构、岗位设置……报子公司管理委员会审批。`（60 余字）被识别为「标题 4」，导航窗格里冒出大段「三级标题」。视觉上加粗被 run 级 `b=0` 抵消，所以**看排版查不出来**，实际危害是 `outlineLvl=3` 让目录/导航结构失真。
+
+**根因**：判据只有 `^[0-9]+[、．.](?![0-9])`，只排除了小数（`1.5`），没排除长句。
+
+**修法（word.bas v2.5）**：新增 `IsHeadingText`，三级/四级标题须同时满足三条：
+
+```vba
+' 1) 长度 <= HEADING_TEXT_MAX（25 字）
+' 2) 末尾不是句读标点「；。，、：;」
+' 3) 剥掉段落标记后再判（见缺陷11）
+```
+
+一级（`一、`）、二级（`（一）`）标题同样接入该判据。
+
+**注意**：`识别公文标题` 只做「非标题→标题」的升级，**没有反向降级**。文档被跑过一遍后再跑第二遍，已被误判的段落会因 `isTitle=True` 走 `NextPara` 而保留原样式。**验证必须从原件备份重新跑**，在成品上重跑看不出去误效果。
+
+### 缺陷13：`heading 2` 用自动段间距，与「段前段后 0」规范冲突
+
+**现象**：一级标题上下多出空白，`styles.xml` 里 `heading 2` 是 `beforeAutospacing=1 / afterAutospacing=1`。
+
+**修法（word.bas v2.5）**：统一写入 `SpaceBefore=0 / SpaceAfter=0`，并显式关闭 `SpaceBeforeAuto / SpaceAfterAuto`。
+
+**验收**：跑宏后全文档不应再有 `beforeAutospacing="1"` 的标题段落。
+
+### 陷阱：`rFonts` 缺 `eastAsia` ≠ 渲染错了（`heading 5` 假缺陷）
+
+用 XML 查样式，`heading 5` 只有 `ascii/hAnsi`、没有 `eastAsia`，看起来像漏配；但 COM 读 `Range.Font.NameFarEast` 实为 **仿宋_GB2312**，渲染完全正确。
+
+**原因**：该样式 `basedOn` 指向 `Normal`（`eastAsia=仿宋_GB2312`），继承生效。**OM 层只把「与继承值不同」的属性落到样式 XML**，不写重复值才是正确做法。
+
+**结论**：判「字体是否合规」以 **COM 实测 `NameFarEast`** 为准，不要只凭 XML 缺省判缺陷。同类：`heading 2/3/4` 的 `firstLine` 为空也是继承 `Normal` 的 `firstLineChars=200`，非缺失。
+
+
 
 
 
